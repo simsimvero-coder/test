@@ -1,0 +1,659 @@
+const {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  AlignmentType, BorderStyle, WidthType, ShadingType, VerticalAlign,
+  Header, Footer, PageBreak, HeadingLevel, LevelFormat, CheckBox,
+  UnderlineType
+} = require('docx');
+const fs = require('fs');
+
+// ── Colour palette ───────────────────────────────────────────────
+const C = {
+  navy:       "1B2E4B",   // deep navy – main headers
+  navyMid:    "243C61",   // slightly lighter navy
+  navyLight:  "2E4F82",   // medium navy – section headers
+  gold:       "B8922A",   // gold – accents & borders
+  goldLight:  "D4A843",   // brighter gold
+  goldPale:   "F5EDD6",   // pale gold – bg tints
+  goldPaler:  "FBF7EE",   // very pale gold – alternating rows
+  cream:      "FDFAF4",   // near-white cream
+  white:      "FFFFFF",
+  textDark:   "1A1A1A",   // near-black body text
+  textMid:    "3D3D3D",   // medium body
+  textMuted:  "666655",   // muted labels
+  textGold:   "7A5F1A",   // dark gold for text on pale bg
+  textNavy:   "E8EFF8",   // light text on navy
+  border:     "C9A84C",   // gold border
+  borderMid:  "D4B86A",   // lighter gold border
+  borderSoft: "E8D9A0",   // very soft gold border
+  progressBg: "D6CAA0",   // progress bar background
+};
+
+// ── Helpers ──────────────────────────────────────────────────────
+const b  = (style, size, color, color2) => ({ style: style, size: size, color: color, color2 });
+const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+const noBorders = { top: nb, bottom: nb, left: nb, right: nb };
+
+function solidBorder(color = C.border, size = 4) {
+  const s = { style: BorderStyle.SINGLE, size, color };
+  return { top: s, bottom: s, left: s, right: s };
+}
+function bottomBorder(color = C.gold, size = 6) {
+  return { top: nb, bottom: { style: BorderStyle.SINGLE, size, color }, left: nb, right: nb };
+}
+
+function cell(children, opts = {}) {
+  const {
+    w = 1000, bg = C.white, borders = solidBorder(C.borderSoft, 2),
+    vAlign = VerticalAlign.CENTER, margins = { top: 80, bottom: 80, left: 140, right: 140 },
+    colSpan
+  } = opts;
+  const conf = {
+    borders, verticalAlign: vAlign,
+    width: { size: w, type: WidthType.DXA },
+    shading: { fill: bg, type: ShadingType.CLEAR },
+    margins,
+    children: Array.isArray(children) ? children : [children],
+  };
+  if (colSpan) conf.columnSpan = colSpan;
+  return new TableCell(conf);
+}
+
+function para(runs, opts = {}) {
+  const { align = AlignmentType.LEFT, spacing, border } = opts;
+  const conf = { alignment: align, children: Array.isArray(runs) ? runs : [runs] };
+  if (spacing) conf.spacing = spacing;
+  if (border) conf.border = border;
+  return new Paragraph(conf);
+}
+
+function run(text, opts = {}) {
+  return new TextRun({
+    text,
+    font: opts.serif ? "Palatino Linotype" : "Arial",
+    size: opts.size || 20,
+    bold: opts.bold || false,
+    italics: opts.italic || false,
+    color: opts.color || C.textDark,
+    underline: opts.underline ? { type: UnderlineType.SINGLE } : undefined,
+    allCaps: opts.caps || false,
+  });
+}
+
+// ── Data ─────────────────────────────────────────────────────────
+const FASEN = [
+  { id: 1, naam: "De Torah",                      color: "1B4332", accent: "2D6A4F", pale: "D8F3DC" },
+  { id: 2, naam: "Geschiedenis & Deuterocanoniek", color: "1B2E4B", accent: "2E4F82", pale: "D6E4F0" },
+  { id: 3, naam: "Wijsheid & Profeten",            color: "5C3317", accent: "8B4513", pale: "F5E6D3" },
+  { id: 4, naam: "Het Nieuwe Testament",           color: "4A1942", accent: "7B2D8B", pale: "F0D9F5" },
+];
+
+const weeks = [
+  // ── Fase 1: Torah ──
+  { week:1, fase:1, boeken:"Genesis 1–25", thema:"Schepping, val en de aartsvaders",
+    dagen:[
+      { dag:"Ma", tekst:"Genesis 1–3",   vraag:"Wat zegt het scheppingsverhaal over wie God is — en wie jij bent?" },
+      { dag:"Di", tekst:"Genesis 4–7",   vraag:"Kaïn en Abel: waar herken jij je eigen jaloezie of vluchtgedrag?" },
+      { dag:"Wo", tekst:"Genesis 8–11",  vraag:"Na de vloed sluit God een verbond. Welk verbond heb jij met God?" },
+      { dag:"Do", tekst:"Genesis 12–15", vraag:"Abraham verlaat alles op Gods roep. Wat zou jij moeilijk achter moeten laten?" },
+      { dag:"Vr", tekst:"Genesis 16–19", vraag:"Hagar noemt God 'El-Roi' — de God die ziet. Wanneer voelde jij je gezien door God?" },
+      { dag:"Za", tekst:"Genesis 20–22", vraag:"De offerande van Isaak: wat vraagt God van jou dat moeilijk voelt?" },
+      { dag:"Zo", tekst:"Genesis 23–25", vraag:"Rustdag ✦ Herleest één passage die je raakte. Draag hem mee naar de liturgie." },
+    ]},
+  { week:2, fase:1, boeken:"Genesis 26–50", thema:"Jakob, Jozef en Gods trouw door lijden heen",
+    dagen:[
+      { dag:"Ma", tekst:"Genesis 26–28", vraag:"Jakob bedriegt zijn vader. Hoe werkt God door gebroken mensen heen?" },
+      { dag:"Di", tekst:"Genesis 29–31", vraag:"Jakob werkt 14 jaar voor Rachel. Wat heb jij lang en geduldig nagestreefd?" },
+      { dag:"Wo", tekst:"Genesis 32–34", vraag:"Jakob worstelt met God. Met welke vraag worstel jij met God?" },
+      { dag:"Do", tekst:"Genesis 35–37", vraag:"Jozef wordt verraden door zijn broers. Heb jij ooit iemand verraden — of vergeven?" },
+      { dag:"Vr", tekst:"Genesis 38–41", vraag:"Jozef gaat van put naar gevangenis naar paleis. Hoe bleef hij gelovig in het donker?" },
+      { dag:"Za", tekst:"Genesis 42–45", vraag:"Verzoening met zijn broers — wat maakt verzoening in jouw leven mogelijk?" },
+      { dag:"Zo", tekst:"Genesis 46–50", vraag:"Rustdag ✦ 'Jullie dachten kwaad, God dacht goed.' Geloof jij dit over jouw leven?" },
+    ]},
+  { week:3, fase:1, boeken:"Exodus 1–20", thema:"Bevrijding en de wet van de Sinaï",
+    dagen:[
+      { dag:"Ma", tekst:"Exodus 1–3",   vraag:"God spreekt vanuit een brandend struikgewas. Hoe spreekt God tot jou?" },
+      { dag:"Di", tekst:"Exodus 4–6",   vraag:"Mozes voelt zich onbekwaam. Wanneer voelde jij je onbekwaam voor wat God vroeg?" },
+      { dag:"Wo", tekst:"Exodus 7–10",  vraag:"Farao's hart verhardt. Hoe kan jouw hart verharden zonder dat je het merkt?" },
+      { dag:"Do", tekst:"Exodus 11–13", vraag:"Het Pascha: bloed op de deurpost. Wat betekent het Pascha voor jou als christen?" },
+      { dag:"Vr", tekst:"Exodus 14–16", vraag:"Door de Rode Zee — en daarna meteen gemor. Herken je dit patroon in jezelf?" },
+      { dag:"Za", tekst:"Exodus 17–19", vraag:"Water en manna in de woestijn. Wat geeft God jou als je uitgeput bent?" },
+      { dag:"Zo", tekst:"Exodus 20",    vraag:"Rustdag ✦ Lees de Tien Geboden langzaam. Welk gebod vraagt nu aandacht?" },
+    ]},
+  { week:4, fase:1, boeken:"Exodus 21–40", thema:"De wet, de tabernakel en het gouden kalf",
+    dagen:[
+      { dag:"Ma", tekst:"Exodus 21–24", vraag:"De wetten gaan over samenleven. Hoe vertaal jij Gods wet naar jouw dagelijkse leven?" },
+      { dag:"Di", tekst:"Exodus 25–28", vraag:"Gedetailleerde beschrijvingen van de tabernakel. Wat zegt dit over God en schoonheid?" },
+      { dag:"Wo", tekst:"Exodus 29–31", vraag:"God wijdt priesters in. Jij bent gedoopt — wat betekent jouw 'koninklijk priesterschap'?" },
+      { dag:"Do", tekst:"Exodus 32–34", vraag:"Het gouden kalf: het volk maakt God naar eigen beeld. Doe jij dat ook wel eens?" },
+      { dag:"Vr", tekst:"Exodus 35–37", vraag:"Het volk geeft vrijwillig voor de tabernakel. Wat geef jij vrijwillig aan God?" },
+      { dag:"Za", tekst:"Exodus 38–40", vraag:"Gods heerlijkheid vult de tabernakel. Wanneer heb jij Gods aanwezigheid gevoeld?" },
+      { dag:"Zo", tekst:"Leviticus 1–3", vraag:"Rustdag ✦ Offers gaan over toewijding. Wat wijd jij toe aan God vandaag?" },
+    ]},
+  { week:5, fase:1, boeken:"Leviticus 4–27", thema:"Heiligheid en de levenswijze van Gods volk",
+    dagen:[
+      { dag:"Ma", tekst:"Leviticus 4–7",   vraag:"Schuld- en zondeoffers: hoe verwerk jij schuld in jouw geloofsleven?" },
+      { dag:"Di", tekst:"Leviticus 8–11",  vraag:"Rein en onrein: wat scheidt jou vandaag van het heilige?" },
+      { dag:"Wo", tekst:"Leviticus 12–15", vraag:"Wat heeft jou 'verontreinigd' — en hoe vind jij reinheid voor God?" },
+      { dag:"Do", tekst:"Leviticus 16–18", vraag:"Grote Verzoendag: Christus als hogepriester — wat betekent dit voor jou?" },
+      { dag:"Vr", tekst:"Leviticus 19–21", vraag:"'Wees heilig, want Ik ben heilig.' Wat betekent heiligheid in jouw dagelijks leven?" },
+      { dag:"Za", tekst:"Leviticus 22–24", vraag:"Feesten en sabbatten: heeft jouw leven een heilig ritme?" },
+      { dag:"Zo", tekst:"Leviticus 25–27", vraag:"Rustdag ✦ Het jubeljaar — bevrijding en herstel. Wat heeft herstel nodig in jouw leven?" },
+    ]},
+  { week:6, fase:1, boeken:"Numeri & Deuteronomium 1–11", thema:"De woestijnjaren en het eerste deel van Mozes' afscheidsrede",
+    dagen:[
+      { dag:"Ma", tekst:"Numeri 1–4",        vraag:"Het volk wordt geteld. Wat betekent het dat God jou bij naam kent?" },
+      { dag:"Di", tekst:"Numeri 11–14",      vraag:"Het volk weigert het beloofde land uit angst. Hoe ga jij om met angst?" },
+      { dag:"Wo", tekst:"Numeri 20–22",      vraag:"Mozes slaat op de rots en mag het land niet in. Hoe ga jij om met je eigen falen?" },
+      { dag:"Do", tekst:"Numeri 27–30",      vraag:"Jozua wordt aangewezen als opvolger. Welke taak draag jij over aan anderen?" },
+      { dag:"Vr", tekst:"Deuteronomium 1–4", vraag:"Mozes blikt terug op Gods trouw. Hoe kijk jij terug op Gods trouw in jouw leven?" },
+      { dag:"Za", tekst:"Deuteronomium 5–8", vraag:"'Hoor, Israël' (Sjema): hoe luister jij naar God in het dagelijkse leven?" },
+      { dag:"Zo", tekst:"Deuteronomium 9–11",vraag:"Rustdag ✦ 'Niet omdat jij rechtvaardig bent…' — wat betekent genade voor jou?" },
+    ]},
+  { week:7, fase:1, boeken:"Deuteronomium 12–34", thema:"Mozes' zegen, lied en dood",
+    dagen:[
+      { dag:"Ma", tekst:"Deuteronomium 12–16", vraag:"Wetten over aanbidding: hoe aanbid jij God in geest en waarheid?" },
+      { dag:"Di", tekst:"Deuteronomium 17–21", vraag:"Over koningen en rechters: hoe kijk jij naar gezag en leiderschap?" },
+      { dag:"Wo", tekst:"Deuteronomium 22–26", vraag:"Zorg voor de zwakke naaste — wie is nu jouw zwakke naaste?" },
+      { dag:"Do", tekst:"Deuteronomium 27–30", vraag:"Zegen en vloek worden gesteld. Welke weg kies jij vandaag?" },
+      { dag:"Vr", tekst:"Deuteronomium 31–32", vraag:"Het lied van Mozes: zingt jouw leven een lied tot eer van God?" },
+      { dag:"Za", tekst:"Deuteronomium 33–34", vraag:"Mozes sterft zonder het beloofde land in te gaan. Wat draag jij over aan de volgende generatie?" },
+      { dag:"Zo", tekst:"Jozua 1–3",           vraag:"Rustdag ✦ 'Wees sterk en moedig.' Waar heb jij moed voor nodig?" },
+    ]},
+  // ── Fase 2 ──
+  { week:8, fase:2, boeken:"Jozua 4 – Richteren 21", thema:"Het beloofde land en de cyclus van afval",
+    dagen:[
+      { dag:"Ma", tekst:"Jozua 4–8",      vraag:"De gedenkstenen van Gilgal: welke momenten van Gods trouw wil jij niet vergeten?" },
+      { dag:"Di", tekst:"Jozua 9–14",     vraag:"Verdeling van het land: hoe verdeel jij jouw tijd en aandacht voor God en naaste?" },
+      { dag:"Wo", tekst:"Jozua 23–24",    vraag:"'Ik en mijn huis zullen de Heer dienen.' Hoe ziet dit eruit in jouw huishouden?" },
+      { dag:"Do", tekst:"Richteren 1–4",  vraag:"De cyclus: afval → onderdrukking → roepen → redding. Herken jij dit in je eigen leven?" },
+      { dag:"Vr", tekst:"Richteren 6–8",  vraag:"Gideon voelt zich de minste. God gebruikt hem toch. Hoe kijk jij naar je eigen beperkingen?" },
+      { dag:"Za", tekst:"Richteren 13–16",vraag:"Simson: groot talent, klein geloof. Hoe gebruik jij jouw gaven voor God?" },
+      { dag:"Zo", tekst:"Richteren 17–21",vraag:"Rustdag ✦ Chaos zonder richting. Wat houdt jouw leven gericht op God?" },
+    ]},
+  { week:9, fase:2, boeken:"Ruth – 1 Samuël 15", thema:"Trouw, roeping en het begin van het koningschap",
+    dagen:[
+      { dag:"Ma", tekst:"Ruth 1–2",       vraag:"Ruth verlaat alles voor Naomi. Welke loyaliteit vraagt God van jou?" },
+      { dag:"Di", tekst:"Ruth 3–4",       vraag:"Boaz als losser — hoe zie jij Christus' verlossingswerk in dit verhaal?" },
+      { dag:"Wo", tekst:"1 Samuël 1–3",  vraag:"Hanna bidt vanuit diep verdriet. Hoe bid jij wanneer je pijn voelt?" },
+      { dag:"Do", tekst:"1 Samuël 4–7",  vraag:"De ark verloren en teruggevonden. Wat is voor jou het heilige dat je kwijtraakte?" },
+      { dag:"Vr", tekst:"1 Samuël 8–10", vraag:"Het volk wil een koning. Wanneer kies jij voor een menselijke oplossing in plaats van God?" },
+      { dag:"Za", tekst:"1 Samuël 11–13",vraag:"Saul faalt omdat hij niet wacht op God. Hoe geduldig ben jij met Gods timing?" },
+      { dag:"Zo", tekst:"1 Samuël 14–15",vraag:"Rustdag ✦ 'Gehoorzaamheid is beter dan offers.' Waar ben jij ongehoorzaam aan God?" },
+    ]},
+  { week:10, fase:2, boeken:"1 Samuël 16 – 2 Samuël 12", thema:"David: het hart naar God",
+    dagen:[
+      { dag:"Ma", tekst:"1 Samuël 16–17", vraag:"God ziet het hart, niet het uiterlijk. Hoe kijk jij naar anderen?" },
+      { dag:"Di", tekst:"1 Samuël 18–20", vraag:"Jonatan en David: vriendschap als genade van God. Wie is jouw Jonatan?" },
+      { dag:"Wo", tekst:"1 Samuël 24–26", vraag:"David spaart zijn vijand Saul. Hoe ga jij om met mensen die jou kwaad doen?" },
+      { dag:"Do", tekst:"2 Samuël 1–5",   vraag:"David rouwt oprecht om zijn vijand. Hoe rouwt jij — eerlijk en zonder masker?" },
+      { dag:"Vr", tekst:"2 Samuël 6–8",   vraag:"David danst voor de ark. Hoe vrij ben jij in jouw aanbidding van God?" },
+      { dag:"Za", tekst:"2 Samuël 9–10",  vraag:"David toont genade aan Mefiboset. Aan wie toon jij onverdiende genade?" },
+      { dag:"Zo", tekst:"2 Samuël 11–12", vraag:"Rustdag ✦ David en Batseba. Hoe eerlijk ben jij voor God over jouw zonden?" },
+    ]},
+  { week:11, fase:2, boeken:"2 Samuël 13 – 1 Koningen 11", thema:"Davids val en Salomo's wijsheid en afdwaling",
+    dagen:[
+      { dag:"Ma", tekst:"2 Samuël 13–15",  vraag:"Geweld in Davids huis: zonde heeft gevolgen. Welke gevolgen zie jij in jouw leven?" },
+      { dag:"Di", tekst:"2 Samuël 18–22",  vraag:"David zingt na zijn redding. Schrijf of bid jouw eigen danklied aan God." },
+      { dag:"Wo", tekst:"1 Koningen 1–4",  vraag:"Salomo vraagt om wijsheid, niet rijkdom. Waar bid jij om als God het vraagt?" },
+      { dag:"Do", tekst:"1 Koningen 5–8",  vraag:"De tempelwijding — een moment van diepe Godsnabijheid. Wanneer was jij zo dicht bij God?" },
+      { dag:"Vr", tekst:"1 Koningen 9–10", vraag:"Salomo's rijkdom en roem. Hoe ga jij om met succes en aanzien?" },
+      { dag:"Za", tekst:"1 Koningen 11",   vraag:"Salomo's hart wendt zich af van God. Hoe bescherm jij je eigen hart?" },
+      { dag:"Zo", tekst:"1 Koningen 12–14",vraag:"Rustdag ✦ Het koninkrijk scheurt. Hoe draag jij bij aan eenheid in de kerk?" },
+    ]},
+  { week:12, fase:2, boeken:"1 Koningen 15 – 2 Koningen 17", thema:"Elia, Elisa en de ondergang van Israël",
+    dagen:[
+      { dag:"Ma", tekst:"1 Koningen 18–19", vraag:"Elia uitgeput na zijn overwinning. Hoe zorgt God voor jou in totale uitputting?" },
+      { dag:"Di", tekst:"1 Koningen 21–22", vraag:"Nabots wijngaard — onrecht door macht. Hoe sta jij op voor gerechtigheid?" },
+      { dag:"Wo", tekst:"2 Koningen 2–5",   vraag:"Elisa neemt de mantel van Elia over. Welk gelovig voorbeeld volg jij?" },
+      { dag:"Do", tekst:"2 Koningen 6–8",   vraag:"'Er zijn meer bij ons dan bij hen.' Waarvoor opent God jouw ogen?" },
+      { dag:"Vr", tekst:"2 Koningen 11–13", vraag:"Joas herstelt de tempel. Wat in jouw geloofsleven heeft herstel nodig?" },
+      { dag:"Za", tekst:"2 Koningen 14–17", vraag:"Israël gaat in ballingschap. Wat zijn de gevolgen van langdurige ongehoorzaamheid?" },
+      { dag:"Zo", tekst:"2 Koningen 18–20", vraag:"Rustdag ✦ Hizkia bidt en God geneest. Bid vandaag voor wat jou al lang bezighoudt." },
+    ]},
+  { week:13, fase:2, boeken:"2 Koningen 21 – Ezra 5", thema:"Ballingschap, reformatie en het begin van de terugkeer",
+    dagen:[
+      { dag:"Ma", tekst:"2 Koningen 22–25",  vraag:"Josia vindt het wetboek en rouwt. Wat zou jou tot rouw brengen als je het opnieuw las?" },
+      { dag:"Di", tekst:"1 Kronieken 1–9",   vraag:"Lange geslachtsregisters: jouw naam staat in Gods boek. Wat betekent dat voor jou?" },
+      { dag:"Wo", tekst:"1 Kronieken 10–16", vraag:"David brengt de ark naar Jeruzalem. Hoe maak jij ruimte voor Gods aanwezigheid thuis?" },
+      { dag:"Do", tekst:"2 Kronieken 1–9",   vraag:"De tempelwijding opnieuw: hoe creëer jij een heilige ruimte voor God?" },
+      { dag:"Vr", tekst:"2 Kronieken 29–32", vraag:"Hizkia reinigt de tempel. Wat in jouw leven moet gezuiverd worden?" },
+      { dag:"Za", tekst:"2 Kronieken 34–36", vraag:"Het einde van Juda. Hoe kijk jij naar het einde van een tijdperk in jouw leven?" },
+      { dag:"Zo", tekst:"Ezra 1–5",          vraag:"Rustdag ✦ Terugkeer uit ballingschap. Wat keert in jou terug na een periode van afstand van God?" },
+    ]},
+  { week:14, fase:2, boeken:"Ezra 6 – Job 21", thema:"Herstel, gebed en het begin van Jobs lijden",
+    dagen:[
+      { dag:"Ma", tekst:"Ezra 6–10",    vraag:"Ezra belijdt de zonde van het volk als zijn eigen zonde. Hoe bid jij voor jouw gemeenschap?" },
+      { dag:"Di", tekst:"Nehemia 1–4",  vraag:"Nehemia bouwt de muur ondanks tegenstand. Wat bouw jij ondanks weerstand?" },
+      { dag:"Wo", tekst:"Nehemia 8–10", vraag:"Het volk hoort de wet en huilt. Wanneer heeft Gods woord jou diep geraakt?" },
+      { dag:"Do", tekst:"Ester 1–5",    vraag:"Ester: 'Als ik omkom, omkom ik.' Welk risico neemt jij voor God?" },
+      { dag:"Vr", tekst:"Ester 6–10",   vraag:"God wordt niet genoemd in Ester maar werkt door alles heen. Waar zie jij dit in je leven?" },
+      { dag:"Za", tekst:"Job 1–10",     vraag:"Job verliest alles. Hoe reageer jij als alles wegvalt?" },
+      { dag:"Zo", tekst:"Job 11–21",    vraag:"Rustdag ✦ Jobs vrienden geven verkeerde antwoorden. Hoe troost jij iemand in lijden?" },
+    ]},
+  { week:15, fase:2, boeken:"Tobit – 2 Makkabeeën", thema:"De deuterocanonieke geschiedenisboeken (orthodox canon)",
+    dagen:[
+      { dag:"Ma", tekst:"Tobit 1–7",                      vraag:"Tobit blijft trouw aan God terwijl hij blind is. Hoe houd jij geloof vast als je niets ziet?" },
+      { dag:"Di", tekst:"Tobit 8–14",                     vraag:"De engel Rafaël begeleidt Tobias zonder zich te onthullen. Waar werkte God verborgen in jouw leven?" },
+      { dag:"Wo", tekst:"Judit 1–8",                      vraag:"Judit bereidt zich voor in gebed en vasten. Hoe bereid jij je voor op een moeilijke taak?" },
+      { dag:"Do", tekst:"Judit 9–16",                     vraag:"Een kwetsbare vrouw verslaat een machtig leger door op God te vertrouwen. Wanneer deed God zoiets in jouw leven?" },
+      { dag:"Vr", tekst:"1 Makkabeeën 1–4",               vraag:"Het volk lijdt voor het bewaren van de wet. Waarvoor zou jij bereid zijn te lijden?" },
+      { dag:"Za", tekst:"1 Makk. 9–16 & 2 Makk. 7",      vraag:"De zeven broers sterven als martelaren. Hoe sterk is jouw geloof onder druk?" },
+      { dag:"Zo", tekst:"2 Makkabeeën 12–15",             vraag:"Rustdag ✦ Gebed voor de doden (2 Makk. 12). Bid vandaag voor wie jij hebt verloren." },
+    ]},
+  // ── Fase 3 ──
+  { week:16, fase:3, boeken:"Job 22 – Psalm 72", thema:"Gods antwoord op lijden en de vroege Psalmen",
+    dagen:[
+      { dag:"Ma", tekst:"Job 22–31",   vraag:"Job verdedigt zijn integriteit voor God. Hoe eerlijk ben jij tegenover God over jouw pijn?" },
+      { dag:"Di", tekst:"Job 38–42",   vraag:"God spreekt vanuit de storm. Wat verandert er als jij je eigen kleinheid beseft?" },
+      { dag:"Wo", tekst:"Psalm 1–10",  vraag:"Psalm 1: de weg van de rechtvaardige en van de goddeloze. Welke weg bewandel jij?" },
+      { dag:"Do", tekst:"Psalm 22–24", vraag:"Psalm 22 is Christus' kruiskreet. Hoe bid jij vanuit verlatenheid?" },
+      { dag:"Vr", tekst:"Psalm 30–34", vraag:"'In uw handen beveel ik mijn geest.' Hoe geef jij je leven daadwerkelijk in Gods handen?" },
+      { dag:"Za", tekst:"Psalm 42–46", vraag:"'Mijn ziel dorst naar U.' Wanneer verlangde jij het meest naar God?" },
+      { dag:"Zo", tekst:"Psalm 51–56", vraag:"Rustdag ✦ Psalm 51 — boetepsalm van David. Bid hem vandaag als jouw eigen gebed." },
+    ]},
+  { week:17, fase:3, boeken:"Psalm 73 – Spreuken 15", thema:"Vertrouwen in donkerte en beginnerwijsheid",
+    dagen:[
+      { dag:"Ma", tekst:"Psalm 73–77",   vraag:"Psalm 73: de dichter twijfelt als de goddelozen het goed hebben. Ken jij deze twijfel?" },
+      { dag:"Di", tekst:"Psalm 90–95",   vraag:"Psalm 90: ons leven is als gras. Hoe ga jij om met de vergankelijkheid van je leven?" },
+      { dag:"Wo", tekst:"Psalm 103–106", vraag:"Psalm 103: al mijn binnenste loof God. Waarvoor ben jij vandaag oprecht dankbaar?" },
+      { dag:"Do", tekst:"Psalm 119 (א–כ)",vraag:"Het langste hoofdstuk over Gods woord. Welk vers raakt jou vandaag het diepst?" },
+      { dag:"Vr", tekst:"Psalm 119 (ל–ת)",vraag:"Welk vers in Psalm 119 wil jij van buiten leren?" },
+      { dag:"Za", tekst:"Psalm 139–145", vraag:"Psalm 139: 'U kent mij door en door.' Wat is jouw reactie op dit diepe gekend-zijn?" },
+      { dag:"Zo", tekst:"Spreuken 1–5",  vraag:"Rustdag ✦ Wijsheid begint bij ontzag voor God. Hoe leef jij met heilig ontzag?" },
+    ]},
+  { week:18, fase:3, boeken:"Wijsheid van Salomo – Baruch", thema:"De deuterocanonieke wijsheidsboeken (orthodox canon)",
+    dagen:[
+      { dag:"Ma", tekst:"Wijsheid 1–5",      vraag:"De rechtvaardige lijdt maar wordt door God bewaard. Hoe ga jij om met onverdiend lijden?" },
+      { dag:"Di", tekst:"Wijsheid 7–11",     vraag:"Wijsheid wordt als een bruid gezocht. Hoe zoek jij actief naar Gods wijsheid?" },
+      { dag:"Wo", tekst:"Wijsheid 13–19",    vraag:"De dwaasheid van afgoderij: wat zijn de moderne afgoden in jouw leven?" },
+      { dag:"Do", tekst:"Sirach 1–10",       vraag:"'Ontzag voor God is het begin van wijsheid.' Hoe leef jij concreet met heilig ontzag?" },
+      { dag:"Vr", tekst:"Sirach 24–30",      vraag:"Sirach 24 over de wijsheid als vrouw — hoe herken jij Christus hierin als Logos?" },
+      { dag:"Za", tekst:"Sirach 38–44",      vraag:"Lofzang op de vaderen: welke gelovige voorgangers inspireren jou het meest?" },
+      { dag:"Zo", tekst:"Baruch 1–6",        vraag:"Rustdag ✦ Baruch roept op tot terugkeer. Van welke afdwaling wil jij terugkeren naar God?" },
+    ]},
+  { week:19, fase:3, boeken:"Spreuken 16 – Jesaja 12", thema:"Wijsheid voor het leven en de grote profeet",
+    dagen:[
+      { dag:"Ma", tekst:"Spreuken 16–20",        vraag:"Kies één spreuk die jou raakt. Hoe pas jij hem vandaag concreet toe?" },
+      { dag:"Di", tekst:"Spreuken 31 & Pred. 1–4",vraag:"Prediker: alles is ijdelheid. Wat is werkelijk waardevol in jouw leven?" },
+      { dag:"Wo", tekst:"Prediker 9–12",          vraag:"'Vrees God en onderhoud zijn geboden.' Hoe ziet dat er concreet uit voor jou?" },
+      { dag:"Do", tekst:"Hooglied 1–4",           vraag:"De liefde van God voor zijn volk als bruidegom en bruid. Hoe ervaar jij Gods liefde?" },
+      { dag:"Vr", tekst:"Jesaja 1–4",             vraag:"Jesaja ziet de troon van God. Hoe reageer jij als jij Gods heiligheid overweegt?" },
+      { dag:"Za", tekst:"Jesaja 6–9",             vraag:"'Zend mij.' Waarheen zou God jou willen zenden?" },
+      { dag:"Zo", tekst:"Jesaja 10–12",           vraag:"Rustdag ✦ De vredevorst (Jes. 9). Bid voor vrede — in jezelf, thuis, in de wereld." },
+    ]},
+  { week:20, fase:3, boeken:"Jesaja 40 – Jeremia 20", thema:"Troost voor ballingen en de treurende profeet",
+    dagen:[
+      { dag:"Ma", tekst:"Jesaja 40–43", vraag:"'Troost mijn volk.' Hoe troost jij de mensen om je heen in hun verdriet?" },
+      { dag:"Di", tekst:"Jesaja 52–55", vraag:"Jesaja 53: de lijdende dienaar. Hoe lees jij dit hoofdstuk als christen?" },
+      { dag:"Wo", tekst:"Jesaja 60–66", vraag:"Het nieuwe Jeruzalem. Waar verlang jij het meest naar in de nieuwe schepping?" },
+      { dag:"Do", tekst:"Jeremia 1–4",  vraag:"Jeremia wordt geroepen als jong kind. Hoe en wanneer riep God jou?" },
+      { dag:"Vr", tekst:"Jeremia 7–10", vraag:"Het volk bezoekt de tempel maar leeft anders. Is jouw geloof ook soms uiterlijk vertoon?" },
+      { dag:"Za", tekst:"Jeremia 15–17",vraag:"Jeremia klaagt openlijk bij God. Hoe eerlijk ben jij in jouw klachten aan God?" },
+      { dag:"Zo", tekst:"Jeremia 29–31",vraag:"Rustdag ✦ 'Ik ken de plannen die Ik voor u heb.' Bid dit vers als jouw persoonlijk gebed." },
+    ]},
+  { week:21, fase:3, boeken:"Jeremia 32 – Ezechiël 18", thema:"Het nieuwe verbond en Gods heerlijkheid",
+    dagen:[
+      { dag:"Ma", tekst:"Jeremia 32–36",  vraag:"Het nieuwe verbond: Gods wet in het hart. Hoe draag jij de wet in je hart?" },
+      { dag:"Di", tekst:"Klaagl. 1–3",    vraag:"Midden in de klacht: 'Groot is uw trouw.' Wat houd jij vast in je donkerste momenten?" },
+      { dag:"Wo", tekst:"Ezechiël 1–3",   vraag:"Ezechiël ziet Gods rijdende troon. Hoe stel jij je Gods majesteit voor?" },
+      { dag:"Do", tekst:"Ezechiël 8–11",  vraag:"Gods heerlijkheid verlaat de tempel. Wanneer voelde jij afstand van God?" },
+      { dag:"Vr", tekst:"Ezechiël 16–17", vraag:"God vergelijkt Israël met een ontrouwe vrouw. Hoe ben jij trouw aan God?" },
+      { dag:"Za", tekst:"Ezechiël 18",    vraag:"Ieder draagt zijn eigen schuld. Hoe neem jij persoonlijk verantwoordelijkheid?" },
+      { dag:"Zo", tekst:"Ezechiël 36–37", vraag:"Rustdag ✦ De droge beenderen leven op. Bid voor wat dood lijkt in jouw leven." },
+    ]},
+  { week:22, fase:3, boeken:"Daniël – Maleachi", thema:"Toekomst, hoop en Gods laatste woord in het OT",
+    dagen:[
+      { dag:"Ma", tekst:"Daniël 1–6",              vraag:"Daniël blijft integer in een vreemde cultuur. Hoe doe jij dat in jouw omgeving?" },
+      { dag:"Di", tekst:"Daniël 7–12",             vraag:"Apocalyptische visioenen: hoe ga jij om met onzekerheid over de toekomst?" },
+      { dag:"Wo", tekst:"Hosea 1–6 & Joël 1–3",   vraag:"Hosea trouwt met een ontrouwe vrouw als teken van Gods liefde. Wat zegt dit over God?" },
+      { dag:"Do", tekst:"Amos 1–9 & Obadja",       vraag:"Amos: gerechtigheid als een stroom. Hoe zet jij je in voor rechtvaardigheid?" },
+      { dag:"Vr", tekst:"Jona 1–4 & Micha 1–7",   vraag:"Jona vlucht voor Gods roep. Wanneer vluchtte jij van wat God van jou vroeg?" },
+      { dag:"Za", tekst:"Nahum, Habakuk & Sefanja",vraag:"Habakuk vraagt 'hoe lang nog?' Hoe bid jij in tijden van onrecht en wachten?" },
+      { dag:"Zo", tekst:"Haggaï, Zacharia & Maleachi",vraag:"Rustdag ✦ Maleachi eindigt met een belofte. God zwijgt 400 jaar. Hoe ga jij om met Gods stilte?" },
+    ]},
+  // ── Fase 4 ──
+  { week:23, fase:4, boeken:"Matteüs 1 – Lucas 12", thema:"Jezus: de Messias is gekomen",
+    dagen:[
+      { dag:"Ma", tekst:"Matteüs 1–5",  vraag:"De Bergrede: welke zaligsprijzing treft jou het meest — en waarom?" },
+      { dag:"Di", tekst:"Matteüs 6–10", vraag:"'Zoek eerst het Koninkrijk.' Wat staat er bij jou vóór het Koninkrijk van God?" },
+      { dag:"Wo", tekst:"Matteüs 14–18",vraag:"Petrus loopt over het water maar zinkt. Wanneer zakte jij weg door twijfel?" },
+      { dag:"Do", tekst:"Matteüs 26–28",vraag:"Het lijden en de opstanding. Wat raakt jou vandaag het meest in dit heilige verhaal?" },
+      { dag:"Vr", tekst:"Marcus 1–6",   vraag:"Marcus: direct en krachtig. Welk wonder van Jezus raakt jou vandaag het sterkst?" },
+      { dag:"Za", tekst:"Lucas 1–4",    vraag:"Maria's lied (Magnificat): hoe zingt jouw leven de lof van God?" },
+      { dag:"Zo", tekst:"Lucas 10–12",  vraag:"Rustdag ✦ De barmhartige Samaritaan. Wie is jouw naaste die jij soms onbewust passeert?" },
+    ]},
+  { week:24, fase:4, boeken:"Lucas 13 – Johannes 12", thema:"Gelijkenissen, tekenen en het licht der wereld",
+    dagen:[
+      { dag:"Ma", tekst:"Lucas 15–17",  vraag:"De verloren zoon: ben jij meer de jongste of de oudste zoon in dit verhaal — en waarom?" },
+      { dag:"Di", tekst:"Lucas 22–24",  vraag:"De Emmaüsgangers: wanneer herkende jij Jezus 'in het breken van het brood'?" },
+      { dag:"Wo", tekst:"Johannes 1–4", vraag:"Jezus en de Samaritaanse vrouw: welk 'levend water' verlang jij het meest?" },
+      { dag:"Do", tekst:"Johannes 6–8", vraag:"'Ik ben het brood des levens.' Hoe voedt Christus jou elke dag?" },
+      { dag:"Vr", tekst:"Johannes 9–10",vraag:"De goede Herder kent zijn schapen bij naam. Hoe ervaar jij dit diepe gekend-zijn?" },
+      { dag:"Za", tekst:"Johannes 11",  vraag:"Jezus weent bij het graf van Lazarus. God is niet onbewogen door jouw verdriet. Geloof jij dit?" },
+      { dag:"Zo", tekst:"Johannes 13–15",vraag:"Rustdag ✦ 'Blijf in Mij.' Hoe blijf jij bewust verbonden met Christus vandaag?" },
+    ]},
+  { week:25, fase:4, boeken:"Johannes 16 – Handelingen 15", thema:"De Geest, Pinksteren en de jonge kerk",
+    dagen:[
+      { dag:"Ma", tekst:"Johannes 17–21",  vraag:"Het hogepriesterlijk gebed: Jezus bidt persoonlijk voor jou. Wat betekent dat?" },
+      { dag:"Di", tekst:"Handelingen 1–4", vraag:"Pinksteren: de Geest daalt neer. Hoe werkt de Heilige Geest concreet in jouw leven?" },
+      { dag:"Wo", tekst:"Handelingen 5–8", vraag:"Stefanus sterft als martelaar. Hoe sterk is jouw geloof als het echt wat kost?" },
+      { dag:"Do", tekst:"Handelingen 9–11",vraag:"Paulus bekeert zich en Petrus gaat naar Cornelius. Welke muren verbreekt God bij jou?" },
+      { dag:"Vr", tekst:"Handelingen 12–14",vraag:"De eerste zendingsreis. Wie heeft het evangelie aan jou doorgegeven?" },
+      { dag:"Za", tekst:"Handelingen 15–17",vraag:"Het apostelconcilie: hoe ga jij om met meningsverschillen in de kerk?" },
+      { dag:"Zo", tekst:"Handelingen 27–28",vraag:"Rustdag ✦ Paulus in Rome na schipbreuk. Hoe brengt God jou door de stormen van je leven?" },
+    ]},
+  { week:26, fase:4, boeken:"Romeinen – Galaten", thema:"Genade, vrijheid en het lichaam van Christus",
+    dagen:[
+      { dag:"Ma", tekst:"Romeinen 1–4",        vraag:"Rechtvaardiging door geloof: wat betekent het dat jij 'vrij' bent voor God?" },
+      { dag:"Di", tekst:"Romeinen 5–8",         vraag:"'Niets kan ons scheiden van Gods liefde.' Geloof jij dit echt — ook vandaag?" },
+      { dag:"Wo", tekst:"Romeinen 12–15",       vraag:"'Stel jezelf als levend offer.' Hoe leef jij concreet offervaardig?" },
+      { dag:"Do", tekst:"1 Korintiërs 12–13",  vraag:"Het hooglied van de liefde. Hoe liefdevol ben jij werkelijk in de praktijk?" },
+      { dag:"Vr", tekst:"2 Korintiërs 4–6",    vraag:"Kracht in zwakheid. Hoe werkt God door jouw zwakheid en beperkingen heen?" },
+      { dag:"Za", tekst:"2 Korintiërs 11–13",  vraag:"Paulus' doorn in het vlees: welke 'doorn' draagt jij en wat leert die jou?" },
+      { dag:"Zo", tekst:"Galaten 1–6",          vraag:"Rustdag ✦ Vrijheid in Christus, niet in regels. Waar ben jij soms wetticistisch?" },
+    ]},
+  { week:27, fase:4, boeken:"Efeziërs – Hebreeën", thema:"Het geheim van Christus en geloof als anker",
+    dagen:[
+      { dag:"Ma", tekst:"Efeziërs 1–6",         vraag:"De wapenrusting van God: welk deel heb jij vandaag het meest nodig?" },
+      { dag:"Di", tekst:"Filippenzen 1–4",       vraag:"'Ik kan alles aan door Hem die mij kracht geeft.' Leef jij vanuit die kracht?" },
+      { dag:"Wo", tekst:"Kolossenzen 1–4 & Fil.",vraag:"Christus is het hoofd van alles. Hoe stel jij Hem daadwerkelijk in het middelpunt?" },
+      { dag:"Do", tekst:"1 & 2 Timoteüs",        vraag:"Paulus schrijft aan zijn geestelijke zoon. Wie is jouw geestelijke vader of kind?" },
+      { dag:"Vr", tekst:"Titus & Hebreeën 1–6",  vraag:"Jezus als hogepriester: hoe ga jij naar Hem toe met jouw zwakheden?" },
+      { dag:"Za", tekst:"Hebreeën 11–13",         vraag:"De wolk van getuigen. Welke geloofsheld inspireert jou het meest — en waarom?" },
+      { dag:"Zo", tekst:"Jakobus 1–5",            vraag:"Rustdag ✦ 'Geloof zonder werken is dood.' Hoe vertaalt jouw geloof zich in daden?" },
+    ]},
+  { week:28, fase:4, boeken:"1 Petrus – Openbaring 22", thema:"Volharding, liefde en de nieuwe schepping",
+    dagen:[
+      { dag:"Ma", tekst:"1 Petrus 1–5",       vraag:"Vreemdelingen in de wereld — hoe leef jij als pelgrim op weg naar thuis?" },
+      { dag:"Di", tekst:"2 Petrus & Judas",   vraag:"Waak voor valse leraren: hoe onderscheid jij waarheid van leugen vandaag?" },
+      { dag:"Wo", tekst:"1 Johannes 1–5",     vraag:"'God is liefde.' Hoe liefheb jij God en naaste concreet vandaag?" },
+      { dag:"Do", tekst:"Openbaring 1–5",     vraag:"Johannes ziet de verheerlijkte Christus. Hoe verandert dit beeld jouw gebed?" },
+      { dag:"Vr", tekst:"Openbaring 7–14",    vraag:"De volharding van de heiligen. Hoe volhard jij in geloof in moeilijke tijden?" },
+      { dag:"Za", tekst:"Openbaring 19–22",   vraag:"De nieuwe hemel en aarde. Waar verlang jij het meest naar in Gods nieuwe schepping?" },
+      { dag:"Zo", tekst:"✦ Vrije dag – terugblik", vraag:"Je hebt de hele Bijbel gelezen! Welk verhaal, vers of beeld heeft jou het meest veranderd?" },
+    ]},
+];
+
+// ── Build document ───────────────────────────────────────────────
+const children = [];
+
+// ── Ornament helper ─────────────────────────────────────────────
+function ornamentLine(color = C.gold) {
+  return para(run("✦  ✦  ✦", { size: 18, color, serif: true }), {
+    align: AlignmentType.CENTER,
+    spacing: { before: 120, after: 120 },
+  });
+}
+
+// ── Title page ──────────────────────────────────────────────────
+children.push(
+  para([], { spacing: { before: 1800, after: 0 } }),
+
+  para(run("✦", { size: 40, color: C.goldLight, serif: true }), { align: AlignmentType.CENTER, spacing: { before: 0, after: 160 } }),
+
+  para(run("Bijbel Leesplan", { size: 72, bold: true, color: C.navy, serif: true }), {
+    align: AlignmentType.CENTER, spacing: { before: 0, after: 100 },
+  }),
+  para(run("De Volledige Bijbel in 28 Weken", { size: 32, color: C.gold, serif: true, italic: true }), {
+    align: AlignmentType.CENTER, spacing: { before: 0, after: 60 },
+  }),
+  para(run("Met de Deuterocanonieke Boeken van de Orthodox-Christelijke Traditie", { size: 22, color: C.textMuted, serif: true, italic: true }), {
+    align: AlignmentType.CENTER, spacing: { before: 0, after: 300 },
+  }),
+
+  ornamentLine(),
+
+  para(run("15 – 20 minuten per dag  ·  Dagelijkse reflectieve vragen  ·  Voortgang bijhouden", { size: 20, color: C.navyLight, serif: true }), {
+    align: AlignmentType.CENTER, spacing: { before: 200, after: 200 },
+  }),
+
+  ornamentLine(),
+
+  para([], { spacing: { before: 600, after: 0 } }),
+
+  // Instruction box via table
+  new Table({
+    width: { size: 8200, type: WidthType.DXA },
+    columnWidths: [8200],
+    rows: [
+      new TableRow({ children: [
+        cell([
+          para(run("Hoe gebruik je dit leesplan?", { bold: true, size: 22, color: C.navy, serif: true }), { spacing: { before: 0, after: 120 } }),
+          para([
+            run("Begin elke dag met een kort ", { size: 19, color: C.textMid, serif: true }),
+            run("openingsgebed", { size: 19, bold: true, color: C.navy, serif: true }),
+            run(" (1 minuut). Lees daarna het aangegeven bijbelgedeelte rustig (12–15 minuten). Neem stilte en laat de reflectieve vraag bezinken — schrijf een kort antwoord in een schriftje of dagboek. Sluit af met een persoonlijk gebed.", { size: 19, color: C.textMid, serif: true }),
+          ], { spacing: { before: 0, after: 100 } }),
+          para([
+            run("De zondag ", { size: 19, bold: true, color: C.textGold, serif: true }),
+            run("is een rustdag: lees minder, neem meer tijd voor stilte en gebed. Koppel de lezing bij voorkeur aan de liturgie van die zondag. Mis je een dag? Begin de volgende dag gewoon opnieuw — zonder schuldgevoel.", { size: 19, color: C.textMid, serif: true, italic: true }),
+          ], { spacing: { before: 0, after: 0 } }),
+        ], { w: 8200, bg: C.goldPaler, borders: solidBorder(C.borderMid, 4), margins: { top: 200, bottom: 200, left: 300, right: 300 } }),
+      ]}),
+    ],
+  }),
+
+  para([], { spacing: { before: 400 } }),
+  para([new PageBreak()], {}),
+);
+
+// ── Fase overview page ──────────────────────────────────────────
+children.push(
+  para(run("Overzicht der Vier Fasen", { size: 40, bold: true, color: C.navy, serif: true }), {
+    align: AlignmentType.CENTER, spacing: { before: 400, after: 60 },
+  }),
+  ornamentLine(),
+);
+
+const faseTable = new Table({
+  width: { size: 9200, type: WidthType.DXA },
+  columnWidths: [600, 2400, 3200, 3000],
+  rows: [
+    new TableRow({ children: [
+      cell(para(run("Fase", { bold: true, size: 18, color: C.textNavy }), { align: AlignmentType.CENTER }), { w: 600, bg: C.navy, borders: solidBorder(C.navy), margins: { top: 120, bottom: 120, left: 100, right: 100 } }),
+      cell(para(run("Naam", { bold: true, size: 18, color: C.textNavy })), { w: 2400, bg: C.navy, borders: solidBorder(C.navy), margins: { top: 120, bottom: 120, left: 140, right: 140 } }),
+      cell(para(run("Inhoud", { bold: true, size: 18, color: C.textNavy })), { w: 3200, bg: C.navy, borders: solidBorder(C.navy), margins: { top: 120, bottom: 120, left: 140, right: 140 } }),
+      cell(para(run("Weken", { bold: true, size: 18, color: C.textNavy })), { w: 3000, bg: C.navy, borders: solidBorder(C.navy), margins: { top: 120, bottom: 120, left: 140, right: 140 } }),
+    ]}),
+    ...FASEN.map((f, i) => {
+      const bg = i % 2 === 0 ? C.goldPaler : C.white;
+      const wekenMap = { 1: "1–7", 2: "8–15", 3: "16–22", 4: "23–28" };
+      const inhoudMap = {
+        1: "Genesis · Exodus · Leviticus · Numeri · Deuteronomium",
+        2: "Jozua · Richteren · Ruth · Samuël · Koningen · Kronieken · Ezra · Nehemia · Ester · Job · Tobit · Judit · Makkabeeën",
+        3: "Job (slot) · Psalmen · Wijsheid · Sirach · Baruch · Spreuken · Prediker · Hooglied · Jesaja · Jeremia · Klaagliederen · Ezechiël · Daniël · Kleine Profeten",
+        4: "Matteüs · Marcus · Lucas · Johannes · Handelingen · Paulusbrieven · Hebreeën · Katholieke Brieven · Openbaring",
+      };
+      return new TableRow({ children: [
+        cell(para(run(String(f.id), { bold: true, size: 20, color: C.gold, serif: true }), { align: AlignmentType.CENTER }), { w: 600, bg, borders: solidBorder(C.borderSoft, 2), margins: { top: 120, bottom: 120, left: 100, right: 100 } }),
+        cell(para(run(f.naam, { bold: true, size: 18, color: C.navy, serif: true })), { w: 2400, bg, borders: solidBorder(C.borderSoft, 2), margins: { top: 120, bottom: 120, left: 140, right: 140 } }),
+        cell(para(run(inhoudMap[f.id], { size: 16, color: C.textMid, serif: true })), { w: 3200, bg, borders: solidBorder(C.borderSoft, 2), margins: { top: 120, bottom: 120, left: 140, right: 140 } }),
+        cell(para(run(`Weken ${wekenMap[f.id]}`, { size: 18, color: C.textMuted, serif: true })), { w: 3000, bg, borders: solidBorder(C.borderSoft, 2), margins: { top: 120, bottom: 120, left: 140, right: 140 } }),
+      ]});
+    }),
+  ],
+});
+
+children.push(faseTable);
+children.push(para([], { spacing: { before: 200 } }));
+children.push(para([new PageBreak()], {}));
+
+// ── Week pages ──────────────────────────────────────────────────
+let currentFaseId = 0;
+
+weeks.forEach((week, wi) => {
+  const fase = FASEN.find(f => f.id === week.fase);
+
+  // Fase divider
+  if (week.fase !== currentFaseId) {
+    currentFaseId = week.fase;
+    if (wi > 0) children.push(para([new PageBreak()], {}));
+
+    children.push(
+      para([], { spacing: { before: 600, after: 0 } }),
+      para(run(`✦  Fase ${fase.id}  ✦`, { size: 28, color: C.gold, serif: true }), {
+        align: AlignmentType.CENTER, spacing: { before: 0, after: 60 },
+      }),
+      para(run(fase.naam, { size: 48, bold: true, color: C.navy, serif: true }), {
+        align: AlignmentType.CENTER, spacing: { before: 0, after: 200 },
+      }),
+      ornamentLine(),
+      para([new PageBreak()], {}),
+    );
+  }
+
+  // ── Week header ─────────────────────────────────────────────
+  // Navy banner
+  children.push(
+    new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [9360],
+      rows: [new TableRow({ children: [
+        cell([
+          para([
+            run(`Week ${week.week}`, { bold: true, size: 28, color: C.goldLight, serif: true }),
+            run(`   ·   `, { size: 22, color: C.navyLight, serif: true }),
+            run(week.boeken, { size: 22, color: C.textNavy, serif: true }),
+          ], { spacing: { before: 0, after: 60 } }),
+          para(run(week.thema, { size: 18, color: C.borderMid, serif: true, italic: true }),
+            { spacing: { before: 0, after: 0 } }),
+        ], { w: 9360, bg: C.navy, borders: solidBorder(C.gold, 6), margins: { top: 180, bottom: 180, left: 300, right: 300 } }),
+      ]})]
+    }),
+  );
+
+  // Progress bar label
+  children.push(
+    para([
+      run("Voortgang deze week: ", { size: 17, color: C.textMuted, serif: true }),
+      run("□ □ □ □ □ □ □", { size: 17, color: C.gold, serif: true }),
+      run("   (7 van 7 gelezen)", { size: 15, color: C.textMuted, serif: true, italic: true }),
+    ], { spacing: { before: 100, after: 60 } }),
+  );
+
+  // ── Day rows table ──────────────────────────────────────────
+  const W = { dag: 560, check: 400, tekst: 2000, vraag: 6400 };
+  const totalW = W.dag + W.check + W.tekst + W.vraag;
+
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      cell(para(run("Dag", { bold: true, size: 17, color: C.textNavy }), { align: AlignmentType.CENTER }),
+        { w: W.dag, bg: C.navyMid, borders: solidBorder(C.navyMid), margins: { top: 100, bottom: 100, left: 80, right: 80 } }),
+      cell(para(run("✓", { bold: true, size: 17, color: C.textNavy }), { align: AlignmentType.CENTER }),
+        { w: W.check, bg: C.navyMid, borders: solidBorder(C.navyMid), margins: { top: 100, bottom: 100, left: 80, right: 80 } }),
+      cell(para(run("Bijbelgedeelte", { bold: true, size: 17, color: C.textNavy })),
+        { w: W.tekst, bg: C.navyMid, borders: solidBorder(C.navyMid), margins: { top: 100, bottom: 100, left: 120, right: 80 } }),
+      cell(para(run("Reflectieve vraag", { bold: true, size: 17, color: C.textNavy })),
+        { w: W.vraag, bg: C.navyMid, borders: solidBorder(C.navyMid), margins: { top: 100, bottom: 100, left: 120, right: 120 } }),
+    ],
+  });
+
+  const dayRows = week.dagen.map((d, di) => {
+    const isZondag = d.dag === "Zo";
+    const isEven   = di % 2 === 0;
+    const rowBg    = isZondag ? C.goldPale : (isEven ? C.goldPaler : C.white);
+    const dagColor = isZondag ? C.textGold : C.navy;
+    const dagBg    = isZondag ? C.goldPale : (isEven ? C.goldPaler : C.white);
+
+    return new TableRow({ children: [
+      // Day label
+      cell(para(run(d.dag, { bold: true, size: 19, color: dagColor, serif: true }), { align: AlignmentType.CENTER }),
+        { w: W.dag, bg: dagBg, borders: solidBorder(C.borderSoft, 2), margins: { top: 100, bottom: 100, left: 60, right: 60 } }),
+
+      // Checkbox cell — big unicode checkbox
+      cell(para(run("☐", { size: 24, color: C.gold }), { align: AlignmentType.CENTER }),
+        { w: W.check, bg: rowBg, borders: solidBorder(C.borderSoft, 2), margins: { top: 80, bottom: 80, left: 60, right: 60 } }),
+
+      // Bible passage
+      cell(para(run(d.tekst, { size: 18, color: C.textDark, serif: true })),
+        { w: W.tekst, bg: rowBg, borders: solidBorder(C.borderSoft, 2), margins: { top: 100, bottom: 100, left: 120, right: 80 } }),
+
+      // Reflective question
+      cell(para(run(d.vraag, { size: 17, color: isZondag ? C.textGold : C.textMid, serif: true, italic: isZondag })),
+        { w: W.vraag, bg: rowBg, borders: solidBorder(C.borderSoft, 2), margins: { top: 100, bottom: 100, left: 120, right: 120 } }),
+    ]});
+  });
+
+  const weekTable = new Table({
+    width: { size: totalW, type: WidthType.DXA },
+    columnWidths: [W.dag, W.check, W.tekst, W.vraag],
+    rows: [headerRow, ...dayRows],
+  });
+
+  children.push(weekTable);
+
+  // Notes area
+  children.push(
+    para([
+      run("Notities & gebed: ", { size: 16, bold: true, color: C.navyLight, serif: true }),
+      run("_".repeat(90), { size: 16, color: C.borderSoft, serif: true }),
+    ], { spacing: { before: 120, after: 40 } }),
+    para(run("_".repeat(120), { size: 16, color: C.borderSoft, serif: true }),
+      { spacing: { before: 0, after: 40 } }),
+    para(run("_".repeat(120), { size: 16, color: C.borderSoft, serif: true }),
+      { spacing: { before: 0, after: 200 } }),
+  );
+
+  // Page break after every week except last
+  if (wi < weeks.length - 1) {
+    children.push(para([new PageBreak()], {}));
+  }
+});
+
+// ── Closing page ─────────────────────────────────────────────────
+children.push(
+  para([new PageBreak()], {}),
+  para([], { spacing: { before: 1200 } }),
+  para(run("✦", { size: 48, color: C.goldLight, serif: true }), { align: AlignmentType.CENTER, spacing: { before: 0, after: 200 } }),
+  para(run("Geloofd zij God.", { size: 44, bold: true, color: C.navy, serif: true }), { align: AlignmentType.CENTER, spacing: { before: 0, after: 80 } }),
+  para(run("Je hebt de volledige Bijbel gelezen.", { size: 26, color: C.gold, serif: true, italic: true }), { align: AlignmentType.CENTER, spacing: { before: 0, after: 60 } }),
+  para(run("Moge dit woord in jouw hart blijven als een levende vlam.", { size: 20, color: C.textMuted, serif: true, italic: true }), { align: AlignmentType.CENTER, spacing: { before: 0, after: 300 } }),
+  ornamentLine(),
+);
+
+// ── Document ─────────────────────────────────────────────────────
+const doc = new Document({
+  styles: {
+    default: {
+      document: { run: { font: "Palatino Linotype", size: 20, color: C.textDark } },
+    },
+  },
+  sections: [{
+    properties: {
+      page: {
+        size: { width: 11906, height: 16838 }, // A4
+        margin: { top: 1080, right: 1080, bottom: 1080, left: 1200 },
+      },
+    },
+    headers: {
+      default: new Header({
+        children: [
+          new Table({
+            width: { size: 9626, type: WidthType.DXA },
+            columnWidths: [4813, 4813],
+            rows: [new TableRow({ children: [
+              cell(para(run("Bijbel Leesplan · Orthodox Christelijk", { size: 15, color: C.textMuted, serif: true, italic: true })),
+                { w: 4813, bg: C.white, borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 2, color: C.borderSoft } }, margins: { top: 60, bottom: 60, left: 0, right: 0 } }),
+              cell(para(run("28 weken · De volledige Bijbel", { size: 15, color: C.textMuted, serif: true, italic: true }), { align: AlignmentType.RIGHT }),
+                { w: 4813, bg: C.white, borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 2, color: C.borderSoft } }, margins: { top: 60, bottom: 60, left: 0, right: 0 } }),
+            ]})]
+          }),
+        ],
+      }),
+    },
+    footers: {
+      default: new Footer({
+        children: [
+          para(run("✦  Uw woord is een lamp voor mijn voet, een licht op mijn pad.  (Psalm 119:105)  ✦", { size: 15, color: C.gold, serif: true, italic: true }), { align: AlignmentType.CENTER }),
+        ],
+      }),
+    },
+    children,
+  }],
+});
+
+Packer.toBuffer(doc).then(buf => {
+  fs.writeFileSync("/home/claude/bijbel_mooi.docx", buf);
+  console.log("Done");
+}).catch(e => { console.error(e); process.exit(1); });
