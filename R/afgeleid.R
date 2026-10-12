@@ -90,3 +90,14 @@ maak_lvef_categorie <- function(df, kolom = "LVEF") {
                                       "matig (31-50%)", "goed (>50%)"))
   df
 }
+
+# Ja/nee-variabelen voor de aorta descendens:
+#  - descendens_ingreep:    aorta_desc > 0 (ingreep aan de descendens; bijna compleet)
+#  - descendens_pathologie: aorta_desc_path > 0 (pathologie geregistreerd; vaker ontbrekend)
+maak_descendens <- function(df) {
+  code <- function(x) suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(x))))
+  janee <- function(x) factor(ifelse(is.na(x), NA, ifelse(x > 0, "ja", "nee")), levels = c("nee", "ja"))
+  if ("aorta_desc" %in% names(df)) df$descendens_ingreep <- janee(code(df$aorta_desc))
+  if ("aorta_desc_path" %in% names(df)) df$descendens_pathologie <- janee(code(df$aorta_desc_path))
+  df
+}

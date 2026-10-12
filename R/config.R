@@ -129,9 +129,10 @@ TABELLEN <- list(
     "cardiochir_eerder", "endocarditis", "urgentie", "EuroscoreII", "centrum", "jaar"
   ),
   "Tabel 2 - Operatiekenmerken" = c(
-    "chir_benadering", "CABG", "klepchir", "aklepchir", "mklepchir", "pklepchir",
+    "chir_benadering", "CABG", "klepchir", "klepchir_clean", "aklepchir", "mklepchir", "pklepchir",
     "tklepchir", "aortachir", "aotachir_benadering", "aorta_asc", "aorta_asc_path",
-    "aortaboog_path", "aorta_desc", "aorta_desc_path", "cardiochir_overig",
+    "aortaboog_path", "aorta_desc", "aorta_desc_path", "descendens_ingreep",
+    "descendens_pathologie", "cardiochir_overig",
     "ECC", "ECC_duur", "AoX_duur", "circ_arrest", "circ_arrest_duur", "min_temp"
   ),
   "Tabel 3 - Postoperatieve uitkomsten" = c(
@@ -200,3 +201,7 @@ BEVOLKING_GEMIDDELD <- TRUE
 # Vanaf welk jaar de indeling acuut / electief volledig is (de groepstrends per
 # miljoen inwoners worden vanaf dit jaar berekend; het totaal over alle jaren).
 GROEPEN_VANAF_JAAR <- 2015
+
+# ── Vergelijking tussen periodes (R/periode.R) ──────────────────────────────
+# Tabel 1-3 per periode, apart voor elke groep en voor het totaal, met p-waarden.
+PERIODES <- list("2013-2018" = 2013:2018, "2019-2024" = 2019:2024)

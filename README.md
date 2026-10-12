@@ -50,6 +50,14 @@ Standaard (`voorrang = "urgentie"` in `R/config.R`):
 - **Poisson-regressie** met log(bevolking) als offset: rate ratio per jaar (95%-BI, p) voor het totaal over alle jaren, en per groep vanaf `GROEPEN_VANAF_JAAR` (standaard 2015).
 - Uitvoer: tabbladen *Volume per jaar* en *Volume per miljoen - RR*, plus figuur `volume_per_miljoen.png`.
 
+## Vergelijking tussen periodes (`R/periode.R`)
+
+Tabel 1–3 met de periode als groep (standaard 2013–2018 vs. 2019–2024, `PERIODES` in `R/config.R`),
+apart voor electief, acuut en totaal, met p-waarden. Tabbladen *Periode - electief / acuut / totaal*.
+
+Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc > 0) en
+`descendens_pathologie` (aorta_desc_path > 0).
+
 ## Analyses en p-waarden
 
 | Onderdeel | Wat | p-waarden |
