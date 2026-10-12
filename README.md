@@ -7,7 +7,7 @@ De code werkt alleen met je eigen Excelbestand. Er zit geen test- of voorbeeldda
 ## Installatie (eenmalig)
 
 ```r
-install.packages(c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl", "clubSandwich"),
+install.packages(c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl", "clubSandwich", "lme4"),
                  repos = "https://cloud.r-project.org", type = "binary")
 ```
 
@@ -85,6 +85,30 @@ Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc 
 **Gepoolde analyses**: standaard wordt elke analyse apart gedaan voor acuut en electief, zonder correctie
 voor urgentie (`ANALYSE_TOTAAL <- FALSE`). Vergelijkingen tussen de groepen (p per jaar, verschil in trend)
 staan bij beide groepen. De kolom "Totaal" in Tabel 1–3 en het totale volume per jaar blijven staan.
+
+## Klinische uitkomsten en variatie tussen centra (`R/uitkomsten.R`)
+
+Apart voor acuut en electief, **zonder correctie voor urgentie of EuroSCORE II**.
+
+- **Uitkomsttrends** (OR per kalenderjaar): ziekenhuis-, 30-dagen- en 1-jaarsmortaliteit (alleen
+  patiënten met volledige follow-up), major complicaties (`MAJOR_COMPLICATIES`), secundaire
+  morbiditeit (`SECUNDAIRE_UITKOMSTEN`) en failure to rescue (ziekenhuismortaliteit bij ≥ 1 major
+  complicatie).
+  - primair: logistisch mixed model, random intercept per centrum, gecorrigeerd voor leeftijd (per 10
+    jaar), geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4`);
+  - gevoeligheid: centrum-fixed-effects met CR2 (Satterthwaite) (`UITKOMST_CR2`);
+  - Benjamini–Hochberg (q-waarden) over de secundaire uitkomsten, per groep.
+- **Variatie tussen centra**: per centrum mediane temperatuur, % diepe hypothermie, % circulatiestilstand
+  en mediane duur; bereik over centra; ICC's (ja/nee-uitkomsten op de latente schaal, π²/3).
+- **Temperatuur zonder vs. met circulatiestilstand**, verschil binnen centra (CR2).
+- **Opnameduur**: alle patiënten en levend ontslagen, met trend (geometrische ratio per jaar).
+- **Relatieve overleving (Ederer II)** op 1, 3 en 5 jaar, met KM-overleving en 95%-BI.
+  Hiervoor is een levenstabel nodig (`LEVENSTABEL_BESTAND`, standaard `levenstabel_NL.csv` op het
+  bureaublad): CBS StatLine tabel **37360ned** "Levensverwachting; geslacht, leeftijd", onderwerp
+  *Sterftekans*, geslacht mannen en vrouwen, leeftijd 0–99 jaar, perioden 2013–2024 → downloaden als
+  CSV. Kolommen voor jaar/perioden, geslacht, leeftijd en sterftekans worden automatisch herkend.
+
+Tabbladen *Uitkomst - trends*, *Centra - …*, *Temp zonder vs met arrest*, *Opnameduur*, *Relatieve overleving*.
 
 ## Analyses en p-waarden
 

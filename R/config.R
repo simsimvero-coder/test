@@ -173,8 +173,10 @@ TREND_MORTALITEIT <- list(
   "30-dagenmortaliteit"   = list(var = "overl30d",     min_followup = 30),
   "1-jaarsmortaliteit"    = list(var = "overl1j",      min_followup = 365)
 )
-# Mortaliteitstrend ook gecorrigeerd voor deze variabele(n) (NULL = niet)
-TREND_CORRECTIE <- c("EuroscoreII")
+# Mortaliteitstrend ook gecorrigeerd voor deze variabele(n) (NULL = niet).
+# Standaard niet: acuut en electief worden apart geanalyseerd en we beschrijven
+# de ruwe trend binnen elke groep.
+TREND_CORRECTIE <- NULL
 
 # Complicaties; meerdere variabelen samen = 'ja' als minstens één 'ja' is.
 TREND_COMPLICATIES <- list(
@@ -185,7 +187,7 @@ TREND_COMPLICATIES <- list(
 )
 
 # Failure to rescue: overlijden (FTR_UITKOMST) bij patiënten met minstens één
-# van de complicaties uit TREND_COMPLICATIES.
+# major complicatie (MAJOR_COMPLICATIES, zie hieronder).
 FTR_UITKOMST <- "overleden_zh"
 
 TREND_TEMPERATUUR  <- "min_temp"
@@ -221,3 +223,32 @@ TEMP_GRENZEN <- c(20, 28)
 CIRC_ARREST_KOLOM <- "circ_arrest_clean"
 # Kolom met het centrum, voor de random-intercept- en fixed-effects-modellen.
 CENTRUM_KOLOM <- "centrum"
+
+# ── Klinische uitkomsten en variatie tussen centra (R/uitkomsten.R) ─────────
+# Samengestelde uitkomst "major complicaties": ja als minstens één van deze ja is
+# (gastroint_compl: elke code > 0). Ook de noemer voor failure to rescue.
+MAJOR_COMPLICATIES <- c("CVA_restletsel", "nierfalen", "resp_insuff", "gastroint_compl")
+
+# Secundaire morbiditeitsuitkomsten: Benjamini-Hochberg-correctie over deze
+# uitkomsten, apart per groep (acuut / electief).
+SECUNDAIRE_UITKOMSTEN <- c(
+  "CVA met restletsel"             = "CVA_restletsel",
+  "Nierfalen"                      = "nierfalen",
+  "Gastro-intestinale complicatie" = "gastroint_compl",
+  "Respiratoire insufficiëntie"    = "resp_insuff",
+  "Beademing > 24 uur"             = "beademing"
+)
+
+# Correctievariabelen in de logistische modellen (geen urgentie, geen EuroSCORE).
+# Leeftijd wordt per 10 jaar ingevoerd.
+UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
+
+# Gevoeligheidsanalyse met centrum-fixed-effects en CR2 (traag; FALSE = overslaan)
+UITKOMST_CR2 <- TRUE
+
+# Relatieve overleving (Ederer II): CSV-bestand met de Nederlandse sterftekansen
+# (CBS StatLine, tabel 37360ned "Levensverwachting; geslacht, leeftijd").
+# Kolommen: jaar, geslacht (man/vrouw), leeftijd (0-99), sterftekans (kans om binnen
+# een jaar te overlijden, 0-1). Zoek je het bestand op het bureaublad, geef dan
+# alleen de naam. NULL = relatieve overleving overslaan.
+LEVENSTABEL_BESTAND <- "levenstabel_NL.csv"

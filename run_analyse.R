@@ -25,10 +25,10 @@ if (!file.exists(file.path("R", "config.R")))
   stop("Map R/ niet gevonden. Start het script met source(\"pad/naar/run_analyse.R\") ",
        "of via de Source-knop, niet door de code in de console te plakken.")
 
-benodigd <- c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl")
+benodigd <- c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl", "lme4", "clubSandwich")
 ontbreekt <- benodigd[!sapply(benodigd, requireNamespace, quietly = TRUE)]
 if (length(ontbreekt)) stop("Installeer eerst: install.packages(c(\"",
-                            paste(ontbreekt, collapse = "\", \""), "\"), repos = \"https://cloud.r-project.org\")")
+                            paste(ontbreekt, collapse = "\", \""), "\"), repos = \"https://cloud.r-project.org\", type = \"binary\")")
 
 source("R/config.R", encoding = "UTF-8")
 source("R/inlezen.R", encoding = "UTF-8")
@@ -39,6 +39,7 @@ source("R/trend.R", encoding = "UTF-8")
 source("R/incidentie.R", encoding = "UTF-8")
 source("R/periode.R", encoding = "UTF-8")
 source("R/perfusie.R", encoding = "UTF-8")
+source("R/uitkomsten.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -97,6 +98,11 @@ per <- periodevergelijking(df, GROEP)
 cat("   Temperatuurmodellen (CR2) - dit kan op een oudere computer 5-15 minuten duren\n")
 flush.console()
 pa <- perfusie_analyse(df, GROEP)
+cat("   Uitkomstmodellen (mixed models en CR2) - ook dit kan enkele minuten duren\n"); flush.console()
+ut <- uitkomst_trends(df, GROEP)
+cv <- centrum_variatie(df, GROEP)
+los <- opnameduur_analyse(df, GROEP)
+rs <- relatieve_overleving(df, GROEP)
 
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
@@ -105,6 +111,10 @@ excel <- c(
        "Periode - electief" = per[["electief aneurysma"]], "Periode - acuut" = per[["acuut"]],
        "Periode - totaal" = per[["Totaal"]], "Temp - modellen" = pa$modellen, "Temp - per centrum" = pa$centra,
        "Temp - mediaan centrum-jaar" = pa$per_centrum_jaar,
+       "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
+       "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
+       "Temp zonder vs met arrest" = cv$zonder_met, "Opnameduur" = los,
+       "Relatieve overleving" = rs,
        "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
        "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
        "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
@@ -174,6 +184,18 @@ print(data.frame(populatie = m$populatie, groep = m$groep, model = m$model, n = 
       row.names = FALSE, right = FALSE)
 cat("\nMinimale temperatuur - trend per centrum\n")
 print(pa$centra, row.names = FALSE)
+
+cat("\nVariatie tussen centra in orgaanbescherming - bereik over centra\n")
+print(cv$bereik, row.names = FALSE)
+cat("\nICC's (aandeel variatie tussen centra; ja/nee-uitkomsten op latente schaal)\n")
+print(cv$icc, row.names = FALSE)
+cat("\nMinimale temperatuur zonder vs. met circulatiestilstand (verschil binnen centra, CR2)\n")
+print(cv$zonder_met, row.names = FALSE)
+cat("\nUitkomsttrends - OR per kalenderjaar (", attr(ut, "noot"), ")\n", sep = "")
+print(ut, row.names = FALSE)
+cat("\nOpnameduur (ratio per jaar = geometrische verandering)\n")
+print(los, row.names = FALSE)
+if (!is.null(rs)) { cat("\nKaplan-Meier en relatieve overleving (Ederer II)\n"); print(rs, row.names = FALSE) }
 
 cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
             min(tr$data$.jaar), max(tr$data$.jaar)))

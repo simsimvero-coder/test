@@ -195,7 +195,9 @@ trendanalyse <- function(df, groep = GROEP) {
   for (label in names(complicatie_lijst))
     binair[[label]] <- list(y = complicatie_lijst[[label]], onderdeel = "3. Complicaties")
 
-  enige_compl <- Reduce(`|`, lapply(complicatie_lijst, function(x) x %in% TRUE))
+  # Failure to rescue: noemer = patiënten met >= 1 major complicatie
+  enige_compl <- if (exists("MAJOR_COMPLICATIES")) combineer_ja(d, MAJOR_COMPLICATIES) %in% TRUE else
+    Reduce(`|`, lapply(complicatie_lijst, function(x) x %in% TRUE))
   if (FTR_UITKOMST %in% names(d)) {
     ftr <- is_ja(d[[FTR_UITKOMST]])
     ftr[!enige_compl] <- NA            # alleen patiënten met een complicatie
