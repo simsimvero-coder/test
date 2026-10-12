@@ -227,7 +227,7 @@ CENTRUM_KOLOM <- "centrum"
 # ── Klinische uitkomsten en variatie tussen centra (R/uitkomsten.R) ─────────
 # Samengestelde uitkomst "major complicaties": ja als minstens één van deze ja is
 # (gastroint_compl: elke code > 0). Ook de noemer voor failure to rescue.
-MAJOR_COMPLICATIES <- c("CVA_restletsel", "nierfalen", "resp_insuff", "gastroint_compl")
+MAJOR_COMPLICATIES <- c("CVA_restletsel", "nierfalen", "gastroint_compl")
 
 # Secundaire morbiditeitsuitkomsten: Benjamini-Hochberg-correctie over deze
 # uitkomsten, apart per groep (acuut / electief).
