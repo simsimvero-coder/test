@@ -92,7 +92,8 @@ CATEGORISCH <- c(
 # vooraan staan, zodat de afgeleide variabelen er nog mee kunnen rekenen.
 # -1 (onbekend) wordt al bij het inlezen als ontbrekend behandeld.
 nhr_path <- c("0" = "0 geen", "10" = "10 aneurysma", "20" = "20 acute dissectie",
-              "30" = "30 chronische dissectie", "40" = "40 infectie", "91" = "91 overig")
+              "30" = "30 chronische dissectie", "40" = "40 infectie", "91" = "91 overig",
+              "90" = "90 overig (codering voor 2022)")
 HERCODERING <- list(
   geslacht = c("1" = "man", "2" = "vrouw", m = "man", man = "man", male = "man",
                v = "vrouw", vrouw = "vrouw", f = "vrouw", female = "vrouw"),
@@ -119,7 +120,7 @@ HERCODERING <- list(
 # Welke variabelen in welke tabel komen (volgorde = volgorde in de tabel).
 TABELLEN <- list(
   "Tabel 1 - Preoperatieve kenmerken" = c(
-    "leeftijd", "geslacht", "BMI", "kreatinine", "eGFR", "LVEF",
+    "leeftijd", "geslacht", "BMI", "kreatinine", "eGFR", "LVEF", "LVEF_categorie",
     "cardiochir_eerder", "endocarditis", "urgentie", "EuroscoreII", "centrum", "jaar"
   ),
   "Tabel 2 - Operatiekenmerken" = c(

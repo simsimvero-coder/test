@@ -57,7 +57,7 @@ logboek <- res$logboek
 cat(sprintf("   %d patiënten in de analyse, %d regels in het opschoonlogboek\n",
             nrow(df), nrow(logboek)))
 indeling <- maak_acuut_electief(df)
-df <- indeling$data
+df <- maak_lvef_categorie(indeling$data)
 if (nrow(logboek)) {
   telling <- sort(table(paste0(logboek$stap, ifelse(is.na(logboek$kolom), "", paste0(" (", logboek$kolom, ")")))),
                   decreasing = TRUE)

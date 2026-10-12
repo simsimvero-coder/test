@@ -66,3 +66,14 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
 
   list(data = df, overzicht = overzicht, controle = controle)
 }
+
+# LVEF in de EuroSCORE II-categorieën. De NHR codeert beschrijvende waarden als
+# vaste percentages (goed = 55, matig = 40, slecht = 25, zeer slecht = 20), dus
+# een indeling in categorieën is informatiever dan mediaan [IQR].
+maak_lvef_categorie <- function(df, kolom = "LVEF") {
+  if (!kolom %in% names(df) || !is.numeric(df[[kolom]])) return(df)
+  df$LVEF_categorie <- cut(df[[kolom]], breaks = c(-Inf, 20, 30, 50, Inf),
+                           labels = c("zeer slecht (<=20%)", "slecht (21-30%)",
+                                      "matig (31-50%)", "goed (>50%)"))
+  df
+}
