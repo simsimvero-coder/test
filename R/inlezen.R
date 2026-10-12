@@ -2,30 +2,33 @@
 # Inlezen en opschonen
 # =============================================================================
 
-ONTBREKEND_CODES <- c("", "na", "n/a", "nan", "onbekend", "unknown", "missing", "?", "-")
+# NHR-handboek: -1 (of -1,0 / -1,00) = onbekend
+ONTBREKEND_CODES <- c("", "na", "n/a", "nan", "onbekend", "unknown", "missing", "?", "-",
+                      "-1", "-1.0", "-1,0", "-1.00", "-1,00")
 JA_CODES  <- c("ja", "j", "yes", "y", "1", "true", "waar", "overleden", "dood")
 NEE_CODES <- c("nee", "n", "no", "0", "false", "onwaar", "levend", "in leven", "alive")
 
+# Zoekt het bestand: als volledig pad, in de werkmap, of op het bureaublad
+# (Windows: Desktop/Bureaublad, ook binnen OneDrive; Mac/Linux: ~/Desktop).
+zoek_bestand <- function(naam) {
+  if (is.null(naam) || !nzchar(naam)) return(NULL)
+  if (file.exists(naam)) return(normalizePath(naam))
+  thuis <- c(Sys.getenv("USERPROFILE"), Sys.getenv("HOME"), path.expand("~"))
+  thuis <- unique(thuis[nzchar(thuis)])
+  onedrive <- unlist(lapply(thuis, function(h) list.files(h, pattern = "^OneDrive", full.names = TRUE)))
+  mappen <- c(file.path(rep(c(thuis, onedrive), each = 2), c("Desktop", "Bureaublad")),
+              file.path(dirname(path.expand("~")), "Desktop"))
+  kandidaten <- file.path(unique(mappen), basename(naam))
+  gevonden <- kandidaten[file.exists(kandidaten)]
+  if (length(gevonden)) normalizePath(gevonden[1]) else NULL
+}
+
 lees_data <- function(pad, blad = 1) {
   if (!file.exists(pad)) stop("Bestand niet gevonden: ", pad)
-  ext <- tolower(tools::file_ext(pad))
-
-  df <- switch(ext,
-    xlsx = , xls = as.data.frame(readxl::read_excel(pad, sheet = blad, col_types = "text")),
-    sav = {
-      if (!requireNamespace("haven", quietly = TRUE)) stop("Installeer het pakket 'haven' voor SPSS-bestanden")
-      d <- haven::read_sav(pad)
-      as.data.frame(lapply(haven::as_factor(d), as.character), check.names = FALSE)
-    },
-    {
-      # Scheidingsteken bepalen: Nederlandse Excel-exports gebruiken vaak ;
-      kop <- readLines(pad, n = 1, encoding = "UTF-8", warn = FALSE)
-      sep <- if (lengths(regmatches(kop, gregexpr(";", kop))) >
-                 lengths(regmatches(kop, gregexpr(",", kop)))) ";" else ","
-      read.csv(pad, sep = sep, colClasses = "character", na.strings = character(0),
-               check.names = FALSE, fileEncoding = "UTF-8-BOM")
-    }
-  )
+  if (!tolower(tools::file_ext(pad)) %in% c("xlsx", "xls"))
+    stop("Kies een Excelbestand (.xlsx of .xls): ", pad)
+  # Alles als tekst inlezen; het opschonen zet de typen daarna goed
+  df <- as.data.frame(readxl::read_excel(pad, sheet = blad, col_types = "text"))
 
   names(df) <- trimws(names(df))
   # Kolomnamen hoofdletter-ongevoelig koppelen aan de namen uit config.R
@@ -112,6 +115,8 @@ schoon_op <- function(df) {
     }
     veranderd <- !is.na(ruw) & ruw != nieuw
     # ja/nee-hercodering (1 -> ja) is voorspelbaar; alleen echte wijzigingen loggen
+    # Alleen tekstcorrecties loggen (bv. "M " -> man); NHR-codes -> labels zijn voorspelbaar
+    veranderd <- veranderd & !grepl("^-?[0-9.]+$", ruw)
     if (!is_janee) noteer("hercodering", k, df$.rij[veranderd], ruw[veranderd], nieuw[veranderd])
     df[[k]] <- if (is_janee) factor(nieuw, levels = c("nee", "ja")) else factor(nieuw)
   }

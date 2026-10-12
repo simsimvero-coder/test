@@ -1,10 +1,12 @@
 # =============================================================================
-# Analyse cardiochirurgische patiëntendataset
+# Analyse aortaboogchirurgie (NHR-dataset)
 #
-# Gebruik (vanuit de hoofdmap van het project):
-#   Rscript run_analyse.R                         # bestand uit R/config.R
-#   Rscript run_analyse.R data/mijn_dataset.xlsx  # ander bestand
-# Of in RStudio: open dit bestand en klik op 'Source'.
+# Gebruik:
+#   1. Open aortaboog.Rproj in RStudio (zet de werkmap goed).
+#   2. Open dit bestand en klik op 'Source'.
+#   3. Het Excelbestand (DATA_BESTAND in R/config.R) wordt op je bureaublad
+#      gezocht; staat het ergens anders, dan kies je het in een venster.
+# Vanaf de opdrachtregel:  Rscript run_analyse.R pad/naar/dataset.xlsx
 # =============================================================================
 
 benodigd <- c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl")
@@ -20,7 +22,14 @@ source("R/figuren.R", encoding = "UTF-8")
 source("R/trend.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
-bestand <- if (length(args)) args[1] else DATA_BESTAND
+gezocht <- if (length(args)) args[1] else DATA_BESTAND
+bestand <- zoek_bestand(gezocht)
+if (is.null(bestand)) {
+  if (!interactive()) stop("Excelbestand niet gevonden: ", gezocht,
+                           "\nGebruik: Rscript run_analyse.R pad/naar/dataset.xlsx")
+  cat("'", gezocht, "' niet gevonden op het bureaublad. Kies je Excelbestand...\n", sep = "")
+  bestand <- file.choose()
+}
 fig_map <- file.path(UITVOER_MAP, "figuren")
 dir.create(fig_map, recursive = TRUE, showWarnings = FALSE)
 
@@ -101,7 +110,7 @@ if (!is.null(oe_groep)) { cat("\nGeobserveerde/verwachte ziekenhuismortaliteit\n
 cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
             min(tr$data$.jaar), max(tr$data$.jaar)))
 print(tr$toetsen[c("maat", "groep", "n", "effectmaat", "schatting", "BI_onder", "BI_boven", "p",
-                   "schatting_gecorrigeerd", "p_gecorrigeerd")], row.names = FALSE)
+                   "schatting_gecorrigeerd", "p_gecorrigeerd", "p_trendverschil_tussen_groepen")], row.names = FALSE)
 
 cat("\nKlaar. Resultaten in '", UITVOER_MAP, "/':\n", sep = "")
 cat("  - resultaten.xlsx (tabellen, O/E, overleving, ontbrekende waarden, opschoonlogboek)\n")

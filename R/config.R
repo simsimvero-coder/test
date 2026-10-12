@@ -4,10 +4,12 @@
 # Pas dit bestand aan aan JOUW dataset. De overige scripts lezen alles hieruit.
 # =============================================================================
 
-# ── Bestanden ───────────────────────────────────────────────────────────────
-# Pad naar de dataset: .csv (scheidingsteken ; of ,), .xlsx, .xls of .sav (SPSS)
-DATA_BESTAND  <- "data/voorbeeld_cardiochirurgie.csv"
-EXCEL_BLAD    <- 1          # werkblad bij Excel
+# ── Bestand ─────────────────────────────────────────────────────────────────
+# Naam van je Excelbestand. R zoekt het op het bureaublad (ook in OneDrive);
+# je mag hier ook een volledig pad invullen, bv. "C:/Users/naam/Desktop/data.xlsx".
+# Wordt het bestand niet gevonden, dan verschijnt een venster om het te kiezen.
+DATA_BESTAND  <- "AORTABOOG_NL_schoon v3(1).xlsx"
+EXCEL_BLAD    <- 1          # werkblad: nummer of naam
 UITVOER_MAP   <- "output"
 
 # ── Selectie & groepen ──────────────────────────────────────────────────────
@@ -56,14 +58,14 @@ OVERLEVING_MAX_DAGEN <- 5 * 365        # tot hoever de curve getoond wordt
 NUMERIEK <- list(
   leeftijd         = c(18, 100),
   BMI              = c(12, 70),
-  kreatinine       = c(20, 2000),   # µmol/L
+  kreatinine       = c(1, 2000),    # µmol/L
   eGFR             = c(0, 200),     # mL/min/1.73m²
-  LVEF             = c(5, 90),      # %; is LVEF bij jou een categorie, verplaats hem dan
-  EuroscoreII      = c(0, 100),     # %
+  LVEF             = c(1, 99),      # %
+  EuroscoreII      = c(0.49, 100),  # %
   min_temp         = c(10, 40),     # °C
-  ECC_duur         = c(0, 1200),    # min
+  ECC_duur         = c(0, 1000),    # min
   AoX_duur         = c(0, 600),     # min
-  circ_arrest_duur = c(0, 240),     # min
+  circ_arrest_duur = c(0, 150),     # min
   opnameduur       = c(0, 365),     # dagen
   overltijd_dag    = c(0, 20000)
 )
@@ -86,9 +88,31 @@ CATEGORISCH <- c(
 
 # Extra hercodering per variabele: c("ruwe waarde" = "nieuwe waarde").
 # Hoofdletters en spaties rondom worden bij het vergelijken genegeerd.
+# Labels volgens het NHR-handboek cardiochirurgie (versie 22.2.1). De code blijft
+# vooraan staan, zodat de afgeleide variabelen er nog mee kunnen rekenen.
+# -1 (onbekend) wordt al bij het inlezen als ontbrekend behandeld.
+nhr_path <- c("0" = "0 geen", "10" = "10 aneurysma", "20" = "20 acute dissectie",
+              "30" = "30 chronische dissectie", "40" = "40 infectie", "91" = "91 overig")
 HERCODERING <- list(
-  geslacht = c(m = "man", man = "man", male = "man", "1" = "man",
-               v = "vrouw", vrouw = "vrouw", f = "vrouw", female = "vrouw", "2" = "vrouw")
+  geslacht = c("1" = "man", "2" = "vrouw", m = "man", man = "man", male = "man",
+               v = "vrouw", vrouw = "vrouw", f = "vrouw", female = "vrouw"),
+  urgentie = c("10" = "10 electief", "20" = "20 urgent", "30" = "30 spoed", "40" = "40 redding"),
+  ECC = c("0" = "0 geen ECC", "10" = "10 ECC soort onbekend", "20" = "20 conventionele ECC",
+          "30" = "30 mini-ECC"),
+  chir_benadering = c("10" = "10 sternotomie", "20" = "20 overig niet minimaal-invasief",
+                      "30" = "30 mini-sternotomie", "40" = "40 mini-thoracotomie",
+                      "50" = "50 percutaan", "60" = "60 overig minimaal-invasief"),
+  aotachir_benadering = c("0" = "0 geen", "10" = "10 open", "20" = "20 enkelvoudige (T)EVAR",
+                          "21" = "21 complexe (T)EVAR", "30" = "30 combinatie open en (T)EVAR"),
+  aorta_asc = c("0" = "0 nee", "10" = "10 aortawortel geisoleerd",
+                "20" = "20 ascendens incl. wortel", "30" = "30 ascendens excl. wortel",
+                "90" = "90 locatie onbekend"),
+  aorta_desc = c("0" = "0 nee", "1" = "1 locatie onbekend", "10" = "10 alleen thoracaal",
+                 "20" = "20 alleen abdominaal", "30" = "30 thoraco-abdominaal"),
+  aorta_asc_path = nhr_path, aortaboog_path = nhr_path, aorta_desc_path = nhr_path,
+  gastroint_compl = c("0" = "0 geen", "1" = "1 soort onbekend", "10" = "10 bloeding",
+                      "90" = "90 overig"),
+  vasc_compl_opname = c("0" = "0 geen", "10" = "10 major", "20" = "20 minor")
 )
 
 # ── Tabellen ────────────────────────────────────────────────────────────────

@@ -115,14 +115,25 @@ oe_ratio <- function(df, per, uitkomst = "overleden_zh", verwacht = "EuroscoreII
   out <- do.call(rbind, lapply(names(groepen), function(n) {
     x <- groepen[[n]]
     O <- sum(x$obs); E <- sum(x$exp)
-    bi <- if (O > 0) poisson.test(O)$conf.int / E else c(0, qchisq(.975, 2) / 2 / E)
+    bi <- poisson.test(O)$conf.int / E
     data.frame(groep = n, n = nrow(x), overleden = O,
                geobserveerd_pct = round(100 * O / nrow(x), 1),
                verwacht_pct = round(100 * E / nrow(x), 1),
                OE_ratio = round(O / E, 2),
-               BI95_onder = round(bi[1], 2), BI95_boven = round(bi[2], 2))
+               BI95_onder = round(bi[1], 2), BI95_boven = round(bi[2], 2),
+               p = fmt_p(poisson.test(O, E)$p.value))   # H0: O/E = 1
   }))
   names(out)[1] <- per
+  # Verschil tussen groepen, gecorrigeerd voor het verwachte risico:
+  # logistische regressie met logit(EuroSCORE II) als offset
+  dd <- d[d$exp > 0 & d$exp < 1, ]
+  dd$.g <- droplevels(factor(dd[[per]]))
+  if (nlevels(dd$.g) > 1) {
+    m0 <- glm(obs ~ offset(qlogis(exp)), family = binomial, data = dd)
+    m1 <- glm(obs ~ .g + offset(qlogis(exp)), family = binomial, data = dd)
+    attr(out, "p_tussen_groepen") <- anova(m0, m1, test = "LRT")[2, "Pr(>Chi)"]
+    out$p_verschil_tussen_groepen <- c(rep("", nrow(out) - 1), fmt_p(attr(out, "p_tussen_groepen")))
+  }
   out
 }
 
@@ -149,7 +160,23 @@ overleving <- function(df, groep = NULL) {
     groep = if (heeft_groep) sub("^\\.groep=", "", as.character(s$strata)) else "Totaal",
     dag = s$time, at_risk = s$n.risk,
     overleving_pct = round(100 * s$surv, 1),
-    BI95 = sprintf("%.1f-%.1f", 100 * s$lower, 100 * s$upper)
+    BI95 = sprintf("%.1f-%.1f", 100 * s$lower, 100 * s$upper),
+    se = s$std.err
   )
+  if (heeft_groep) {
+    # Verschil in overleving op elk tijdpunt (z-toets op Kaplan-Meier-schattingen;
+    # bij > 2 groepen een Wald chi-kwadraattoets op gelijkheid van alle groepen)
+    tabel$p_tijdpunt <- ""
+    for (t in unique(tabel$dag)) {
+      r <- tabel[tabel$dag == t & tabel$se > 0, ]
+      if (nrow(r) < 2) next
+      w <- 1 / r$se^2
+      gem <- sum(w * r$overleving_pct / 100) / sum(w)
+      chi <- sum(w * (r$overleving_pct / 100 - gem)^2)
+      tabel$p_tijdpunt[tabel$dag == t][1] <- fmt_p(1 - pchisq(chi, nrow(r) - 1))
+    }
+    tabel$p_logrank <- c(p, rep("", nrow(tabel) - 1))
+  }
+  tabel$se <- NULL
   list(fit = fit, data = d, tabel = tabel, logrank_p = p, heeft_groep = heeft_groep)
 }

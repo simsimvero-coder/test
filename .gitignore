@@ -1,6 +1,8 @@
-# Nooit echte patiëntgegevens of afgeleide resultaten committen (AVG).
-data/*
-!data/voorbeeld_cardiochirurgie.csv
+# Nooit patiëntgegevens of afgeleide resultaten committen (AVG).
+*.xlsx
+*.xls
+*.csv
+data/
 output/
 
 .Rhistory

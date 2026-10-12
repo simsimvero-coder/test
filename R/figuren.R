@@ -37,7 +37,12 @@ fig_boxplots <- function(df, groep, map) {
   vars <- intersect(c("leeftijd", "BMI", "eGFR", "LVEF", "EuroscoreII", "ECC_duur",
                       "AoX_duur", "opnameduur"), names(df)[sapply(df, is.numeric)])
   d <- df[!is.na(df[[groep]]), c(groep, vars)]
+  labels <- sapply(vars, function(v) {
+    t <- toets_num(d[[v]], d[[groep]], is_normaal(d[[v]]))
+    sprintf("%s\n%s p = %s", v, t$toets, fmt_p(t$p))
+  })
   d <- tidyr::pivot_longer(d, -dplyr::all_of(groep), names_to = "variabele", values_to = "waarde")
+  d$variabele <- factor(labels[d$variabele], levels = labels)
   p <- ggplot(d[!is.na(d$waarde), ], aes(.data[[groep]], waarde, fill = .data[[groep]])) +
     geom_boxplot(outlier.size = 0.6, alpha = 0.8) +
     facet_wrap(~variabele, scales = "free_y") +
@@ -56,7 +61,11 @@ fig_complicaties <- function(df, groep, map) {
     agg <- tapply(df[[v]][sel] == "ja", g[sel], mean)
     data.frame(variabele = v, groep = names(agg), pct = 100 * as.numeric(agg))
   }))
-  d$variabele <- factor(d$variabele, levels = rev(vars))
+  labels <- sapply(vars, function(v) {
+    if (all(g == "Totaal")) return(v)
+    sprintf("%s (p = %s)", v, fmt_p(toets_cat(df[[v]], g)$p))
+  })
+  d$variabele <- factor(labels[d$variabele], levels = rev(labels))
   p <- ggplot(d, aes(pct, variabele, fill = groep)) +
     geom_col(position = position_dodge(width = 0.8), width = 0.75) +
     labs(title = "Postoperatieve uitkomsten", x = "% van patiënten", y = NULL,
@@ -90,12 +99,17 @@ fig_kaplan_meier <- function(km, map) {
 fig_oe <- function(oe, map) {
   if (is.null(oe)) return(NULL)
   per <- names(oe)[1]
+  oe[[per]] <- sprintf("%s (p = %s)", oe[[per]], oe$p)
   oe[[per]] <- factor(oe[[per]], levels = rev(oe[[per]]))
+  p_groep <- attr(oe, "p_tussen_groepen")
   p <- ggplot(oe, aes(OE_ratio, .data[[per]])) +
     geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
     geom_errorbarh(aes(xmin = BI95_onder, xmax = BI95_boven), height = 0.25, colour = KLEUR) +
     geom_point(aes(size = n), colour = KLEUR) +
     labs(title = "Geobserveerde / verwachte mortaliteit (EuroSCORE II)",
+         subtitle = paste0("p per rij: O/E verschilt van 1 (exacte Poisson-toets)",
+                           if (!is.null(p_groep)) paste0("\nverschil tussen ", per, " (gecorrigeerd voor EuroSCORE II): p = ",
+                                                         fmt_p(p_groep))),
          x = "O/E-ratio (95%-BI)", y = NULL, size = "n") + thema
   bewaar(p, map, paste0("OE_ratio_per_", per), 8, 0.4 * nrow(oe) + 2)
 }

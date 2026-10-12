@@ -5,7 +5,8 @@
 # Deelt patiënten in als "acuut" of "electief aneurysma" (zie ACUUT_ELECTIEF in
 # config.R). Voegt de kolommen acuut_electief en acuut_electief_basis toe.
 maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
-  als_getal <- function(x) suppressWarnings(as.numeric(as.character(x)))
+  # Leest de code vooraan, zodat zowel "30" als "30 spoed" werkt
+  als_getal <- function(x) suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(x))))
   n <- nrow(df)
 
   path_k <- intersect(cfg$path_kolommen, names(df))

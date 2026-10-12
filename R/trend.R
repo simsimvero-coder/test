@@ -9,7 +9,12 @@
 # Alles per groep (acuut / electief) en voor het totaal.
 # =============================================================================
 
-is_ja <- function(x) ifelse(is.na(x), NA, as.character(x) == "ja")
+# TRUE bij "ja" of bij een NHR-code > 0 (bv. gastroint_compl "10 bloeding")
+is_ja <- function(x) {
+  x <- as.character(x)
+  code <- suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", x)))
+  ifelse(is.na(x), NA, x == "ja" | (!is.na(code) & code > 0))
+}
 
 # Combineer ja/nee-variabelen: ja als minstens één ja, nee als alles nee.
 combineer_ja <- function(df, vars) {
@@ -18,6 +23,20 @@ combineer_ja <- function(df, vars) {
   m <- sapply(vars, function(v) is_ja(df[[v]]))
   m <- matrix(m, nrow = nrow(df))
   ifelse(rowSums(m, na.rm = TRUE) > 0, TRUE, ifelse(rowSums(!is.na(m)) == ncol(m), FALSE, NA))
+}
+
+groepsvector <- function(d, groep)
+  if (!is.null(groep) && groep %in% names(d)) droplevels(factor(d[[groep]])) else NULL
+
+# Likelihood-ratiotoets: verschilt de trend over de jaren tussen de groepen?
+p_interactie <- function(y, jaar, g, family) {
+  ok <- !is.na(y) & !is.na(jaar) & !is.na(g)
+  if (is.null(g) || nlevels(droplevels(g[ok])) < 2) return("")
+  x <- data.frame(y = y[ok], jaar = jaar[ok], g = droplevels(g[ok]))
+  m0 <- suppressWarnings(glm(y ~ jaar + g, family = family, data = x))
+  m1 <- suppressWarnings(glm(y ~ jaar * g, family = family, data = x))
+  a <- anova(m0, m1, test = if (family$family == "gaussian") "F" else "LRT")
+  fmt_p(a[2, ncol(a)])
 }
 
 # Zet groepen om naar een lijst van subsets inclusief "Totaal".
@@ -29,7 +48,7 @@ per_groep <- function(d, groep) {
 
 pct_per_jaar <- function(d, y, maat, groep) {
   d$.y <- y
-  do.call(rbind, lapply(names(gs <- per_groep(d, groep)), function(g) {
+  out <- do.call(rbind, lapply(names(gs <- per_groep(d, groep)), function(g) {
     x <- gs[[g]]; x <- x[!is.na(x$.y) & !is.na(x$.jaar), ]
     if (!nrow(x)) return(NULL)
     do.call(rbind, lapply(sort(unique(x$.jaar)), function(j) {
@@ -40,6 +59,15 @@ pct_per_jaar <- function(d, y, maat, groep) {
                  BI_boven = round(100 * bi[2], 1))
     }))
   }))
+  # p-waarde verschil tussen de groepen binnen elk jaar (chi-kwadraat / Fisher)
+  g <- groepsvector(d, groep)
+  out$p_tussen_groepen <- ""
+  if (!is.null(g)) for (j in unique(out$jaar)) {
+    sel <- d$.jaar == j & !is.na(d$.y) & !is.na(g)
+    if (!any(sel)) next
+    out$p_tussen_groepen[out$jaar == j & out$groep == "Totaal"] <- fmt_p(toets_cat(factor(d$.y[sel]), g[sel])$p)
+  }
+  out
 }
 
 trend_binair <- function(d, y, maat, groep, correctie = NULL) {
@@ -48,7 +76,10 @@ trend_binair <- function(d, y, maat, groep, correctie = NULL) {
     x <- gs[[g]]; x <- x[!is.na(x$.y) & !is.na(x$.jaar), ]
     rij <- data.frame(maat = maat, groep = g, n = nrow(x), events = sum(x$.y),
                       effectmaat = "OR per jaar", schatting = NA, BI_onder = NA, BI_boven = NA,
-                      p = "", schatting_gecorrigeerd = NA, p_gecorrigeerd = "")
+                      p = "", schatting_gecorrigeerd = NA, p_gecorrigeerd = "",
+                      p_trendverschil_tussen_groepen = "")
+    if (g == "Totaal") rij$p_trendverschil_tussen_groepen <-
+      p_interactie(d$.y, d$.jaar, groepsvector(d, groep), binomial())
     if (sum(x$.y) < 2 || sum(!x$.y) < 2 || length(unique(x$.jaar)) < 2) return(rij)
     m <- suppressWarnings(glm(.y ~ .jaar, family = binomial, data = x))
     s <- coef(summary(m))[".jaar", ]
@@ -81,8 +112,12 @@ trend_aantal <- function(d, groep) {
     data.frame(maat = "Aantal boog-OK's", groep = g, n = sum(x$n), events = NA,
                effectmaat = "IRR per jaar", schatting = round(exp(s[1]), 3),
                BI_onder = round(ci[1], 3), BI_boven = round(ci[2], 3), p = fmt_p(s[4]),
-               schatting_gecorrigeerd = NA, p_gecorrigeerd = "")
+               schatting_gecorrigeerd = NA, p_gecorrigeerd = "", p_trendverschil_tussen_groepen = "")
   }))
+  x <- per_jaar[per_jaar$groep != "Totaal", ]
+  if (length(unique(x$groep)) > 1)
+    toets$p_trendverschil_tussen_groepen[toets$groep == "Totaal"] <-
+      p_interactie(x$n, x$jaar, factor(x$groep), poisson())
   list(per_jaar = per_jaar, toets = toets)
 }
 
@@ -102,7 +137,10 @@ trend_numeriek <- function(d, y, maat, groep) {
     x <- gs[[g]]; x <- x[!is.na(x$.y) & !is.na(x$.jaar), ]
     rij <- data.frame(maat = maat, groep = g, n = nrow(x), events = NA,
                       effectmaat = "verandering per jaar", schatting = NA, BI_onder = NA,
-                      BI_boven = NA, p = "", schatting_gecorrigeerd = NA, p_gecorrigeerd = "")
+                      BI_boven = NA, p = "", schatting_gecorrigeerd = NA, p_gecorrigeerd = "",
+                      p_trendverschil_tussen_groepen = "")
+    if (g == "Totaal") rij$p_trendverschil_tussen_groepen <-
+      p_interactie(d$.y, d$.jaar, groepsvector(d, groep), gaussian())
     if (nrow(x) < 3 || length(unique(x$.jaar)) < 2) return(rij)
     s <- coef(summary(lm(.y ~ .jaar, data = x)))[".jaar", ]
     rij$schatting <- round(s[1], 2)
@@ -110,6 +148,15 @@ trend_numeriek <- function(d, y, maat, groep) {
     rij$p <- fmt_p(s[4])
     rij
   }))
+  # p-waarde verschil tussen de groepen binnen elk jaar (Mann-Whitney / Kruskal-Wallis)
+  g <- groepsvector(d, groep)
+  per_jaar$p_tussen_groepen <- ""
+  if (!is.null(g)) for (j in unique(per_jaar$jaar)) {
+    sel <- d$.jaar == j & !is.na(d$.y) & !is.na(g)
+    if (!any(sel)) next
+    per_jaar$p_tussen_groepen[per_jaar$jaar == j & per_jaar$groep == "Totaal"] <-
+      fmt_p(toets_num(d$.y[sel], g[sel], normaal = FALSE)$p)
+  }
   rownames(per_jaar) <- NULL
   list(per_jaar = per_jaar, toets = toets)
 }
@@ -131,6 +178,11 @@ trendanalyse <- function(df, groep = GROEP) {
 
   # (2) mortaliteit, (3) complicaties, (4) FTR, (6) circulatiestilstand
   binair <- list()
+  if (!is.null(groep) && groep %in% names(d) && "acuut" %in% d[[groep]]) {
+    # Verandert het aandeel acute operaties over de jaren? (alleen totaal)
+    tb <- trend_binair(d, as.character(d[[groep]]) == "acuut", "Aandeel acuut", NULL)
+    aantal$toets <- rbind(aantal$toets, tb)
+  }
   for (label in names(TREND_MORTALITEIT)) {
     m <- TREND_MORTALITEIT[[label]]
     if (!m$var %in% names(d)) next
@@ -175,21 +227,37 @@ trend_figuren <- function(tr, map) {
   ondertitel <- function(maten) {
     t <- tr$toetsen[tr$toetsen$maat %in% maten & tr$toetsen$p != "", ]
     if (!nrow(t)) return(NULL)
-    paste(sprintf("%s: %s %.2f, p = %s", t$groep, t$effectmaat, t$schatting, t$p), collapse = "\n")
+    tekst <- sprintf("%s: %s %.2f, p = %s", t$groep, t$effectmaat, t$schatting, t$p)
+    inter <- t$p_trendverschil_tussen_groepen[t$p_trendverschil_tussen_groepen != ""]
+    if (length(inter)) tekst <- c(tekst, paste("verschil in trend tussen groepen: p =", inter[1]))
+    paste(tekst, collapse = "\n")
+  }
+  # Facetlabel: naam + trend-p per groep
+  facetlabel <- function(maten) {
+    sapply(maten, function(m) {
+      t <- tr$toetsen[tr$toetsen$maat == m, ]
+      regel <- paste(sprintf("%s p=%s", sub("electief aneurysma", "electief", t$groep),
+                             ifelse(t$p == "", "-", t$p)), collapse = " | ")
+      inter <- t$p_trendverschil_tussen_groepen[t$p_trendverschil_tussen_groepen != ""]
+      if (length(inter)) regel <- paste0(regel, "\nverschil in trend p=", inter[1])
+      paste0(m, "\ntrend: ", regel)
+    })
   }
   paden <- c()
 
   # 1. Aantallen
   a <- tr$aantal[tr$aantal$groep != "Totaal", ]
   p <- ggplot(a, aes(jaar, n, fill = groep)) + geom_col() + jaar_as + kleuren +
-    labs(title = "1. Aantal boog-OK's per jaar", subtitle = ondertitel("Aantal boog-OK's"),
+    labs(title = "1. Aantal boog-OK's per jaar",
+         subtitle = paste(ondertitel("Aantal boog-OK's"), ondertitel("Aandeel acuut"), sep = "\n"),
          x = NULL, y = "Aantal operaties", fill = NULL) + thema
-  paden <- c(paden, bewaar(p, map, "trend_1_aantallen", 9, 5.5))
+  paden <- c(paden, bewaar(p, map, "trend_1_aantallen", 9, 6.5))
 
   lijnplot <- function(onderdeel, titel, naam, hoog = 5.5, ncol = 3) {
     d <- tr$pct[tr$pct$onderdeel == onderdeel, ]
     if (!nrow(d)) return(NULL)
-    d$maat <- factor(d$maat, levels = unique(d$maat))
+    labels <- facetlabel(unique(d$maat))
+    d$maat <- factor(labels[d$maat], levels = labels)
     p <- ggplot(d, aes(jaar, pct, colour = groep, fill = groep)) +
       geom_ribbon(aes(ymin = BI_onder, ymax = BI_boven), alpha = 0.10, colour = NA) +
       geom_line(linewidth = 0.8) + geom_point(aes(size = n)) +
@@ -216,7 +284,7 @@ trend_figuren <- function(tr, map) {
       geom_boxplot(outlier.size = 0.6, alpha = 0.85) + kleuren +
       labs(title = "5. Minimale temperatuur per jaar", subtitle = ondertitel("Minimale temperatuur (°C)"),
            x = NULL, y = "Minimale temperatuur (°C)", fill = NULL) + thema
-    paden <- c(paden, bewaar(p, map, "trend_5_temperatuur", 10, 5.5))
+    paden <- c(paden, bewaar(p, map, "trend_5_temperatuur", 10, 6.5))
   }
   paden[!sapply(paden, is.null)]
 }
