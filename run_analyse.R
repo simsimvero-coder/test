@@ -102,6 +102,7 @@ excel <- c(
        "Volume per jaar" = inc$per_jaar, "Volume per miljoen - RR" = inc$rr,
        "Periode - electief" = per[["electief aneurysma"]], "Periode - acuut" = per[["acuut"]],
        "Periode - totaal" = per[["Totaal"]], "Temp - modellen" = pa$modellen, "Temp - per centrum" = pa$centra,
+       "Temp - mediaan centrum-jaar" = pa$per_centrum_jaar,
        "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
        "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
        "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
@@ -127,7 +128,8 @@ figuren <- c(
   fig_ontbrekend(ontbr, fig_map),
   trend_figuren(tr, fig_map),
   fig_incidentie(inc, fig_map),
-  fig_temperatuur_centra(pa, fig_map)
+  fig_temperatuur_centra(pa, fig_map),
+  fig_temperatuur_per_centrum_jaar(pa, fig_map)
 )
 
 # Samenvatting ----------------------------------------------------------------
@@ -163,7 +165,8 @@ cat("\nMinimale temperatuur - trendmodellen (°C per jaar; volledig in tabblad '
 m <- pa$modellen
 print(data.frame(populatie = m$populatie, groep = m$groep, model = m$model, n = m$n,
                  trend = sprintf("%.3f (%.3f tot %.3f)", m$verandering_per_jaar, m$BI95_onder, m$BI95_boven),
-                 p = m$p, SD_centra = m$SD_slope_tussen_centra,
+                 p = m$p, SD_centra = m$SD_slope_tussen_centra, PI95_centra = m$PI95_trend_centrum,
+                 ICC = m$ICC_centrum,
                  p_lineariteit = ifelse(grepl("lineariteit", m$extra_toets), m$p_extra, ""),
                  p_verschil_centra = ifelse(grepl("centra", m$extra_toets), m$p_extra, "")),
       row.names = FALSE, right = FALSE)

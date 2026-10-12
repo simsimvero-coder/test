@@ -66,6 +66,11 @@ Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc 
 - Alles voor **alle procedures** en **alleen met circulatiestilstand**, per groep en totaal:
   - ontbrekende temperatuur per jaar, per centrum en % compleet per centrum × jaar;
   - temperatuurcategorieën per groep met p-waarden;
+  - **landelijke trend** (marginaal, CR2 geclusterd op centrum) met een exacte decompositie:
+    landelijke trend = bijdrage **binnen** centra (praktijkverandering) + bijdrage **verschuiving tussen**
+    centra (volume naar centra met een ander temperatuurniveau);
+  - **tussen centra**: ICC (aandeel van de variatie tussen centra) en 95%-voorspellingsinterval voor de
+    trend van een centrum;
   - trend (°C per jaar):
     1. random intercept per centrum, met toets op afwijking van lineariteit (natural spline, 3 df);
     2. **random slope** (trend per centrum): SD van de trends tussen centra en LRT of de trend verschilt tussen centra;
@@ -73,7 +78,8 @@ Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc 
     4. totaal ook gecorrigeerd voor acuut/electief;
     5. gevoeligheidsanalyse: alleen centrum-jaren met ≥80% complete temperatuur (`TEMP_MIN_COMPLEET`);
   - trend per centrum (eigen regressie met 95%-BI en schatting uit het random-slope-model) + figuur
-    `temperatuur_trend_per_centrum.png`.
+    `temperatuur_trend_per_centrum.png`, en per centrum de jaarmedianen met eigen trend naast de
+    landelijke trend (`temperatuur_per_centrum_per_jaar.png`).
 - Tabbladen *Temp - …* in `resultaten.xlsx`.
 
 ## Analyses en p-waarden
