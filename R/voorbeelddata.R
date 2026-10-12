@@ -1,6 +1,7 @@
 # =============================================================================
 # Genereer een FICTIEVE voorbeelddataset met dezelfde kolommen als de echte
-# dataset, om de code mee te testen. Alle waarden zijn willekeurig.
+# dataset (alleen aortaboogpatiënten), om de code mee te testen. Alle waarden
+# zijn willekeurig.
 # Bevat bewust 'vuile' data (komma's, tikfouten, uitschieters, dubbele rijen).
 #
 # Gebruik:  Rscript R/voorbeelddata.R
@@ -11,10 +12,11 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
   janee <- function(p) sample(0:1, n, TRUE, c(1 - p, p))
   kies  <- function(x, p = NULL) sample(x, n, TRUE, p)
 
-  pathologie <- kies(c("aneurysma", "dissectie type A", "klepziekte", "coronair"), c(.25, .15, .35, .25))
+  jaar <- kies(2015:2023)
+  pathologie <- kies(c("aneurysma", "dissectie type A"), c(.55, .45))
   dissectie <- pathologie == "dissectie type A"
-  aortachir <- as.integer(pathologie %in% c("aneurysma", "dissectie type A") | runif(n) < .05)
-  circ <- as.integer(aortachir == 1 & runif(n) < ifelse(dissectie, .8, .3))
+  aortachir <- rep(1L, n)
+  circ <- as.integer(runif(n) < ifelse(dissectie, .9, .6 + 0.03 * (jaar - 2015)))
   leeftijd <- round(rnorm(n, ifelse(dissectie, 61, 67), 10))
   euro <- round(pmin(80, rlnorm(n, log(ifelse(dissectie, 8, 2.5)), 0.8)), 2)
   overl_zh <- rbinom(n, 1, pmin(0.9, euro / 100 * 1.1))
@@ -25,7 +27,7 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
 
   df <- data.frame(
     centrum = kies(paste("Centrum", LETTERS[1:6])),
-    jaar = kies(2015:2023),
+    jaar = jaar,
     leeftijd = leeftijd,
     geslacht = kies(c("M", "V"), c(.68, .32)),
     BMI = round(rnorm(n, 27, 4.2), 1),
@@ -41,19 +43,19 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
     ECC = 1L,
     circ_arrest = circ,
     chir_benadering = kies(c("sternotomie", "ministernotomie", "thoracotomie"), c(.85, .1, .05)),
-    CABG = as.integer(pathologie == "coronair" | runif(n) < .15),
-    klepchir = as.integer(pathologie == "klepziekte" | runif(n) < .3),
+    CABG = janee(.12),
+    klepchir = janee(.3),
     aklepchir = janee(.35), mklepchir = janee(.12), pklepchir = janee(.01), tklepchir = janee(.05),
     aortachir = aortachir,
     aotachir_benadering = ifelse(aortachir == 1, kies(c("open", "hybride"), c(.9, .1)), NA),
-    aorta_asc = as.integer(aortachir == 1 & runif(n) < .9),
+    aorta_asc = janee(.9),
     # 10 = aneurysma, 20 = dissectie/acuut, 30 = overig
     aorta_asc_path = ifelse(aortachir == 1, ifelse(dissectie, 20, kies(c(10, 30), c(.95, .05))), NA),
-    aortaboog_path = ifelse(circ == 1, ifelse(dissectie, 20, 10), NA),
-    aorta_desc = as.integer(aortachir == 1 & runif(n) < .1),
+    aortaboog_path = ifelse(dissectie, 20, 10),
+    aorta_desc = janee(.15),
     aorta_desc_path = NA,
     cardiochir_overig = janee(.1),
-    min_temp = round(ifelse(circ == 1, rnorm(n, 25, 2.5), rnorm(n, 33, 1.5)), 1),
+    min_temp = round(ifelse(circ == 1, rnorm(n, 22 + 0.5 * (jaar - 2015), 2.5), rnorm(n, 33, 1.5)), 1),
     ECC_duur = ecc_duur,
     AoX_duur = round(ecc_duur * runif(n, .55, .8)),
     circ_arrest_duur = ifelse(circ == 1, round(rnorm(n, 30, 10)), NA),
@@ -78,8 +80,8 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
     stringsAsFactors = FALSE
   )
   df$klepchir_clean <- df$klepchir
-  df$aorta_desc_path[df$aorta_desc == 1] <- 10
-  df$aorta_asc_path[sample(which(df$aortachir == 1), 15)] <- NA   # pathologie onbekend
+  df$aorta_desc_path[df$aorta_desc == 1] <- ifelse(dissectie[df$aorta_desc == 1], 20, 10)
+  i <- sample(n, 15); df$aorta_asc_path[i] <- NA; df$aortaboog_path[i] <- NA   # pathologie onbekend
 
   # Exclusies
   excl <- sample(n, 60)

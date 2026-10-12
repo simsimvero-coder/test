@@ -17,6 +17,7 @@ source("R/inlezen.R", encoding = "UTF-8")
 source("R/afgeleid.R", encoding = "UTF-8")
 source("R/analyse.R", encoding = "UTF-8")
 source("R/figuren.R", encoding = "UTF-8")
+source("R/trend.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 bestand <- if (length(args)) args[1] else DATA_BESTAND
@@ -59,12 +60,15 @@ tabellen <- lapply(TABELLEN, maak_tabel, df = df, groep = GROEP)
 oe_groep   <- if (!is.null(GROEP)) oe_ratio(df, GROEP)
 oe_centrum <- oe_ratio(df, "centrum")
 km <- overleving(df, GROEP)
+tr <- trendanalyse(df, GROEP)
 
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
   list("Indeling acuut-electief" = indeling$controle,
        "O-E per groep" = oe_groep, "O-E per centrum" = oe_centrum,
-       "Overleving" = km$tabel, "Ontbrekende waarden" = ontbr, "Opschoonlogboek" = logboek)
+       "Overleving" = km$tabel,
+       "Trend - toetsen" = tr$toetsen, "Trend - aantallen" = tr$aantal,
+       "Trend - percentages" = tr$pct, "Trend - temperatuur" = tr$temp, "Ontbrekende waarden" = ontbr, "Opschoonlogboek" = logboek)
 )
 excel <- excel[!sapply(excel, is.null)]
 writexl::write_xlsx(excel, file.path(UITVOER_MAP, "resultaten.xlsx"))
@@ -79,7 +83,8 @@ figuren <- c(
   fig_kaplan_meier(km, fig_map),
   fig_oe(oe_groep, fig_map),
   fig_oe(oe_centrum, fig_map),
-  fig_ontbrekend(ontbr, fig_map)
+  fig_ontbrekend(ontbr, fig_map),
+  trend_figuren(tr, fig_map)
 )
 
 # Samenvatting ----------------------------------------------------------------
@@ -92,6 +97,11 @@ if (!is.null(km)) {
   print(km$tabel, row.names = FALSE)
 }
 if (!is.null(oe_groep)) { cat("\nGeobserveerde/verwachte ziekenhuismortaliteit\n"); print(oe_groep, row.names = FALSE) }
+
+cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
+            min(tr$data$.jaar), max(tr$data$.jaar)))
+print(tr$toetsen[c("maat", "groep", "n", "effectmaat", "schatting", "BI_onder", "BI_boven", "p",
+                   "schatting_gecorrigeerd", "p_gecorrigeerd")], row.names = FALSE)
 
 cat("\nKlaar. Resultaten in '", UITVOER_MAP, "/':\n", sep = "")
 cat("  - resultaten.xlsx (tabellen, O/E, overleving, ontbrekende waarden, opschoonlogboek)\n")

@@ -31,11 +31,13 @@ ACUUT_ELECTIEF <- list(
   urgentie_kolom     = "urgentie",
   urgentie_acuut     = c(30, 40),
   urgentie_electief  = c(10, 20),
-  # Urgentie alleen gebruiken als de pathologie ontbreekt én de patiënt
-  # aortachirurgie had (anders zou bv. een electieve CABG als 'electief
-  # aneurysma' worden ingedeeld). FALSE = alleen op pathologie indelen.
+  # Urgentie gebruiken als de pathologie ontbreekt. FALSE = alleen op
+  # pathologie indelen.
   urgentie_als_path_ontbreekt = TRUE,
-  aortachir_kolom    = "aortachir",
+  # De dataset bestaat uit aortaboogpatiënten, dus iedereen komt in aanmerking.
+  # Bevat de dataset ook andere operaties, zet dit dan op "aortachir": dan
+  # wordt urgentie alleen gebruikt bij patiënten met aortachirurgie.
+  aortachir_kolom    = NULL,
   labels             = c(electief = "electief aneurysma", acuut = "acuut")
 )
 # Patiënten die niet als acuut of electief aneurysma ingedeeld kunnen worden
@@ -115,3 +117,38 @@ TOON_ALLEEN_JA <- TRUE
 
 # ── Statistiek ──────────────────────────────────────────────────────────────
 ALPHA_NORMALITEIT <- 0.05   # Shapiro-Wilk: bepaalt gem. (SD) vs. mediaan [IQR]
+
+# ── Trendanalyse over de jaren (R/trend.R) ──────────────────────────────────
+TREND_JAAR <- "jaar"
+
+# De dataset bestaat al uit aortaboogpatiënten, dus geen extra selectie.
+# TRUE = alleen rijen waarin BOOG_KOLOM is ingevuld (en niet 0) meenemen.
+# Uitsplitsing naar acuut / electief gaat via GROEP.
+TREND_ALLEEN_BOOG_OK <- FALSE
+BOOG_KOLOM <- "aortaboog_path"
+
+# Mortaliteit: label = c(variabele, minimale follow-up in dagen). Patiënten die
+# nog leven maar korter gevolgd zijn dan deze termijn tellen voor die maat niet
+# mee (anders wordt de mortaliteit in recente jaren onderschat).
+TREND_MORTALITEIT <- list(
+  "Ziekenhuismortaliteit" = list(var = "overleden_zh", min_followup = 0),
+  "30-dagenmortaliteit"   = list(var = "overl30d",     min_followup = 30),
+  "1-jaarsmortaliteit"    = list(var = "overl1j",      min_followup = 365)
+)
+# Mortaliteitstrend ook gecorrigeerd voor deze variabele(n) (NULL = niet)
+TREND_CORRECTIE <- c("EuroscoreII")
+
+# Complicaties; meerdere variabelen samen = 'ja' als minstens één 'ja' is.
+TREND_COMPLICATIES <- list(
+  "Nierfalen"                     = "nierfalen",
+  "Respiratoire insufficiëntie"   = "resp_insuff",
+  "Gastro-intestinale complicatie" = "gastroint_compl",
+  "CVA (met of zonder restletsel)" = c("CVA_restletsel", "CVA_zonder_restletsel")
+)
+
+# Failure to rescue: overlijden (FTR_UITKOMST) bij patiënten met minstens één
+# van de complicaties uit TREND_COMPLICATIES.
+FTR_UITKOMST <- "overleden_zh"
+
+TREND_TEMPERATUUR  <- "min_temp"
+TREND_CIRC_ARREST  <- "circ_arrest"

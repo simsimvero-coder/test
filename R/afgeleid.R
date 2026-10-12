@@ -20,7 +20,8 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
   urg <- if (cfg$urgentie_kolom %in% names(df)) als_getal(df[[cfg$urgentie_kolom]]) else rep(NA, n)
   urg_acuut    <- urg %in% cfg$urgentie_acuut
   urg_electief <- urg %in% cfg$urgentie_electief
-  aorta <- if (cfg$aortachir_kolom %in% names(df)) df[[cfg$aortachir_kolom]] %in% "ja" else rep(TRUE, n)
+  aorta <- if (length(cfg$aortachir_kolom) && cfg$aortachir_kolom %in% names(df))
+    df[[cfg$aortachir_kolom]] %in% "ja" else rep(TRUE, n)
   mag_urgentie <- cfg$urgentie_als_path_ontbreekt & aorta & !path_acuut & !path_electief
 
   groep <- rep(NA_character_, n)
