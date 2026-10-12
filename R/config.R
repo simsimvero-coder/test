@@ -16,8 +16,31 @@ ALLEEN_INCLUSIECOHORT <- TRUE
 INCLUSIE_KOLOM        <- "incl_cohort"
 
 # Kolom waarop groepen vergeleken worden in de tabellen en overlevingscurves.
-# NULL = alleen het totaal.
-GROEP <- "pathologie_groep"
+# NULL = alleen het totaal. "acuut_electief" is een afgeleide variabele (zie hieronder).
+GROEP <- "acuut_electief"
+
+# ── Indeling acuut vs. electief aneurysma ───────────────────────────────────
+# Acuut:               pathologie (asc/boog/desc) = 20, of urgentie = 30/40
+# Electief aneurysma:  pathologie (asc/boog/desc) = 10, of urgentie = 10/20
+# Pathologie gaat altijd vóór urgentie. Heeft een patiënt in het ene segment
+# code 20 en in het andere 10, dan telt hij als acuut.
+ACUUT_ELECTIEF <- list(
+  path_kolommen      = c("aorta_asc_path", "aortaboog_path", "aorta_desc_path"),
+  path_acuut         = 20,
+  path_electief      = 10,
+  urgentie_kolom     = "urgentie",
+  urgentie_acuut     = c(30, 40),
+  urgentie_electief  = c(10, 20),
+  # Urgentie alleen gebruiken als de pathologie ontbreekt én de patiënt
+  # aortachirurgie had (anders zou bv. een electieve CABG als 'electief
+  # aneurysma' worden ingedeeld). FALSE = alleen op pathologie indelen.
+  urgentie_als_path_ontbreekt = TRUE,
+  aortachir_kolom    = "aortachir",
+  labels             = c(electief = "electief aneurysma", acuut = "acuut")
+)
+# Patiënten die niet als acuut of electief aneurysma ingedeeld kunnen worden
+# (bv. geen aortachirurgie) uit de analyse laten? FALSE = wel in 'Totaal'.
+ALLEEN_INGEDEELDE_PATIENTEN <- TRUE
 
 # ── Overleving ──────────────────────────────────────────────────────────────
 OVERLEVING_TIJD   <- "overltijd_dag"   # follow-up in dagen

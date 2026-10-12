@@ -14,6 +14,7 @@ if (length(ontbreekt)) stop("Installeer eerst: install.packages(c(\"",
 
 source("R/config.R", encoding = "UTF-8")
 source("R/inlezen.R", encoding = "UTF-8")
+source("R/afgeleid.R", encoding = "UTF-8")
 source("R/analyse.R", encoding = "UTF-8")
 source("R/figuren.R", encoding = "UTF-8")
 
@@ -34,12 +35,23 @@ df <- res$data
 logboek <- res$logboek
 cat(sprintf("   %d patiënten in de analyse, %d regels in het opschoonlogboek\n",
             nrow(df), nrow(logboek)))
+indeling <- maak_acuut_electief(df)
+df <- indeling$data
 if (nrow(logboek)) {
   telling <- sort(table(paste0(logboek$stap, ifelse(is.na(logboek$kolom), "", paste0(" (", logboek$kolom, ")")))),
                   decreasing = TRUE)
   for (n in names(telling)) cat(sprintf("     - %s: %d\n", n, telling[[n]]))
 }
 ontbr <- ontbrekende_waarden(df)
+
+cat("   Indeling acuut / electief aneurysma:\n")
+print(indeling$overzicht, row.names = FALSE)
+if (ALLEEN_INGEDEELDE_PATIENTEN) {
+  niet <- is.na(df$acuut_electief)
+  df <- df[!niet, ]
+  cat(sprintf("   %d niet-ingedeelde patiënten uitgesloten; %d over voor de analyse\n",
+              sum(niet), nrow(df)))
+}
 
 # 3. Analyse ------------------------------------------------------------------
 cat("3. Analyse\n")
@@ -50,7 +62,8 @@ km <- overleving(df, GROEP)
 
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
-  list("O-E per groep" = oe_groep, "O-E per centrum" = oe_centrum,
+  list("Indeling acuut-electief" = indeling$controle,
+       "O-E per groep" = oe_groep, "O-E per centrum" = oe_centrum,
        "Overleving" = km$tabel, "Ontbrekende waarden" = ontbr, "Opschoonlogboek" = logboek)
 )
 excel <- excel[!sapply(excel, is.null)]

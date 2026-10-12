@@ -35,7 +35,9 @@ Rscript run_analyse.R
 
 | Instelling | Standaard | Betekenis |
 |---|---|---|
-| `GROEP` | `"pathologie_groep"` | kolom voor groepsvergelijking (`NULL` = alleen totaal) |
+| `GROEP` | `"acuut_electief"` | kolom voor groepsvergelijking (`NULL` = alleen totaal) |
+| `ACUUT_ELECTIEF` | zie hieronder | codes voor de indeling acuut / electief aneurysma |
+| `ALLEEN_INGEDEELDE_PATIENTEN` | `TRUE` | niet-ingedeelde patiënten uitsluiten |
 | `ALLEEN_INCLUSIECOHORT` | `TRUE` | alleen rijen met `incl_cohort` = ja/1 |
 | `NUMERIEK` | leeftijd, BMI, kreatinine, … | numerieke variabelen + plausibel bereik |
 | `CATEGORISCH` | overige variabelen | categorisch; ja/nee/1/0 wordt automatisch `nee`/`ja` |
@@ -46,6 +48,22 @@ Rscript run_analyse.R
 Kolomnamen worden hoofdletter-ongevoelig gekoppeld (`bmi` = `BMI`).
 Staat `LVEF` bij jou als categorie (bv. goed/matig/slecht) in de data, dan
 herkent de code dat en behandelt hem als categorisch (met een melding).
+
+## Indeling acuut vs. electief aneurysma (`R/afgeleid.R`)
+
+| Groep | Pathologie (`aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`) | Urgentie |
+|---|---|---|
+| acuut | 20 in minstens één segment | 30 of 40 |
+| electief aneurysma | 10 (en nergens 20) | 10 of 20 |
+
+- **Pathologie gaat altijd vóór urgentie.** Een dissectie (20) met urgentie 20 is acuut;
+  een aneurysma (10) met urgentie 30 is electief.
+- Code 20 in het ene segment en 10 in het andere → acuut.
+- Urgentie wordt alleen gebruikt als de pathologie ontbreekt én de patiënt aortachirurgie
+  had (`urgentie_als_path_ontbreekt`).
+- De basis van de indeling staat in de kolom `acuut_electief_basis`; het tabblad
+  *Indeling acuut-electief* in `resultaten.xlsx` geeft de kruistabel urgentie × pathologie × groep
+  om de indeling te controleren.
 
 ## Wat de code doet
 

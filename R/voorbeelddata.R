@@ -34,7 +34,9 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
     LVEF = round(pmin(75, rnorm(n, 55, 10))),
     cardiochir_eerder = janee(.08),
     endocarditis = janee(.04),
-    urgentie = ifelse(dissectie, "spoed", kies(c("electief", "urgent", "spoed"), c(.7, .25, .05))),
+    # 10 = electief, 20 = urgent, 30 = spoed, 40 = salvage
+    urgentie = ifelse(dissectie, kies(c(20, 30, 40), c(.05, .8, .15)),
+                      kies(c(10, 20, 30), c(.7, .25, .05))),
     EuroscoreII = euro,
     ECC = 1L,
     circ_arrest = circ,
@@ -45,8 +47,9 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
     aortachir = aortachir,
     aotachir_benadering = ifelse(aortachir == 1, kies(c("open", "hybride"), c(.9, .1)), NA),
     aorta_asc = as.integer(aortachir == 1 & runif(n) < .9),
-    aorta_asc_path = ifelse(aortachir == 1, ifelse(dissectie, "dissectie", "aneurysma"), NA),
-    aortaboog_path = ifelse(circ == 1, kies(c("aneurysma", "dissectie", "geen")), NA),
+    # 10 = aneurysma, 20 = dissectie/acuut, 30 = overig
+    aorta_asc_path = ifelse(aortachir == 1, ifelse(dissectie, 20, kies(c(10, 30), c(.95, .05))), NA),
+    aortaboog_path = ifelse(circ == 1, ifelse(dissectie, 20, 10), NA),
     aorta_desc = as.integer(aortachir == 1 & runif(n) < .1),
     aorta_desc_path = NA,
     cardiochir_overig = janee(.1),
@@ -75,7 +78,8 @@ maak_voorbeelddata <- function(n = 1500, seed = 2026) {
     stringsAsFactors = FALSE
   )
   df$klepchir_clean <- df$klepchir
-  df$aorta_desc_path[df$aorta_desc == 1] <- "aneurysma"
+  df$aorta_desc_path[df$aorta_desc == 1] <- 10
+  df$aorta_asc_path[sample(which(df$aortachir == 1), 15)] <- NA   # pathologie onbekend
 
   # Exclusies
   excl <- sample(n, 60)
