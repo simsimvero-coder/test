@@ -74,6 +74,8 @@ if (ALLEEN_INGEDEELDE_PATIENTEN) {
               sum(niet), nrow(df)))
 }
 
+if (nrow(df) == 0) stop("Geen patiënten over voor de analyse. Controleer de meldingen hierboven.")
+
 # 3. Analyse ------------------------------------------------------------------
 cat("3. Analyse\n")
 tabellen <- lapply(TABELLEN, maak_tabel, df = df, groep = GROEP)

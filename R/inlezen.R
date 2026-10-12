@@ -23,12 +23,35 @@ zoek_bestand <- function(naam) {
   if (length(gevonden)) normalizePath(gevonden[1]) else NULL
 }
 
-lees_data <- function(pad, blad = 1) {
+lees_data <- function(pad, blad = NULL) {
   if (!file.exists(pad)) stop("Bestand niet gevonden: ", pad)
   if (!tolower(tools::file_ext(pad)) %in% c("xlsx", "xls"))
     stop("Kies een Excelbestand (.xlsx of .xls): ", pad)
+
+  # Zoek het werkblad en de kopregel met de meeste bekende kolomnamen
+  # (een tabblad met toelichting of titelregels boven de tabel wordt zo overgeslagen)
+  bekend <- tolower(unique(c(names(NUMERIEK), CATEGORISCH)))
+  bladen <- readxl::excel_sheets(pad)
+  kandidaten <- if (is.null(blad)) bladen else blad
+  beste <- list(score = 0)
+  for (b in kandidaten) {
+    voorproef <- suppressMessages(readxl::read_excel(pad, sheet = b, col_names = FALSE,
+                                                     n_max = 30, col_types = "text"))
+    for (r in seq_len(nrow(voorproef))) {
+      score <- sum(tolower(trimws(unlist(voorproef[r, ]))) %in% bekend)
+      if (score > beste$score) beste <- list(score = score, blad = b, rij = r)
+    }
+  }
+  if (beste$score == 0)
+    stop("Geen bekende kolomnamen gevonden. Werkbladen in het bestand: ",
+         paste(bladen, collapse = ", "), ". Controleer de kolomnamen in R/config.R.")
+  cat(sprintf("   werkblad '%s', kopregel op rij %d (%d van %d bekende kolommen gevonden)\n",
+              beste$blad, beste$rij, beste$score, length(bekend)))
+
   # Alles als tekst inlezen; het opschonen zet de typen daarna goed
-  df <- as.data.frame(readxl::read_excel(pad, sheet = blad, col_types = "text"))
+  df <- as.data.frame(readxl::read_excel(pad, sheet = beste$blad, skip = beste$rij - 1,
+                                         col_types = "text"))
+  attr(df, "kopregel") <- beste$rij
 
   names(df) <- trimws(names(df))
   # Kolomnamen hoofdletter-ongevoelig koppelen aan de namen uit config.R
@@ -41,12 +64,13 @@ lees_data <- function(pad, blad = 1) {
 }
 
 schoon_op <- function(df) {
+  kopregel <- if (is.null(attr(df, "kopregel"))) 1 else attr(df, "kopregel")
   logboek <- list()
   noteer <- function(stap, kolom, rij, oud, nieuw) {
     if (length(rij) == 0) return(invisible())
-    # rij + 1: regel 1 van het bestand is de kopregel
+    # rij + kopregel = regelnummer zoals in Excel
     logboek[[length(logboek) + 1]] <<- data.frame(
-      stap = stap, kolom = kolom %||% NA_character_, rij_in_bestand = rij + 1,
+      stap = stap, kolom = kolom %||% NA_character_, rij_in_bestand = rij + kopregel,
       oude_waarde = as.character(oud), nieuwe_waarde = as.character(nieuw)
     )
   }

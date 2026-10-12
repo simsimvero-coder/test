@@ -9,7 +9,7 @@
 # je mag hier ook een volledig pad invullen, bv. "C:/Users/naam/Desktop/data.xlsx".
 # Wordt het bestand niet gevonden, dan verschijnt een venster om het te kiezen.
 DATA_BESTAND  <- "AORTABOOG_NL_schoon v3(1).xlsx"
-EXCEL_BLAD    <- 1          # werkblad: nummer of naam
+EXCEL_BLAD    <- NULL       # NULL = automatisch het werkblad met de data kiezen; of naam/nummer
 UITVOER_MAP   <- "output"
 
 # ── Selectie & groepen ──────────────────────────────────────────────────────
