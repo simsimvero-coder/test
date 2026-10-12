@@ -252,3 +252,8 @@ UITKOMST_CR2 <- TRUE
 # een jaar te overlijden, 0-1). Zoek je het bestand op het bureaublad, geef dan
 # alleen de naam. NULL = relatieve overleving overslaan.
 LEVENSTABEL_BESTAND <- "levenstabel_NL.csv"
+
+# ── Benchmark per centrum: funnel plots (R/benchmark.R) ─────────────────────
+# Verwachte sterfte (EuroSCORE II) herkalibreren naar het landelijke niveau,
+# zodat O/E = 1 het landelijke niveau bij dezelfde case-mix betekent.
+FUNNEL_HERKALIBREREN <- TRUE

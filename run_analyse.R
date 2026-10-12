@@ -40,6 +40,7 @@ source("R/incidentie.R", encoding = "UTF-8")
 source("R/periode.R", encoding = "UTF-8")
 source("R/perfusie.R", encoding = "UTF-8")
 source("R/uitkomsten.R", encoding = "UTF-8")
+source("R/benchmark.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -103,6 +104,7 @@ ut <- uitkomst_trends(df, GROEP)
 cv <- centrum_variatie(df, GROEP)
 los <- opnameduur_analyse(df, GROEP)
 rs <- relatieve_overleving(df, GROEP)
+bm <- benchmark_centra(df, GROEP)
 
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
@@ -114,7 +116,7 @@ excel <- c(
        "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
        "Temp zonder vs met arrest" = cv$zonder_met, "Opnameduur" = los,
-       "Relatieve overleving" = rs,
+       "Relatieve overleving" = rs, "Benchmark - funnel" = bm,
        "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
        "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
        "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
@@ -141,7 +143,8 @@ figuren <- c(
   trend_figuren(tr, fig_map),
   fig_incidentie(inc, fig_map),
   fig_temperatuur_centra(pa, fig_map),
-  fig_temperatuur_per_centrum_jaar(pa, fig_map)
+  fig_temperatuur_per_centrum_jaar(pa, fig_map),
+  fig_funnels(bm, fig_map)
 )
 
 # Samenvatting ----------------------------------------------------------------
@@ -196,6 +199,12 @@ print(ut, row.names = FALSE)
 cat("\nOpnameduur (ratio per jaar = geometrische verandering)\n")
 print(los, row.names = FALSE)
 if (!is.null(rs)) { cat("\nKaplan-Meier en relatieve overleving (Ederer II)\n"); print(rs, row.names = FALSE) }
+
+cat("\nBenchmark per centrum (funnel plots) - centra buiten de grenzen\n")
+print(bm[bm$status != "binnen grenzen", c("groep", "uitkomst", "centrum", "n", "geobserveerd", "verwacht",
+                                          "waarde", "eenheid", "grens95", "status")], row.names = FALSE)
+cat("Landelijk niveau per uitkomst:\n")
+print(unique(bm[, c("groep", "uitkomst", "landelijk")]), row.names = FALSE)
 
 cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
             min(tr$data$.jaar), max(tr$data$.jaar)))

@@ -110,6 +110,16 @@ Apart voor acuut en electief, **zonder correctie voor urgentie of EuroSCORE II**
 
 Tabbladen *Uitkomst - trends*, *Centra - …*, *Temp zonder vs met arrest*, *Opnameduur*, *Relatieve overleving*.
 
+## Benchmark per centrum (`R/benchmark.R`)
+
+Funnel plots apart voor acuut en electief:
+- ziekenhuis- en 30-dagenmortaliteit als **O/E t.o.v. EuroSCORE II** (indirecte standaardisatie;
+  standaard geherkalibreerd naar het landelijke niveau, `FUNNEL_HERKALIBREREN`), grenzen exact Poisson;
+- major complicaties en failure to rescue als ruw percentage t.o.v. het landelijke percentage,
+  grenzen exact binomiaal.
+95%- en 99,8%-controlegrenzen; per centrum de status (binnen/boven/onder). Tabblad *Benchmark - funnel*,
+figuren `funnel_acuut.png` en `funnel_electief_aneurysma.png`.
+
 ## Analyses en p-waarden
 
 | Onderdeel | Wat | p-waarden |
