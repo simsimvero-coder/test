@@ -9,10 +9,21 @@
 # Vanaf de opdrachtregel:  Rscript run_analyse.R pad/naar/dataset.xlsx
 # =============================================================================
 
+if (getRversion() < "4.1.0")
+  stop("Je R-versie (", getRversion(), ") is te oud. Installeer R 4.1 of nieuwer via https://cran.r-project.org")
+
+# Werkmap = de map van dit script, zodat de bestanden in R/ gevonden worden
+# (werkt met source(), de Source-knop in RStudio en Archief > Source in R.app)
+script_map <- tryCatch(dirname(normalizePath(sys.frame(1)$ofile)), error = function(e) NULL)
+if (!is.null(script_map) && file.exists(file.path(script_map, "R", "config.R"))) setwd(script_map)
+if (!file.exists(file.path("R", "config.R")))
+  stop("Map R/ niet gevonden. Start het script met source(\"pad/naar/run_analyse.R\") ",
+       "of via de Source-knop, niet door de code in de console te plakken.")
+
 benodigd <- c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl")
 ontbreekt <- benodigd[!sapply(benodigd, requireNamespace, quietly = TRUE)]
 if (length(ontbreekt)) stop("Installeer eerst: install.packages(c(\"",
-                            paste(ontbreekt, collapse = "\", \""), "\"))")
+                            paste(ontbreekt, collapse = "\", \""), "\"), repos = \"https://cloud.r-project.org\")")
 
 source("R/config.R", encoding = "UTF-8")
 source("R/inlezen.R", encoding = "UTF-8")
