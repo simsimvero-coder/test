@@ -12,6 +12,7 @@
 # De JIT-compiler van R kan op oudere Macs crashen ("caught segfault"); uitzetten
 # maakt het script iets trager maar voorkomt dat.
 invisible(compiler::enableJIT(0))
+options(width = 250)   # brede tabellen niet afbreken in de console
 
 if (getRversion() < "4.1.0")
   stop("Je R-versie (", getRversion(), ") is te oud. Installeer R 4.1 of nieuwer via https://cran.r-project.org")
