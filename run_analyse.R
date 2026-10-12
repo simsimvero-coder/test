@@ -93,14 +93,18 @@ km <- overleving(df, GROEP)
 tr <- trendanalyse(df, GROEP)
 inc <- incidentie(df_alle, GROEP)
 per <- periodevergelijking(df, GROEP)
-temp_mod <- temperatuur_modellen(df, GROEP)
+pa <- perfusie_analyse(df, GROEP)
 
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
   list("Indeling acuut-electief" = indeling$controle,
        "Volume per jaar" = inc$per_jaar, "Volume per miljoen - RR" = inc$rr,
        "Periode - electief" = per[["electief aneurysma"]], "Periode - acuut" = per[["acuut"]],
-       "Periode - totaal" = per[["Totaal"]], "Temperatuur - modellen" = temp_mod,
+       "Periode - totaal" = per[["Totaal"]], "Temp - modellen" = pa$modellen, "Temp - per centrum" = pa$centra,
+       "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
+       "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
+       "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
+       "Temp - % compleet centrum-jaar" = pa$compleet_centrum_jaar,
        "O-E per groep" = oe_groep, "O-E per centrum" = oe_centrum,
        "Overleving" = km$tabel,
        "Trend - toetsen" = tr$toetsen, "Trend - aantallen" = tr$aantal,
@@ -121,7 +125,8 @@ figuren <- c(
   fig_oe(oe_centrum, fig_map),
   fig_ontbrekend(ontbr, fig_map),
   trend_figuren(tr, fig_map),
-  fig_incidentie(inc, fig_map)
+  fig_incidentie(inc, fig_map),
+  fig_temperatuur_centra(pa, fig_map)
 )
 
 # Samenvatting ----------------------------------------------------------------
@@ -145,8 +150,24 @@ for (n in names(per)) {
   print(selecteer_rijen(per[[n]], PERIODE_KERNVARIABELEN), row.names = FALSE, right = FALSE)
 }
 
-cat("\nTemperatuurtrend per jaar: random intercept (centrum) en centrum-fixed-effects met CR2\n")
-print(temp_mod, row.names = FALSE)
+cat("\nMinimale temperatuur - ontbrekend per jaar\n")
+print(pa$ontbrekend_jaar, row.names = FALSE)
+cat("\nMinimale temperatuur - ontbrekend per centrum\n")
+print(pa$ontbrekend_centrum, row.names = FALSE)
+for (n in names(pa$categorieen)) {
+  cat("\nMinimale temperatuur - categorieën per groep -", n, "\n")
+  print(pa$categorieen[[n]], row.names = FALSE, right = FALSE)
+}
+cat("\nMinimale temperatuur - trendmodellen (°C per jaar; volledig in tabblad 'Temp - modellen')\n")
+m <- pa$modellen
+print(data.frame(populatie = m$populatie, groep = m$groep, model = m$model, n = m$n,
+                 trend = sprintf("%.3f (%.3f tot %.3f)", m$verandering_per_jaar, m$BI95_onder, m$BI95_boven),
+                 p = m$p, SD_centra = m$SD_slope_tussen_centra,
+                 p_lineariteit = ifelse(grepl("lineariteit", m$extra_toets), m$p_extra, ""),
+                 p_verschil_centra = ifelse(grepl("centra", m$extra_toets), m$p_extra, "")),
+      row.names = FALSE, right = FALSE)
+cat("\nMinimale temperatuur - trend per centrum\n")
+print(pa$centra, row.names = FALSE)
 
 cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
             min(tr$data$.jaar), max(tr$data$.jaar)))

@@ -61,14 +61,20 @@ Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc 
 
 ## Perfusie (`R/perfusie.R`)
 
-- `temp_categorie`: minimale temperatuur ≤20 °C (diep), 20–28 °C (matig), >28 °C (`TEMP_GRENZEN`).
-- `circ_arrest_duur_bij_arrest`: duur van de circulatiestilstand bij patiënten met stilstand
-  (`CIRC_ARREST_KOLOM`, standaard `circ_arrest_clean`) en duur > 0.
-- Trend in minimale temperatuur (°C per jaar), per groep en totaal:
-  1. random-intercept-model per centrum (`nlme::lme`);
-  2. centrum-fixed-effects met CR2 cluster-robuuste standaardfouten en Satterthwaite-vrijheidsgraden
-     (`clubSandwich`).
-  Tabblad *Temperatuur - modellen*.
+- `temp_categorie`: ≤20 °C (diep), 20–28 °C (matig), >28 °C (`TEMP_GRENZEN`).
+- `circ_arrest_duur_bij_arrest`: duur bij patiënten met circulatiestilstand (`CIRC_ARREST_KOLOM`) en duur > 0.
+- Alles voor **alle procedures** en **alleen met circulatiestilstand**, per groep en totaal:
+  - ontbrekende temperatuur per jaar, per centrum en % compleet per centrum × jaar;
+  - temperatuurcategorieën per groep met p-waarden;
+  - trend (°C per jaar):
+    1. random intercept per centrum, met toets op afwijking van lineariteit (natural spline, 3 df);
+    2. **random slope** (trend per centrum): SD van de trends tussen centra en LRT of de trend verschilt tussen centra;
+    3. centrum-fixed-effects met CR2 (Satterthwaite, `clubSandwich`);
+    4. totaal ook gecorrigeerd voor acuut/electief;
+    5. gevoeligheidsanalyse: alleen centrum-jaren met ≥80% complete temperatuur (`TEMP_MIN_COMPLEET`);
+  - trend per centrum (eigen regressie met 95%-BI en schatting uit het random-slope-model) + figuur
+    `temperatuur_trend_per_centrum.png`.
+- Tabbladen *Temp - …* in `resultaten.xlsx`.
 
 ## Analyses en p-waarden
 
