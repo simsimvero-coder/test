@@ -26,8 +26,8 @@ TEMP_MIN_COMPLEET <- 0.80
 # CR2-variantie één keer berekenen en hergebruiken (dit is de traagste stap)
 cr2_jaar <- function(m, cluster) {
   V <- clubSandwich::vcovCR(m, cluster = cluster, type = "CR2")
-  ci <- clubSandwich::conf_int(m, vcov = V, coefs = "jaar")
-  ct <- clubSandwich::coef_test(m, vcov = V, test = "Satterthwaite", coefs = "jaar")
+  ci <- suppressWarnings(clubSandwich::conf_int(m, vcov = V, coefs = "jaar"))
+  ct <- suppressWarnings(clubSandwich::coef_test(m, vcov = V, test = "Satterthwaite", coefs = "jaar"))
   c(ci$beta, ci$CI_L, ci$CI_U, ct[[grep("^p_", names(ct), value = TRUE)[1]]])
 }
 

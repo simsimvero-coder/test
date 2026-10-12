@@ -32,13 +32,37 @@ samengesteld <- function(df, vars) {
   ifelse(rowSums(m, na.rm = TRUE) > 0, TRUE, ifelse(rowSums(!is.na(m)) == ncol(m), FALSE, NA))
 }
 
+# Logistisch model met random intercept per centrum. Primair lme4::glmer (Laplace);
+# lukt dat niet (bv. een lme4/Matrix-versieconflict), dan MASS::glmmPQL als terugval.
+logit_mixed <- function(f, d, term) {
+  f_re <- update(f, . ~ . + (1 | .centrum))
+  fout <- ""
+  if (requireNamespace("lme4", quietly = TRUE)) {
+    r <- tryCatch({
+      m <- suppressMessages(suppressWarnings(
+        lme4::glmer(f_re, data = d, family = binomial, control = lme4::glmerControl(optimizer = "bobyqa"))))
+      out <- list(model = "glmer (Laplace)", var_centrum = as.numeric(lme4::VarCorr(m)$.centrum))
+      if (!is.null(term)) { s <- coef(summary(m))[term, ]; out$est <- s[1]; out$se <- s[2]; out$p <- s[4] }
+      out
+    }, error = function(e) { fout <<- conditionMessage(e); NULL })
+    if (!is.null(r)) return(r)
+  }
+  r <- tryCatch({
+    m <- suppressMessages(MASS::glmmPQL(f, random = ~ 1 | .centrum, family = binomial, data = d, verbose = FALSE))
+    out <- list(model = "glmmPQL (terugval)", var_centrum = as.numeric(nlme::VarCorr(m)[1, "Variance"]))
+    if (!is.null(term)) { t <- summary(m)$tTable[term, ]; out$est <- t["Value"]; out$se <- t["Std.Error"]; out$p <- t["p-value"] }
+    out
+  }, error = function(e) list(model = "mislukt", fout = paste("mislukt:", fout, conditionMessage(e))))
+  r
+}
+
 voortgang <- function(...) { cat("   ", sprintf(...), "\n", sep = ""); flush.console() }
 
 # ── 1. Uitkomsttrends ───────────────────────────────────────────────────────
 uitkomst_trends <- function(df, groep = GROEP) {
   heeft_lme4 <- requireNamespace("lme4", quietly = TRUE)
   heeft_cs <- requireNamespace("clubSandwich", quietly = TRUE) && UITKOMST_CR2
-  if (!heeft_lme4) message("LET OP - pakket 'lme4' ontbreekt; mixed models overgeslagen. Installeer met: ",
+  if (!heeft_lme4) message("LET OP - pakket 'lme4' ontbreekt; MASS::glmmPQL wordt als terugval gebruikt. Installeer lme4 met: ",
                            "install.packages(\"lme4\", repos = \"https://cloud.r-project.org\", type = \"binary\")")
 
   tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(Inf, nrow(df))
@@ -69,10 +93,11 @@ uitkomst_trends <- function(df, groep = GROEP) {
 
   rij <- function(g, u, d, ...) {
     a <- list(...)
+    k <- function(naam, leeg) if (is.null(a[[naam, exact = TRUE]])) leeg else a[[naam, exact = TRUE]]
     data.frame(groep = g, uitkomst = u[[1]], type = u[[2]], n = nrow(d), events = sum(d$y),
-               pct = round(100 * mean(d$y), 1),
-               OR_primair = a$or %||% NA, BI95_primair = a$bi %||% "", p_primair = a$p %||% NA,
-               OR_CR2 = a$or2 %||% NA, BI95_CR2 = a$bi2 %||% "", p_CR2 = a$p2 %||% NA)
+               pct = round(100 * mean(d$y), 1), model_primair = k("model", ""),
+               OR_primair = k("or", NA), BI95_primair = k("bi", ""), p_primair = k("p", NA),
+               OR_CR2 = k("or2", NA), BI95_CR2 = k("bi2", ""), p_CR2 = k("p2", NA))
   }
   `%||%` <- function(a, b) if (is.null(a)) b else a
   f_cov <- if (length(cov)) paste("+", paste(cov, collapse = " + ")) else ""
@@ -85,21 +110,21 @@ uitkomst_trends <- function(df, groep = GROEP) {
     if (nrow(d) < 30 || sum(d$y) < 5) { res[[length(res) + 1]] <- rij(g, u, d); next }
     voortgang("uitkomstmodel: %s - %s (n = %d)", g, u[[1]], nrow(d))
     a <- list()
-    if (heeft_lme4) tryCatch({
-      m <- lme4::glmer(as.formula(paste("y ~ jaar_c", f_cov, "+ (1 | .centrum)")), data = d, family = binomial,
-                       control = lme4::glmerControl(optimizer = "bobyqa"))
-      s <- coef(summary(m))["jaar_c", ]
-      a$or <- round(exp(s[1]), 3); a$p <- s[4]
-      a$bi <- sprintf("%.3f-%.3f", exp(s[1] - 1.96 * s[2]), exp(s[1] + 1.96 * s[2]))
-    }, error = function(e) a$bi <<- paste("mislukt:", conditionMessage(e)))
+    r <- logit_mixed(as.formula(paste("y ~ jaar_c", f_cov)), d, "jaar_c")
+    a[["model"]] <- r$model
+    if (!is.null(r$est)) {
+      a[["or"]] <- round(exp(r$est), 3); a[["p"]] <- r$p
+      a[["bi"]] <- sprintf("%.3f-%.3f", exp(r$est - 1.96 * r$se), exp(r$est + 1.96 * r$se))
+    } else a[["bi"]] <- r$fout
     if (heeft_cs) tryCatch({
       m <- glm(as.formula(paste("y ~ jaar", f_cov, "+ .centrum")), data = d, family = binomial)
       r <- cr2_jaar(m, d$.centrum)
-      a$or2 <- round(exp(r[1]), 3); a$bi2 <- sprintf("%.3f-%.3f", exp(r[2]), exp(r[3])); a$p2 <- r[4]
-    }, error = function(e) a$bi2 <<- paste("mislukt:", conditionMessage(e)))
+      a[["or2"]] <- round(exp(r[1]), 3); a[["bi2"]] <- sprintf("%.3f-%.3f", exp(r[2]), exp(r[3])); a[["p2"]] <- r[4]
+    }, error = function(e) a[["bi2"]] <<- paste("mislukt:", conditionMessage(e)))
     res[[length(res) + 1]] <- do.call(rij, c(list(g, u, d), a))
   }
   out <- do.call(rbind, res)
+  rownames(out) <- NULL
 
   # Benjamini-Hochberg over de secundaire uitkomsten, per groep
   out$q_BH_primair <- NA; out$q_BH_CR2 <- NA
@@ -147,14 +172,15 @@ centrum_variatie <- function(df, groep = GROEP) {
     m <- nlme::lme(as.formula(paste(y, "~ 1")), random = ~ 1 | .centrum, data = x, method = "REML")
     v <- as.numeric(nlme::VarCorr(m)[, "Variance"]); v[1] / sum(v)
   }, error = function(e) NA)
-  icc_bin <- function(x, y) if (!heeft_lme4) NA else tryCatch({
-    x <- x[!is.na(x[[y]]), ]; x$.y <- as.integer(x[[y]])
-    m <- lme4::glmer(.y ~ 1 + (1 | .centrum), data = x, family = binomial)
-    v <- as.numeric(lme4::VarCorr(m)$.centrum); v / (v + pi^2 / 3)
-  }, error = function(e) NA)
+  icc_bin <- function(x, y) {
+    x <- x[!is.na(x[[y]]), ]; x$y <- as.integer(x[[y]])
+    r <- logit_mixed(y ~ 1, x, NULL)
+    if (is.null(r$var_centrum)) NA else r$var_centrum / (r$var_centrum + pi^2 / 3)
+  }
   icc <- do.call(rbind, lapply(split(d0, d0$groep), function(x) {
+    on.exit(NULL)
     voortgang("ICC's: %s", x$groep[1])
-    data.frame(groep = x$groep[1],
+    data.frame(groep = x$groep[1], row.names = NULL,
                ICC_min_temp = round(icc_lin(x, "temp"), 3),
                ICC_diepe_hypothermie_latent = round(icc_bin(x, "diep"), 3),
                ICC_circ_arrest_latent = round(icc_bin(x, "arrest"), 3),

@@ -95,7 +95,8 @@ Apart voor acuut en electief, **zonder correctie voor urgentie of EuroSCORE II**
   morbiditeit (`SECUNDAIRE_UITKOMSTEN`) en failure to rescue (ziekenhuismortaliteit bij ≥ 1 major
   complicatie).
   - primair: logistisch mixed model, random intercept per centrum, gecorrigeerd voor leeftijd (per 10
-    jaar), geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4`);
+    jaar), geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4::glmer`, met
+    `MASS::glmmPQL` als terugval; de kolom `model_primair` toont welk model gebruikt is);
   - gevoeligheid: centrum-fixed-effects met CR2 (Satterthwaite) (`UITKOMST_CR2`);
   - Benjamini–Hochberg (q-waarden) over de secundaire uitkomsten, per groep.
 - **Variatie tussen centra**: per centrum mediane temperatuur, % diepe hypothermie, % circulatiestilstand

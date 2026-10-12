@@ -25,7 +25,7 @@ if (!file.exists(file.path("R", "config.R")))
   stop("Map R/ niet gevonden. Start het script met source(\"pad/naar/run_analyse.R\") ",
        "of via de Source-knop, niet door de code in de console te plakken.")
 
-benodigd <- c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl", "lme4", "clubSandwich")
+benodigd <- c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl", "clubSandwich")
 ontbreekt <- benodigd[!sapply(benodigd, requireNamespace, quietly = TRUE)]
 if (length(ontbreekt)) stop("Installeer eerst: install.packages(c(\"",
                             paste(ontbreekt, collapse = "\", \""), "\"), repos = \"https://cloud.r-project.org\", type = \"binary\")")
@@ -100,6 +100,12 @@ cat("   Temperatuurmodellen (CR2) - dit kan op een oudere computer 5-15 minuten 
 flush.console()
 pa <- perfusie_analyse(df, GROEP)
 cat("   Uitkomstmodellen (mixed models en CR2) - ook dit kan enkele minuten duren\n"); flush.console()
+if (requireNamespace("lme4", quietly = TRUE) &&
+    inherits(try(lme4::glmer(cbind(1:3, 3:1) ~ 1 + (1 | g), family = binomial,
+                             data = data.frame(g = factor(1:3))), silent = TRUE), "try-error"))
+  message("LET OP - lme4 werkt niet goed samen met het geïnstalleerde pakket Matrix. Installeer een nieuwere Matrix:\n",
+          "  install.packages(\"Matrix\", repos = \"https://cloud.r-project.org\", type = \"binary\")\n",
+          "en start R opnieuw. Tot die tijd wordt MASS::glmmPQL als terugval gebruikt.")
 ut <- uitkomst_trends(df, GROEP)
 cv <- centrum_variatie(df, GROEP)
 los <- opnameduur_analyse(df, GROEP)
