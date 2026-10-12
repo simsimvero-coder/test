@@ -9,6 +9,10 @@
 # Vanaf de opdrachtregel:  Rscript run_analyse.R pad/naar/dataset.xlsx
 # =============================================================================
 
+# De JIT-compiler van R kan op oudere Macs crashen ("caught segfault"); uitzetten
+# maakt het script iets trager maar voorkomt dat.
+invisible(compiler::enableJIT(0))
+
 if (getRversion() < "4.1.0")
   stop("Je R-versie (", getRversion(), ") is te oud. Installeer R 4.1 of nieuwer via https://cran.r-project.org")
 
