@@ -22,11 +22,16 @@ INCLUSIE_KOLOM        <- "incl_cohort"
 GROEP <- "acuut_electief"
 
 # ── Indeling acuut vs. electief aneurysma ───────────────────────────────────
-# Acuut:               pathologie (asc/boog/desc) = 20, of urgentie = 30/40
-# Electief aneurysma:  pathologie (asc/boog/desc) = 10, of urgentie = 10/20
-# Pathologie gaat altijd vóór urgentie. Heeft een patiënt in het ene segment
-# code 20 en in het andere 10, dan telt hij als acuut.
+# voorrang = "urgentie" (standaard):
+#   acuut              = urgentie 30/40 (spoed/redding), óf pathologie 20 (acute
+#                        dissectie) in asc/boog/desc
+#   electief aneurysma = overige patiënten met pathologie 10, of (als de
+#                        pathologie onbekend is) urgentie 10/20
+#   Een aneurysma met urgentie 30/40 is dus acuut.
+# voorrang = "pathologie": pathologie 20/10 bepaalt de groep; urgentie alleen
+#   als de pathologie onbekend is.
 ACUUT_ELECTIEF <- list(
+  voorrang           = "urgentie",
   path_kolommen      = c("aorta_asc_path", "aortaboog_path", "aorta_desc_path"),
   path_acuut         = 20,
   path_electief      = 10,
@@ -177,3 +182,21 @@ FTR_UITKOMST <- "overleden_zh"
 
 TREND_TEMPERATUUR  <- "min_temp"
 TREND_CIRC_ARREST  <- "circ_arrest"
+
+# ── Volume en incidentie per miljoen inwoners (R/incidentie.R) ──────────────
+# Bevolking van Nederland op 1 januari (CBS StatLine, tabel 37296ned
+# "Bevolking; kerncijfers"). CONTROLEER deze cijfers bij CBS voordat je ze
+# publiceert en vul nieuwe jaren aan.
+BEVOLKING_1JAN <- c(
+  "2013" = 16779575, "2014" = 16829289, "2015" = 16900726, "2016" = 16979120,
+  "2017" = 17081507, "2018" = 17181084, "2019" = 17282163, "2020" = 17407585,
+  "2021" = 17475415, "2022" = 17590672, "2023" = 17811291, "2024" = 17942942,
+  "2025" = 18044027
+)
+# TRUE = gemiddelde bevolking van het jaar (gemiddelde van 1 januari van dit
+# en het volgende jaar); FALSE = bevolking op 1 januari.
+BEVOLKING_GEMIDDELD <- TRUE
+
+# Vanaf welk jaar de indeling acuut / electief volledig is (de groepstrends per
+# miljoen inwoners worden vanaf dit jaar berekend; het totaal over alle jaren).
+GROEPEN_VANAF_JAAR <- 2015

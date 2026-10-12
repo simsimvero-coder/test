@@ -31,6 +31,7 @@ source("R/afgeleid.R", encoding = "UTF-8")
 source("R/analyse.R", encoding = "UTF-8")
 source("R/figuren.R", encoding = "UTF-8")
 source("R/trend.R", encoding = "UTF-8")
+source("R/incidentie.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -67,6 +68,7 @@ ontbr <- ontbrekende_waarden(df)
 
 cat("   Indeling acuut / electief aneurysma:\n")
 print(indeling$overzicht, row.names = FALSE)
+df_alle <- df   # alle patiënten, ook niet ingedeeld (voor volume per jaar)
 if (ALLEEN_INGEDEELDE_PATIENTEN) {
   niet <- is.na(df$acuut_electief)
   df <- df[!niet, ]
@@ -83,10 +85,12 @@ oe_groep   <- if (!is.null(GROEP)) oe_ratio(df, GROEP)
 oe_centrum <- oe_ratio(df, "centrum")
 km <- overleving(df, GROEP)
 tr <- trendanalyse(df, GROEP)
+inc <- incidentie(df_alle, GROEP)
 
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
   list("Indeling acuut-electief" = indeling$controle,
+       "Volume per jaar" = inc$per_jaar, "Volume per miljoen - RR" = inc$rr,
        "O-E per groep" = oe_groep, "O-E per centrum" = oe_centrum,
        "Overleving" = km$tabel,
        "Trend - toetsen" = tr$toetsen, "Trend - aantallen" = tr$aantal,
@@ -106,7 +110,8 @@ figuren <- c(
   fig_oe(oe_groep, fig_map),
   fig_oe(oe_centrum, fig_map),
   fig_ontbrekend(ontbr, fig_map),
-  trend_figuren(tr, fig_map)
+  trend_figuren(tr, fig_map),
+  fig_incidentie(inc, fig_map)
 )
 
 # Samenvatting ----------------------------------------------------------------
@@ -119,6 +124,11 @@ if (!is.null(km)) {
   print(km$tabel, row.names = FALSE)
 }
 if (!is.null(oe_groep)) { cat("\nGeobserveerde/verwachte ziekenhuismortaliteit\n"); print(oe_groep, row.names = FALSE) }
+
+cat("\nVolume per jaar (incl. niet ingedeelde patiënten)\n")
+print(inc$per_jaar, row.names = FALSE)
+cat("\nVolume per miljoen inwoners - Poisson-regressie (rate ratio per jaar)\n")
+print(inc$rr, row.names = FALSE)
 
 cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
             min(tr$data$.jaar), max(tr$data$.jaar)))

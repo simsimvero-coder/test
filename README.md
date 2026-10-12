@@ -31,14 +31,24 @@ De resultaten komen in de map `output/` in de projectmap.
 
 ## Indeling acuut vs. electief aneurysma (`R/afgeleid.R`)
 
-| Groep | Pathologie (`aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`) | Urgentie (alleen als pathologie 10/20 ontbreekt) |
-|---|---|---|
-| acuut | 20 (acute dissectie) in minstens één segment | 30 spoed / 40 redding |
-| electief aneurysma | 10 (aneurysma), nergens 20 | 10 electief / 20 urgent |
+Standaard (`voorrang = "urgentie"` in `R/config.R`):
 
-- Pathologie gaat altijd vóór urgentie. Code 20 en 10 in verschillende segmenten → acuut.
-- Patiënten met alleen chronische dissectie (30), infectie (40) of overig (91) worden op urgentie ingedeeld.
-- Het tabblad *Indeling acuut-electief* in `resultaten.xlsx` toont de kruistabel ter controle.
+| Groep | Regel |
+|---|---|
+| acuut | urgentie 30 (spoed) / 40 (redding), **of** pathologie 20 (acute dissectie) in asc/boog/desc |
+| electief aneurysma | overige patiënten met pathologie 10 (aneurysma), of — zonder pathologie 10/20 — urgentie 10/20 |
+| niet ingedeeld | geen pathologie 10/20 en geen bekende urgentie |
+
+- Een aneurysma met urgentie 30/40 telt als **acuut**.
+- Met `voorrang = "pathologie"` bepaalt pathologie 20/10 de groep en telt urgentie alleen als de pathologie onbekend is.
+- De basis van de indeling staat per patiënt in `acuut_electief_basis`. Het tabblad *Indeling acuut-electief* geeft de kruistabel urgentie × pathologie × groep.
+
+## Volume en incidentie (`R/incidentie.R`)
+
+- **Volume per jaar**: totaal, acuut, electief en **niet ingedeeld** per jaar, inclusief de niet-ingedeelde patiënten.
+- **Per miljoen inwoners**: met de CBS-bevolking (`BEVOLKING_1JAN` in `R/config.R`; standaard het gemiddelde van 1 januari van het jaar en het volgende jaar). **Controleer de bevolkingscijfers bij CBS StatLine (tabel 37296ned).**
+- **Poisson-regressie** met log(bevolking) als offset: rate ratio per jaar (95%-BI, p) voor het totaal over alle jaren, en per groep vanaf `GROEPEN_VANAF_JAAR` (standaard 2015).
+- Uitvoer: tabbladen *Volume per jaar* en *Volume per miljoen - RR*, plus figuur `volume_per_miljoen.png`.
 
 ## Analyses en p-waarden
 

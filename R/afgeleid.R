@@ -27,17 +27,30 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
 
   groep <- rep(NA_character_, n)
   basis <- rep(NA_character_, n)
-  # Volgorde is van belang: pathologie overschrijft urgentie, acuut gaat vóór electief.
-  sel <- mag_urgentie & urg_electief; groep[sel] <- "electief"; basis[sel] <- "urgentie (pathologie onbekend)"
-  sel <- mag_urgentie & urg_acuut;    groep[sel] <- "acuut";    basis[sel] <- "urgentie (pathologie onbekend)"
-  groep[path_electief] <- "electief"; basis[path_electief] <- "pathologie"
-  groep[path_acuut]    <- "acuut";    basis[path_acuut]    <- "pathologie"
+  geen_path <- !path_acuut & !path_electief
+  zet <- function(sel, g, tekst) { groep[sel] <<- g; basis[sel] <<- tekst }
 
-  # Pathologie en urgentie spreken elkaar tegen -> pathologie wint, wel melden
-  conflict <- (path_acuut & urg_electief) | (!path_acuut & path_electief & urg_acuut)
-  basis[conflict] <- ifelse(path_acuut[conflict],
-                            "pathologie (overschrijft electieve urgentie)",
-                            "pathologie (overschrijft acute urgentie)")
+  if (identical(cfg$voorrang, "urgentie")) {
+    # Urgentie 30/40 is altijd acuut; een acute dissectie (pathologie 20) ook.
+    # Volgorde is van belang: latere regels overschrijven eerdere.
+    zet(mag_urgentie & urg_electief, "electief", "urgentie 10/20 (geen pathologie 10/20)")
+    zet(path_electief & !urg_electief, "electief", "pathologie 10 (urgentie onbekend)")
+    zet(path_electief & urg_electief, "electief", "pathologie 10 + urgentie 10/20")
+    zet(path_acuut & !urg_acuut, "acuut", "pathologie 20 (urgentie 10/20 of onbekend)")
+    zet(urg_acuut & geen_path, "acuut", "urgentie 30/40 (geen pathologie 10/20)")
+    zet(urg_acuut & path_electief & !path_acuut, "acuut", "urgentie 30/40 (overschrijft pathologie 10)")
+    zet(urg_acuut & path_acuut, "acuut", "urgentie 30/40 + pathologie 20")
+  } else {
+    # Pathologie gaat voor urgentie; urgentie alleen als de pathologie onbekend is.
+    zet(mag_urgentie & urg_electief, "electief", "urgentie (pathologie onbekend)")
+    zet(mag_urgentie & urg_acuut, "acuut", "urgentie (pathologie onbekend)")
+    zet(path_electief, "electief", "pathologie")
+    zet(path_acuut, "acuut", "pathologie")
+    conflict <- (path_acuut & urg_electief) | (!path_acuut & path_electief & urg_acuut)
+    basis[conflict] <- ifelse(path_acuut[conflict],
+                              "pathologie (overschrijft electieve urgentie)",
+                              "pathologie (overschrijft acute urgentie)")
+  }
 
   df$acuut_electief <- factor(unname(cfg$labels[groep]), levels = unname(cfg$labels))
   df$acuut_electief_basis <- basis
