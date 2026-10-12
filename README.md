@@ -7,7 +7,8 @@ De code werkt alleen met je eigen Excelbestand. Er zit geen test- of voorbeeldda
 ## Installatie (eenmalig)
 
 ```r
-install.packages(c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl"))
+install.packages(c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl", "clubSandwich"),
+                 repos = "https://cloud.r-project.org", type = "binary")
 ```
 
 ## Gebruik
@@ -57,6 +58,17 @@ apart voor electief, acuut en totaal, met p-waarden. Tabbladen *Periode - electi
 
 Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc > 0) en
 `descendens_pathologie` (aorta_desc_path > 0).
+
+## Perfusie (`R/perfusie.R`)
+
+- `temp_categorie`: minimale temperatuur ≤20 °C (diep), 20–28 °C (matig), >28 °C (`TEMP_GRENZEN`).
+- `circ_arrest_duur_bij_arrest`: duur van de circulatiestilstand bij patiënten met stilstand
+  (`CIRC_ARREST_KOLOM`, standaard `circ_arrest_clean`) en duur > 0.
+- Trend in minimale temperatuur (°C per jaar), per groep en totaal:
+  1. random-intercept-model per centrum (`nlme::lme`);
+  2. centrum-fixed-effects met CR2 cluster-robuuste standaardfouten en Satterthwaite-vrijheidsgraden
+     (`clubSandwich`).
+  Tabblad *Temperatuur - modellen*.
 
 ## Analyses en p-waarden
 

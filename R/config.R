@@ -133,7 +133,8 @@ TABELLEN <- list(
     "tklepchir", "aortachir", "aotachir_benadering", "aorta_asc", "aorta_asc_path",
     "aortaboog_path", "aorta_desc", "aorta_desc_path", "descendens_ingreep",
     "descendens_pathologie", "cardiochir_overig",
-    "ECC", "ECC_duur", "AoX_duur", "circ_arrest", "circ_arrest_duur", "min_temp"
+    "ECC", "ECC_duur", "AoX_duur", "circ_arrest", "circ_arrest_clean", "circ_arrest_duur",
+    "circ_arrest_duur_bij_arrest", "min_temp", "temp_categorie"
   ),
   "Tabel 3 - Postoperatieve uitkomsten" = c(
     "overleden_zh", "overl30d", "overl120d", "overl1j", "opnameduur",
@@ -205,3 +206,12 @@ GROEPEN_VANAF_JAAR <- 2015
 # ── Vergelijking tussen periodes (R/periode.R) ──────────────────────────────
 # Tabel 1-3 per periode, apart voor elke groep en voor het totaal, met p-waarden.
 PERIODES <- list("2013-2018" = 2013:2018, "2019-2024" = 2019:2024)
+
+# ── Perfusie (R/perfusie.R) ─────────────────────────────────────────────────
+# Grenzen (°C) voor de temperatuurcategorieën: <= 20 diep, 20-28 matig, > 28.
+TEMP_GRENZEN <- c(20, 28)
+# Variabele die bepaalt of er circulatiestilstand was (voor de duur bij
+# patiënten met stilstand). "circ_arrest_clean" valt terug op "circ_arrest".
+CIRC_ARREST_KOLOM <- "circ_arrest_clean"
+# Kolom met het centrum, voor de random-intercept- en fixed-effects-modellen.
+CENTRUM_KOLOM <- "centrum"

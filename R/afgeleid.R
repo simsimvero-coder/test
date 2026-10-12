@@ -101,3 +101,20 @@ maak_descendens <- function(df) {
   if ("aorta_desc_path" %in% names(df)) df$descendens_pathologie <- janee(code(df$aorta_desc_path))
   df
 }
+
+# Temperatuurcategorie en duur van de circulatiestilstand bij patiënten met stilstand
+maak_perfusie <- function(df) {
+  if ("min_temp" %in% names(df) && is.numeric(df$min_temp)) {
+    g <- TEMP_GRENZEN
+    df$temp_categorie <- cut(df$min_temp, breaks = c(-Inf, g[1], g[2], Inf),
+                             labels = c(sprintf("diep (<=%g C)", g[1]),
+                                        sprintf("matig (%g-%g C)", g[1], g[2]),
+                                        sprintf("> %g C", g[2])))
+  }
+  kolom <- if (CIRC_ARREST_KOLOM %in% names(df)) CIRC_ARREST_KOLOM else "circ_arrest"
+  if (all(c(kolom, "circ_arrest_duur") %in% names(df))) {
+    met_arrest <- df[[kolom]] %in% "ja" & !is.na(df$circ_arrest_duur) & df$circ_arrest_duur > 0
+    df$circ_arrest_duur_bij_arrest <- ifelse(met_arrest, df$circ_arrest_duur, NA)
+  }
+  df
+}
