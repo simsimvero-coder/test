@@ -8,7 +8,8 @@
 #      toets of de trend tussen centra verschilt (LRT, 50:50-mengverdeling)
 #   3. Centrum-fixed-effects met CR2 cluster-robuuste SE en Satterthwaite-df
 #   4. Lineariteit: lineair vs. natural spline (3 df) voor jaar (LRT, ML)
-#   5. Totaal: random slope en CR2 gecorrigeerd voor acuut/electief
+#   5. Alles apart voor acuut en electief, zonder correctie voor urgentie
+#      (gepoold "Totaal" alleen als ANALYSE_TOTAAL = TRUE)
 #   6. Gevoeligheidsanalyse: alleen centrum-jaren met >= TEMP_MIN_COMPLEET compleet
 #   7. Landelijke trend (marginaal, zonder centrumcorrectie, CR2 geclusterd op
 #      centrum) en een exacte decompositie daarvan:
@@ -50,7 +51,6 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
       df[[kol]] %in% "ja"
     } else rep(NA, nrow(df))
   )
-  basis$acuut <- as.integer(basis$groep == "acuut")
   basis <- basis[!is.na(basis$jaar) & !is.na(basis$.centrum), ]
   jaar_midden <- round(mean(basis$jaar))
   basis$jaar_c <- basis$jaar - jaar_midden
@@ -102,8 +102,8 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
         p_extra = p_lin, extra_label = "afwijking van lineariteit (spline 3 df)", icc = vc[1] / sum(vc))
   }, error = function(e) rij(pop, g, paste("random intercept - mislukt:", conditionMessage(e)), d))
 
-  model_rs <- function(d, pop, g, label = "random slope (trend per centrum)", covariaat = FALSE) tryCatch({
-    f <- if (covariaat) y ~ jaar_c + acuut else y ~ jaar_c
+  model_rs <- function(d, pop, g, label = "random slope (trend per centrum)") tryCatch({
+    f <- y ~ jaar_c
     m <- nlme::lme(f, random = ~ 1 + jaar_c | .centrum, data = d, method = "REML", control = lme_ctrl)
     m0 <- nlme::lme(f, random = ~ 1 | .centrum, data = d, method = "REML")
     r <- t_ci(summary(m)$tTable["jaar_c", ])
@@ -113,10 +113,10 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
         p_extra = mengverdeling_p(max(L, 0)), extra_label = "trend verschilt tussen centra (LRT)")
   }, error = function(e) rij(pop, g, paste(label, "- mislukt:", conditionMessage(e)), d))
 
-  model_cr2 <- function(d, pop, g, label = "centrum fixed effects, CR2 (Satterthwaite)", covariaat = FALSE) {
+  model_cr2 <- function(d, pop, g, label = "centrum fixed effects, CR2 (Satterthwaite)") {
     if (!heeft_cs) return(rij(pop, g, paste(label, "- clubSandwich ontbreekt"), d))
     tryCatch({
-      m <- lm(if (covariaat) y ~ jaar + acuut + .centrum else y ~ jaar + .centrum, data = d)
+      m <- lm(y ~ jaar + .centrum, data = d)
       r <- cr2_jaar(m, d$.centrum)
       rij(pop, g, label, d, r[1], r[2], r[3], r[4])
     }, error = function(e) rij(pop, g, paste(label, "- mislukt:", conditionMessage(e)), d))
@@ -148,7 +148,8 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
     # centrum-jaren met voldoende complete temperatuur (gevoeligheidsanalyse)
     compleet <- tapply(!is.na(dp$y), paste(dp$.centrum, dp$jaar), mean)
     goed <- names(compleet)[compleet >= TEMP_MIN_COMPLEET]
-    subsets <- c(split(dp, dp$groep), list(Totaal = dp))
+    subsets <- split(dp, dp$groep)
+    if (ANALYSE_TOTAAL || length(subsets) < 2) subsets[["Totaal"]] <- dp
     for (g in names(subsets)) {
       d <- droplevels(subsets[[g]][!is.na(subsets[[g]]$y), ])
       if (nrow(d) < 20 || nlevels(d$.centrum) < 3) next
@@ -167,24 +168,21 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
         model_ri(d, pop, g),
         model_rs(d, pop, g, "GEMIDDELDE trend binnen centra: random slope (trend per centrum)"),
         model_cr2(d, pop, g, "GEMIDDELDE trend binnen centra: centrum fixed effects, CR2 (Satterthwaite)"),
-        if (g == "Totaal" && length(unique(d$acuut)) > 1) rbind(
-          model_rs(d, pop, g, "random slope, gecorrigeerd voor acuut/electief", covariaat = TRUE),
-          model_cr2(d, pop, g, "CR2, gecorrigeerd voor acuut/electief", covariaat = TRUE)),
         gevoelig
       )
       # Trend per centrum: eigen lineaire regressie (met 95%-BI) en BLUP uit random-slope-model
-      if (g == "Totaal") {
+      {
         blup <- tryCatch({
           m <- nlme::lme(y ~ jaar_c, random = ~ 1 + jaar_c | .centrum, data = d, method = "REML", control = lme_ctrl)
           setNames(coef(m)[, "jaar_c"], rownames(coef(m)))
         }, error = function(e) NULL)
-        centra[[pop]] <- do.call(rbind, lapply(levels(d$.centrum), function(c) {
+        centra[[paste(pop, g)]] <- do.call(rbind, lapply(levels(d$.centrum), function(c) {
           x <- d[d$.centrum == c, ]
           ols <- if (length(unique(x$jaar)) >= 3) {
             s <- coef(summary(lm(y ~ jaar, data = x)))["jaar", ]
             q <- qt(0.975, nrow(x) - 2); c(s[1], s[1] - q * s[2], s[1] + q * s[2], s[4])
           } else rep(NA, 4)
-          data.frame(populatie = pop, centrum = c, n = nrow(x),
+          data.frame(populatie = pop, groep = g, centrum = c, n = nrow(x),
                      jaren = sprintf("%d-%d", min(x$jaar), max(x$jaar)),
                      mediaan_temp = round(median(x$y), 1),
                      trend_eigen = round(ols[1], 3), BI95_onder = round(ols[2], 3),
@@ -206,8 +204,8 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
 
   per_centrum_jaar <- do.call(rbind, lapply(names(populaties), function(pop) {
     d <- populaties[[pop]][!is.na(populaties[[pop]]$y), ]
-    a <- aggregate(y ~ .centrum + jaar, data = d, FUN = function(x) c(mediaan = median(x), n = length(x)))
-    data.frame(populatie = pop, centrum = a$.centrum, jaar = a$jaar,
+    a <- aggregate(y ~ groep + .centrum + jaar, data = d, FUN = function(x) c(mediaan = median(x), n = length(x)))
+    data.frame(populatie = pop, groep = a$groep, centrum = a$.centrum, jaar = a$jaar,
                mediaan = a$y[, "mediaan"], n = a$y[, "n"])
   }))
 
@@ -217,54 +215,69 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
        compleet_centrum_jaar = ontbr_matrix, categorieen = categorieen, jaar_midden = jaar_midden)
 }
 
-fig_temperatuur_centra <- function(pa, map) {
+fig_temperatuur_centra <- function(pa, map, populatie = "met circulatiestilstand") {
   if (is.null(pa$centra)) return(NULL)
-  d <- pa$centra[pa$centra$populatie == "met circulatiestilstand" & !is.na(pa$centra$trend_eigen), ]
-  if (!nrow(d)) d <- pa$centra[!is.na(pa$centra$trend_eigen), ]
-  if (!nrow(d)) return(NULL)
-  rs <- pa$modellen[pa$modellen$populatie == d$populatie[1] & pa$modellen$groep == "Totaal" &
-                      pa$modellen$model == "GEMIDDELDE trend binnen centra: random slope (trend per centrum)", ]
-  d$centrum <- factor(d$centrum, levels = d$centrum[order(d$trend_eigen)])
-  p <- ggplot(d, aes(trend_eigen, centrum)) +
-    geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
-    { if (nrow(rs)) geom_vline(xintercept = rs$verandering_per_jaar, colour = "#C0392B") } +
-    geom_errorbarh(aes(xmin = BI95_onder, xmax = BI95_boven), height = 0.25, colour = KLEUR) +
-    geom_point(aes(size = n), colour = KLEUR) +
-    geom_point(aes(x = trend_random_slope_BLUP), shape = 4, size = 2.5, colour = "#C0392B") +
-    labs(title = "Trend in minimale temperatuur per centrum",
-         subtitle = paste0(d$populatie[1], "; punt + 95%-BI = eigen regressie per centrum, ",
-                           "x = schatting random-slope-model\nrode lijn = landelijke trend (random slope)",
-                           if (nrow(rs)) sprintf(": %.3f °C/jaar (%.3f tot %.3f); SD tussen centra %.3f; p (verschil centra) = %s",
-                                                 rs$verandering_per_jaar, rs$BI95_onder, rs$BI95_boven,
-                                                 rs$SD_slope_tussen_centra, rs$p_extra)),
-         x = "Verandering in minimale temperatuur (°C per jaar)", y = "Centrum", size = "n") + thema
-  bewaar(p, map, "temperatuur_trend_per_centrum", 10, 0.35 * nrow(d) + 2.5)
+  paden <- c()
+  for (g in unique(pa$centra$groep)) {
+    d <- pa$centra[pa$centra$populatie == populatie & pa$centra$groep == g & !is.na(pa$centra$trend_eigen), ]
+    if (!nrow(d)) next
+    rs <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == g &
+                        pa$modellen$model == "GEMIDDELDE trend binnen centra: random slope (trend per centrum)", ]
+    land <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == g &
+                          grepl("^LANDELIJKE", pa$modellen$model), ]
+    d$centrum <- factor(d$centrum, levels = d$centrum[order(d$trend_eigen)])
+    p <- ggplot(d, aes(trend_eigen, centrum)) +
+      geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+      { if (nrow(land)) geom_vline(xintercept = land$verandering_per_jaar, colour = "#C0392B") } +
+      geom_errorbarh(aes(xmin = BI95_onder, xmax = BI95_boven), height = 0.25, colour = KLEUR) +
+      geom_point(aes(size = n), colour = KLEUR) +
+      geom_point(aes(x = trend_random_slope_BLUP), shape = 4, size = 2.5, colour = "#C0392B") +
+      labs(title = paste("Trend in minimale temperatuur per centrum -", g),
+           subtitle = paste0(populatie, "; punt + 95%-BI = eigen regressie per centrum, x = schatting random-slope-model",
+                             if (nrow(land)) sprintf("\nrode lijn = landelijke trend %.3f °C/jaar (95%%-BI %.3f tot %.3f, p = %s)",
+                                                     land$verandering_per_jaar, land$BI95_onder, land$BI95_boven, land$p),
+                             if (nrow(rs)) sprintf("\nSD trend tussen centra %.3f; 95%%-voorspellingsinterval %s; p (verschil tussen centra) = %s",
+                                                   rs$SD_slope_tussen_centra, rs$PI95_trend_centrum, rs$p_extra)),
+           x = "Verandering in minimale temperatuur (°C per jaar)", y = "Centrum", size = "n") + thema
+    paden <- c(paden, bewaar(p, map, paste0("temperatuur_trend_per_centrum_", gsub("[^a-z]+", "_", tolower(g))),
+                             10, 0.35 * nrow(d) + 2.8))
+  }
+  paden
 }
 
 # Per centrum: jaarmediaan + eigen trendlijn, naast de landelijke trend (rood)
 fig_temperatuur_per_centrum_jaar <- function(pa, map, populatie = "met circulatiestilstand") {
-  d <- pa$per_centrum_jaar[pa$per_centrum_jaar$populatie == populatie, ]
-  if (is.null(d) || !nrow(d)) return(NULL)
-  m <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == "Totaal", ]
-  land <- m[grepl("^LANDELIJKE", m$model), ]
-  c_tab <- pa$centra[pa$centra$populatie == populatie, ]
-  d$centrum <- factor(d$centrum, levels = c_tab$centrum[order(-c_tab$trend_eigen)])
-  # landelijke lijn: door het landelijke gemiddelde in het middenjaar
-  midden <- weighted.mean(d$jaar, d$n)
-  niveau <- weighted.mean(d$mediaan, d$n)
-  ondertitel <- paste0(populatie, "; punten = jaarmediaan (grootte = n), blauwe lijn = eigen trend van het centrum",
-                       if (nrow(land)) sprintf("\nrode lijn = landelijke trend %.3f °C/jaar (95%%-BI %.3f tot %.3f, p = %s)",
-                                               land$verandering_per_jaar, land$BI95_onder, land$BI95_boven, land$p))
-  lab <- setNames(sprintf("%s: %+.2f °C/jaar", c_tab$centrum, c_tab$trend_eigen), c_tab$centrum)
-  p <- ggplot(d, aes(jaar, mediaan)) +
-    { if (nrow(land)) geom_abline(intercept = niveau - land$verandering_per_jaar * midden,
-                                  slope = land$verandering_per_jaar, colour = "#C0392B", linewidth = 0.7) } +
-    geom_point(aes(size = n), colour = KLEUR, alpha = 0.7) +
-    geom_smooth(aes(weight = n), method = "lm", formula = y ~ x, se = FALSE, colour = KLEUR, linewidth = 0.8) +
-    facet_wrap(~centrum, labeller = labeller(centrum = lab)) +
-    scale_size_area(max_size = 3, guide = "none") +
-    scale_x_continuous(breaks = function(l) seq(ceiling(l[1]), floor(l[2]), 2)) +
-    labs(title = "Minimale temperatuur per centrum over de jaren", subtitle = ondertitel,
-         x = NULL, y = "Mediane minimale temperatuur (°C)") + thema
-  bewaar(p, map, "temperatuur_per_centrum_per_jaar", 12, 9)
+  paden <- c()
+  for (g in unique(pa$centra$groep)) {
+    d <- pa$per_centrum_jaar[pa$per_centrum_jaar$populatie == populatie &
+                               (pa$per_centrum_jaar$groep == g | g == "Totaal"), ]
+    if (g == "Totaal") {   # gepoold: jaarmediaan over beide groepen opnieuw bepalen is niet mogelijk; gewogen gemiddelde
+      d <- aggregate(cbind(mediaan = mediaan * n, n) ~ centrum + jaar, data = d, FUN = sum)
+      d$mediaan <- d$mediaan / d$n
+    }
+    if (!nrow(d)) next
+    land <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == g &
+                          grepl("^LANDELIJKE", pa$modellen$model), ]
+    c_tab <- pa$centra[pa$centra$populatie == populatie & pa$centra$groep == g, ]
+    d <- d[d$centrum %in% c_tab$centrum, ]
+    d$centrum <- factor(d$centrum, levels = c_tab$centrum[order(-c_tab$trend_eigen)])
+    midden <- weighted.mean(d$jaar, d$n)
+    niveau <- weighted.mean(d$mediaan, d$n)
+    lab <- setNames(sprintf("%s: %+.2f °C/jaar", c_tab$centrum, c_tab$trend_eigen), c_tab$centrum)
+    p <- ggplot(d, aes(jaar, mediaan)) +
+      { if (nrow(land)) geom_abline(intercept = niveau - land$verandering_per_jaar * midden,
+                                    slope = land$verandering_per_jaar, colour = "#C0392B", linewidth = 0.7) } +
+      geom_point(aes(size = n), colour = KLEUR, alpha = 0.7) +
+      geom_smooth(aes(weight = n), method = "lm", formula = y ~ x, se = FALSE, colour = KLEUR, linewidth = 0.8) +
+      facet_wrap(~centrum, labeller = labeller(centrum = lab)) +
+      scale_size_area(max_size = 3, guide = "none") +
+      scale_x_continuous(breaks = function(l) seq(ceiling(l[1]), floor(l[2]), 2)) +
+      labs(title = paste("Minimale temperatuur per centrum over de jaren -", g),
+           subtitle = paste0(populatie, "; punten = jaarmediaan (grootte = n), blauwe lijn = eigen trend van het centrum",
+                             if (nrow(land)) sprintf("\nrode lijn = landelijke trend %.3f °C/jaar (95%%-BI %.3f tot %.3f, p = %s)",
+                                                     land$verandering_per_jaar, land$BI95_onder, land$BI95_boven, land$p)),
+           x = NULL, y = "Mediane minimale temperatuur (°C)") + thema
+    paden <- c(paden, bewaar(p, map, paste0("temperatuur_per_centrum_per_jaar_", gsub("[^a-z]+", "_", tolower(g))), 12, 9))
+  }
+  paden
 }

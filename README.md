@@ -75,12 +75,16 @@ Extra variabelen in Tabel 2: `klepchir_clean`, `descendens_ingreep` (aorta_desc 
     1. random intercept per centrum, met toets op afwijking van lineariteit (natural spline, 3 df);
     2. **random slope** (trend per centrum): SD van de trends tussen centra en LRT of de trend verschilt tussen centra;
     3. centrum-fixed-effects met CR2 (Satterthwaite, `clubSandwich`);
-    4. totaal ook gecorrigeerd voor acuut/electief;
+    4. alles apart voor acuut en electief, zonder correctie voor urgentie;
     5. gevoeligheidsanalyse: alleen centrum-jaren met ≥80% complete temperatuur (`TEMP_MIN_COMPLEET`);
   - trend per centrum (eigen regressie met 95%-BI en schatting uit het random-slope-model) + figuur
     `temperatuur_trend_per_centrum.png`, en per centrum de jaarmedianen met eigen trend naast de
     landelijke trend (`temperatuur_per_centrum_per_jaar.png`).
 - Tabbladen *Temp - …* in `resultaten.xlsx`.
+
+**Gepoolde analyses**: standaard wordt elke analyse apart gedaan voor acuut en electief, zonder correctie
+voor urgentie (`ANALYSE_TOTAAL <- FALSE`). Vergelijkingen tussen de groepen (p per jaar, verschil in trend)
+staan bij beide groepen. De kolom "Totaal" in Tabel 1–3 en het totale volume per jaar blijven staan.
 
 ## Analyses en p-waarden
 

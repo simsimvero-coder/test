@@ -111,7 +111,7 @@ oe_ratio <- function(df, per, uitkomst = "overleden_zh", verwacht = "EuroscoreII
   d$obs <- as.integer(d[[uitkomst]] == "ja")
   d$exp <- d[[verwacht]] / 100
   groepen <- split(d, droplevels(factor(d[[per]])))
-  groepen[["Totaal"]] <- d
+  if (ANALYSE_TOTAAL) groepen[["Totaal"]] <- d
   out <- do.call(rbind, lapply(names(groepen), function(n) {
     x <- groepen[[n]]
     O <- sum(x$obs); E <- sum(x$exp)
@@ -132,7 +132,7 @@ oe_ratio <- function(df, per, uitkomst = "overleden_zh", verwacht = "EuroscoreII
     m0 <- glm(obs ~ offset(qlogis(exp)), family = binomial, data = dd)
     m1 <- glm(obs ~ .g + offset(qlogis(exp)), family = binomial, data = dd)
     attr(out, "p_tussen_groepen") <- anova(m0, m1, test = "LRT")[2, "Pr(>Chi)"]
-    out$p_verschil_tussen_groepen <- c(rep("", nrow(out) - 1), fmt_p(attr(out, "p_tussen_groepen")))
+    out$p_verschil_tussen_groepen <- fmt_p(attr(out, "p_tussen_groepen"))
   }
   out
 }

@@ -51,6 +51,12 @@ ACUUT_ELECTIEF <- list(
 # (bv. geen aortachirurgie) uit de analyse laten? FALSE = wel in 'Totaal'.
 ALLEEN_INGEDEELDE_PATIENTEN <- TRUE
 
+# Ook gepoolde analyses over acuut + electief samen ("Totaal") uitvoeren?
+# FALSE = elke analyse alleen apart voor acuut en electief, zonder correctie
+# voor urgentie. (De kolom "Totaal" in Tabel 1-3 en het totale volume per jaar
+# blijven altijd staan, omdat die het hele cohort beschrijven.)
+ANALYSE_TOTAAL <- FALSE
+
 # ── Overleving ──────────────────────────────────────────────────────────────
 OVERLEVING_TIJD   <- "overltijd_dag"   # follow-up in dagen
 OVERLEVING_STATUS <- "mort_status"     # overleden ja/nee (of 1/0)

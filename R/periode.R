@@ -23,7 +23,7 @@ periodevergelijking <- function(df, groep = GROEP, jaar_kolom = TREND_JAAR) {
   variabelen <- unique(unlist(TABELLEN))
   subsets <- if (!is.null(groep) && groep %in% names(df))
     split(df, droplevels(factor(df[[groep]]))) else list()
-  subsets[["Totaal"]] <- df
+  if (ANALYSE_TOTAAL || !length(subsets)) subsets[["Totaal"]] <- df
   lapply(subsets, function(d) maak_tabel(d[!is.na(d$periode), ], variabelen, "periode"))
 }
 

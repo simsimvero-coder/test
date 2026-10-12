@@ -216,7 +216,29 @@ trendanalyse <- function(df, groep = GROEP) {
 
   toetsen <- rbind(aantal$toets, toetsen_bin, temp$toets)
   rownames(toetsen) <- NULL
-  list(data = d, aantal = aantal$per_jaar, pct = pct, temp = temp$per_jaar, toetsen = toetsen)
+  per_jaar_temp <- temp$per_jaar
+
+  if (!ANALYSE_TOTAAL && !is.null(groep) && groep %in% names(d)) {
+    # Vergelijkingen tussen de groepen staan op de rij "Totaal": overzetten naar
+    # de groepsrijen en daarna de gepoolde (Totaal) analyses weglaten.
+    verplaats <- function(tab, sleutel, kolom) {
+      if (is.null(tab) || !kolom %in% names(tab)) return(tab)
+      tot <- tab[tab$groep == "Totaal", ]
+      waarde <- setNames(tot[[kolom]], do.call(paste, tot[sleutel]))
+      k <- do.call(paste, tab[sleutel])
+      tab[[kolom]] <- ifelse(k %in% names(waarde), waarde[k], tab[[kolom]])
+      tab
+    }
+    pct <- verplaats(pct, c("maat", "jaar"), "p_tussen_groepen")
+    pct <- pct[pct$groep != "Totaal", ]
+    per_jaar_temp <- verplaats(per_jaar_temp, c("maat", "jaar"), "p_tussen_groepen")
+    if (!is.null(per_jaar_temp)) per_jaar_temp <- per_jaar_temp[per_jaar_temp$groep != "Totaal", ]
+    toetsen <- verplaats(toetsen, "maat", "p_trendverschil_tussen_groepen")
+    toetsen$groep[toetsen$maat == "Aandeel acuut"] <- "acuut vs. electief"
+    toetsen <- toetsen[toetsen$groep != "Totaal", ]
+    rownames(pct) <- rownames(toetsen) <- NULL
+  }
+  list(data = d, aantal = aantal$per_jaar, pct = pct, temp = per_jaar_temp, toetsen = toetsen)
 }
 
 # ── Figuren ─────────────────────────────────────────────────────────────────
