@@ -1,0 +1,8 @@
+# Nooit echte patiëntgegevens of afgeleide resultaten committen (AVG).
+data/*
+!data/voorbeeld_patienten.csv
+output/
+
+__pycache__/
+*.pyc
+.venv/
