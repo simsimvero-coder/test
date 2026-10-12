@@ -22,6 +22,14 @@
 
 TEMP_MIN_COMPLEET <- 0.80
 
+# CR2-variantie één keer berekenen en hergebruiken (dit is de traagste stap)
+cr2_jaar <- function(m, cluster) {
+  V <- clubSandwich::vcovCR(m, cluster = cluster, type = "CR2")
+  ci <- clubSandwich::conf_int(m, vcov = V, coefs = "jaar")
+  ct <- clubSandwich::coef_test(m, vcov = V, test = "Satterthwaite", coefs = "jaar")
+  c(ci$beta, ci$CI_L, ci$CI_U, ct[[grep("^p_", names(ct), value = TRUE)[1]]])
+}
+
 mengverdeling_p <- function(L) 0.5 * pchisq(L, 1, lower.tail = FALSE) + 0.5 * pchisq(L, 2, lower.tail = FALSE)
 
 perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
@@ -109,20 +117,14 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
     if (!heeft_cs) return(rij(pop, g, paste(label, "- clubSandwich ontbreekt"), d))
     tryCatch({
       m <- lm(if (covariaat) y ~ jaar + acuut + .centrum else y ~ jaar + .centrum, data = d)
-      ci <- clubSandwich::conf_int(m, vcov = "CR2", cluster = d$.centrum, coefs = "jaar")
-      ct <- clubSandwich::coef_test(m, vcov = "CR2", cluster = d$.centrum, test = "Satterthwaite", coefs = "jaar")
-      rij(pop, g, label, d, ci$beta, ci$CI_L, ci$CI_U, ct[[grep("^p_", names(ct), value = TRUE)[1]]])
+      r <- cr2_jaar(m, d$.centrum)
+      rij(pop, g, label, d, r[1], r[2], r[3], r[4])
     }, error = function(e) rij(pop, g, paste(label, "- mislukt:", conditionMessage(e)), d))
   }
 
   # Landelijke trend (marginaal) en exacte decompositie in binnen/tussen centra.
   # Alle drie met CR2 (Satterthwaite) geclusterd op centrum.
-  cr2_slope <- function(f, d) {
-    m <- lm(f, data = d)
-    ci <- clubSandwich::conf_int(m, vcov = "CR2", cluster = d$.centrum, coefs = "jaar")
-    ct <- clubSandwich::coef_test(m, vcov = "CR2", cluster = d$.centrum, test = "Satterthwaite", coefs = "jaar")
-    c(ci$beta, ci$CI_L, ci$CI_U, ct[[grep("^p_", names(ct), value = TRUE)[1]]])
-  }
+  cr2_slope <- function(f, d) cr2_jaar(lm(f, data = d), d$.centrum)
   model_landelijk <- function(d, pop, g) {
     labels <- c("LANDELIJKE trend (marginaal, alle patienten), CR2",
                 "  = bijdrage BINNEN centra (praktijkverandering), CR2",
@@ -151,6 +153,15 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
       d <- droplevels(subsets[[g]][!is.na(subsets[[g]]$y), ])
       if (nrow(d) < 20 || nlevels(d$.centrum) < 3) next
       d_s <- droplevels(d[paste(d$.centrum, d$jaar) %in% goed, ])
+      cat(sprintf("   temperatuurmodellen: %s, %s (n = %d) ...\n", pop, g, nrow(d)))
+      flush.console()
+      zelfde <- nrow(d_s) == nrow(d)
+      gevoelig <- if (zelfde) {
+        rij(pop, g, sprintf("gevoeligheid: centrum-jaren >=%d%% compleet - alle centrum-jaren voldoen, gelijk aan hoofdanalyse",
+                            100 * TEMP_MIN_COMPLEET), d)
+      } else rbind(
+        model_rs(d_s, pop, g, sprintf("gevoeligheid: centrum-jaren >=%d%% compleet - random slope", 100 * TEMP_MIN_COMPLEET)),
+        model_cr2(d_s, pop, g, sprintf("gevoeligheid: centrum-jaren >=%d%% compleet - CR2", 100 * TEMP_MIN_COMPLEET)))
       modellen[[length(modellen) + 1]] <- rbind(
         model_landelijk(d, pop, g),
         model_ri(d, pop, g),
@@ -159,8 +170,7 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
         if (g == "Totaal" && length(unique(d$acuut)) > 1) rbind(
           model_rs(d, pop, g, "random slope, gecorrigeerd voor acuut/electief", covariaat = TRUE),
           model_cr2(d, pop, g, "CR2, gecorrigeerd voor acuut/electief", covariaat = TRUE)),
-        model_rs(d_s, pop, g, sprintf("gevoeligheid: centrum-jaren >=%d%% compleet - random slope", 100 * TEMP_MIN_COMPLEET)),
-        model_cr2(d_s, pop, g, sprintf("gevoeligheid: centrum-jaren >=%d%% compleet - CR2", 100 * TEMP_MIN_COMPLEET))
+        gevoelig
       )
       # Trend per centrum: eigen lineaire regressie (met 95%-BI) en BLUP uit random-slope-model
       if (g == "Totaal") {

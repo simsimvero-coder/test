@@ -86,7 +86,7 @@ if (ALLEEN_INGEDEELDE_PATIENTEN) {
 if (nrow(df) == 0) stop("Geen patiënten over voor de analyse. Controleer de meldingen hierboven.")
 
 # 3. Analyse ------------------------------------------------------------------
-cat("3. Analyse\n")
+cat("3. Analyse\n"); flush.console()
 tabellen <- lapply(TABELLEN, maak_tabel, df = df, groep = GROEP)
 oe_groep   <- if (!is.null(GROEP)) oe_ratio(df, GROEP)
 oe_centrum <- oe_ratio(df, "centrum")
@@ -94,6 +94,8 @@ km <- overleving(df, GROEP)
 tr <- trendanalyse(df, GROEP)
 inc <- incidentie(df_alle, GROEP)
 per <- periodevergelijking(df, GROEP)
+cat("   Temperatuurmodellen (CR2) - dit kan op een oudere computer 5-15 minuten duren\n")
+flush.console()
 pa <- perfusie_analyse(df, GROEP)
 
 excel <- c(
