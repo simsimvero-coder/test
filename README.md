@@ -1,53 +1,71 @@
-# Analyse patiëntendataset
+# Analyse cardiochirurgische patiëntendataset (R)
 
-Python-code om een patiëntendataset in te lezen, op te schonen, te analyseren
-(Tabel 1 met groepsvergelijking) en te visualiseren.
+R-code om de dataset in te lezen, op te schonen, te beschrijven (Tabel 1–3 met
+groepsvergelijking), de mortaliteit te vergelijken met EuroSCORE II (O/E-ratio)
+en de overleving te analyseren (Kaplan-Meier).
 
 ## Installatie
 
-```bash
-pip install -r requirements.txt
+```r
+install.packages(c("readxl", "dplyr", "tidyr", "ggplot2", "survival", "writexl"))
+# optioneel, voor SPSS-bestanden (.sav):
+install.packages("haven")
 ```
 
-## Snel proberen met fictieve data
+## Gebruik
+
+1. Zet je dataset in de map `data/` (`.csv`, `.xlsx`, `.xls` of `.sav`).
+2. Pas `R/config.R` aan; minimaal `DATA_BESTAND` en `GROEP`.
+3. Draai vanuit de projectmap:
 
 ```bash
-python -m patient_analyse.voorbeelddata   # maakt data/voorbeeld_patienten.csv (fictief!)
-python -m patient_analyse.main            # draait de hele analyse
+Rscript run_analyse.R                          # of: Rscript run_analyse.R data/mijn_data.xlsx
 ```
 
-## Eigen dataset gebruiken
+Of open `run_analyse.R` in RStudio (met de projectmap als working directory) en klik op **Source**.
 
-1. Zet je bestand (`.csv`, `.xlsx` of `.xls`) in de map `data/`.
-2. Pas `patient_analyse/config.py` aan:
-   - `DATA_BESTAND` – pad naar je bestand
-   - `ID_KOLOM` – kolom met (gepseudonimiseerd) patiëntnummer
-   - `GROEP_KOLOM` – kolom om groepen te vergelijken, of `None`
-   - `NUMERIEK` – numerieke variabelen met plausibel bereik `(min, max)`
-   - `CATEGORISCH` – categorische variabelen met optionele hercodering
-   - `DATUMS` – datumvariabelen (dag-maand-jaar)
-3. Draai `python -m patient_analyse.main`
-   (of `python -m patient_analyse.main --bestand data/mijn_data.xlsx --groep geen`).
+Om de code eerst uit te proberen met **fictieve** data met dezelfde kolommen:
 
-Kolomnamen worden automatisch omgezet naar kleine letters met `_` in plaats van spaties.
+```bash
+Rscript R/voorbeelddata.R
+Rscript run_analyse.R
+```
+
+## Instellingen (`R/config.R`)
+
+| Instelling | Standaard | Betekenis |
+|---|---|---|
+| `GROEP` | `"pathologie_groep"` | kolom voor groepsvergelijking (`NULL` = alleen totaal) |
+| `ALLEEN_INCLUSIECOHORT` | `TRUE` | alleen rijen met `incl_cohort` = ja/1 |
+| `NUMERIEK` | leeftijd, BMI, kreatinine, … | numerieke variabelen + plausibel bereik |
+| `CATEGORISCH` | overige variabelen | categorisch; ja/nee/1/0 wordt automatisch `nee`/`ja` |
+| `HERCODERING` | geslacht | extra hercoderingen per variabele |
+| `TABELLEN` | Tabel 1–3 | welke variabelen in welke tabel |
+| `OVERLEVING_TIJD/STATUS` | `overltijd_dag` / `mort_status` | voor Kaplan-Meier |
+
+Kolomnamen worden hoofdletter-ongevoelig gekoppeld (`bmi` = `BMI`).
+Staat `LVEF` bij jou als categorie (bv. goed/matig/slecht) in de data, dan
+herkent de code dat en behandelt hem als categorisch (met een melding).
 
 ## Wat de code doet
 
-| Stap | Module | Inhoud |
+| Stap | Bestand | Inhoud |
 |---|---|---|
-| Inlezen | `inlezen.py` | CSV (`;` of `,`) en Excel; komma als decimaalteken wordt herkend |
-| Opschonen | `inlezen.py` | lege en dubbele rijen weg, tekst → getal, waarden buiten bereik → ontbrekend, hercoderen van categorieën, datums controleren. **Iedere wijziging** komt in een opschoonlogboek. |
-| Analyse | `analyse.py` | Tabel 1: gem. (SD) of mediaan [IQR] (Shapiro-Wilk bepaalt welke), n (%); p-waarden met Welch t-toets / Mann-Whitney U / ANOVA / Kruskal-Wallis / chi-kwadraat / Fisher exact; Spearman-correlaties |
-| Figuren | `figuren.py` | histogrammen, boxplots per groep, staafdiagrammen, correlatie-heatmap, ontbrekende waarden |
+| Inlezen | `R/inlezen.R` | CSV (`;` of `,`), Excel, SPSS; komma als decimaalteken |
+| Opschonen | `R/inlezen.R` | lege/dubbele rijen weg, tekst → getal, waarden buiten bereik → NA, ja/nee-codering gelijktrekken, selectie inclusiecohort. **Elke wijziging** komt in het opschoonlogboek. |
+| Tabellen | `R/analyse.R` | gem. (SD) of mediaan [IQR] (Shapiro-Wilk), n (%); p-waarden met Welch t-toets / Mann-Whitney U / Welch ANOVA / Kruskal-Wallis / chi-kwadraat / Fisher exact |
+| O/E-ratio | `R/analyse.R` | geobserveerde ziekenhuismortaliteit (`overleden_zh`) / verwachte (gem. EuroSCORE II), met exact 95%-BI, per groep en per centrum |
+| Overleving | `R/analyse.R` | Kaplan-Meier, overleving na 30 d, 120 d, 1, 3 en 5 jaar, log-rank toets |
+| Figuren | `R/figuren.R` | histogrammen, boxplots per groep, postoperatieve uitkomsten, Kaplan-Meier, O/E-forestplots, ontbrekende waarden |
 
-## Uitvoer (map `output/`)
+## Uitvoer (`output/`)
 
-- `resultaten.xlsx` – tabbladen *Tabel 1*, *Ontbrekende waarden*, *Correlaties*, *Opschoonlogboek*
+- `resultaten.xlsx`: tabbladen Tabel 1–3, O/E per groep en per centrum, Overleving, Ontbrekende waarden, Opschoonlogboek
 - `opgeschoonde_data.csv`
 - `figuren/*.png`
 
 ## Privacy
 
 Werk alleen met gepseudonimiseerde data en volg het datamanagementbeleid van je
-instelling. `.gitignore` voorkomt dat bestanden in `data/` (behalve de fictieve
-voorbeelddata) en `output/` in git terechtkomen.
+instelling. `.gitignore` houdt `data/` (behalve de fictieve voorbeelddata) en
+`output/` buiten git.

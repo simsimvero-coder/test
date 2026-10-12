@@ -1,8 +1,8 @@
 # Nooit echte patiëntgegevens of afgeleide resultaten committen (AVG).
 data/*
-!data/voorbeeld_patienten.csv
+!data/voorbeeld_cardiochirurgie.csv
 output/
 
-__pycache__/
-*.pyc
-.venv/
+.Rhistory
+.RData
+.Rproj.user/
