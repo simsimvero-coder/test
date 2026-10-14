@@ -42,6 +42,7 @@ source("R/periode.R", encoding = "UTF-8")
 source("R/perfusie.R", encoding = "UTF-8")
 source("R/uitkomsten.R", encoding = "UTF-8")
 source("R/benchmark.R", encoding = "UTF-8")
+source("R/arrest_uitkomst.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -123,6 +124,7 @@ los <- opnameduur_analyse(df, GROEP)
 rs <- relatieve_overleving(df, GROEP)
 smr <- smr_analyse(df, GROEP)
 bm <- benchmark_centra(df, GROEP)
+au <- arrest_uitkomsten(df, GROEP)
 
 # Gevoeligheidsanalyse: dezelfde patiëntgebonden modellen, gecorrigeerd voor EuroSCORE II
 sens_es <- NULL
@@ -163,7 +165,7 @@ excel <- c(
        "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
        "Temp zonder vs met arrest" = cv$zonder_met, "Opnameduur" = los,
-       "Relatieve overleving" = rs, "SMR" = smr, "Benchmark - funnel" = bm,
+       "Relatieve overleving" = rs, "SMR" = smr, "Benchmark - funnel" = bm, "Arrest - uitkomsten" = au,
        "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
        "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
        "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
@@ -261,6 +263,8 @@ if (!is.null(sens_es)) {
                         "BI95_gecorrigeerd", "p_gecorrigeerd", "q_BH_gecorrigeerd", "OR_CR2_gecorrigeerd",
                         "BI95_CR2_gecorrigeerd", "p_CR2_gecorrigeerd"), names(u))], row.names = FALSE)
 }
+cat("\nCirculatiestilstand en uitkomsten (exploratief; gecorrigeerd voor ", paste(UITKOMST_COVARIATEN, collapse = ", "), ")\n", sep = "")
+print(au[au$correctie == "gecorrigeerd", c("groep", "blootstelling", "uitkomst", "n", "ruw_met_vs_zonder", "effectmaat", "schatting", "BI95", "p", "schatting_CR2", "BI95_CR2", "p_CR2")], row.names = FALSE)
 cat("\nOpnameduur (ratio per jaar = geometrische verandering)\n")
 print(los, row.names = FALSE)
 if (!is.null(rs)) { cat("\nKaplan-Meier en relatieve overleving (Ederer II)\n"); print(rs, row.names = FALSE) }
