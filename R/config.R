@@ -199,7 +199,7 @@ TREND_COMPLICATIES <- list(
 FTR_UITKOMST <- "overleden_zh"
 
 TREND_TEMPERATUUR  <- "min_temp"
-TREND_CIRC_ARREST  <- "circ_arrest"
+TREND_CIRC_ARREST  <- "circ_arrest_clean"   # zelfde variabele als in Tabel 2
 
 # ── Volume en incidentie per miljoen inwoners (R/incidentie.R) ──────────────
 # Bevolking van Nederland op 1 januari (CBS StatLine, tabel 37296ned

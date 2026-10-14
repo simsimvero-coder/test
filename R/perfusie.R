@@ -293,3 +293,47 @@ fig_temperatuur_per_centrum_jaar <- function(pa, map, populatie = "met circulati
   }
   paden
 }
+
+# Jaartrend in perfusieduren (CPB-duur, klemtijd, duur circulatiestilstand bij
+# patiënten met stilstand), apart per groep. Lineair mixed model met random
+# intercept per centrum (minuten per jaar), ongecorrigeerd en gecorrigeerd
+# (UITKOMST_COVARIATEN); gevoeligheid: centrum fixed effects met CR2.
+PERFUSIE_DUREN <- c("CPB-duur (min)" = "ECC_duur", "Klemtijd aorta (min)" = "AoX_duur",
+                    "Duur circulatiestilstand bij stilstand (min)" = "circ_arrest_duur_bij_arrest")
+
+perfusie_duur_trends <- function(df, groep = GROEP) {
+  heeft_cs <- requireNamespace("clubSandwich", quietly = TRUE)
+  basis <- data.frame(groep = as.character(df[[groep]]), .centrum = factor(df[[CENTRUM_KOLOM]]),
+                      jaar = suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))))
+  basis <- voeg_modelcovariaten_toe(basis, df)
+  basis$jaar_c <- basis$jaar - round(mean(basis$jaar, na.rm = TRUE))
+  res <- list()
+  for (label in names(PERFUSIE_DUREN)) {
+    v <- PERFUSIE_DUREN[[label]]
+    if (!v %in% names(df)) next
+    for (g in sort(unique(na.omit(basis$groep)))) for (gecorrigeerd in c(FALSE, TRUE)) {
+      d <- basis; d$y <- df[[v]]
+      d <- droplevels(d[d$groep %in% g & !is.na(d$y) & !is.na(d$jaar) & !is.na(d$.centrum), ])
+      if (gecorrigeerd) d <- modelgevallen(d, "y")
+      r <- rep(NA_real_, 4); r2 <- rep(NA_real_, 4)
+      if (nrow(d) >= 30 && nlevels(d$.centrum) >= 3) {
+        r <- tryCatch({
+          m <- nlme::lme(cov_formule("y", "jaar_c", gecorrigeerd), random = ~ 1 | .centrum, data = d, method = "REML")
+          t <- summary(m)$tTable["jaar_c", ]
+          c(t["Value"], t["Value"] - 1.96 * t["Std.Error"], t["Value"] + 1.96 * t["Std.Error"], t["p-value"])
+        }, error = function(e) rep(NA_real_, 4))
+        if (heeft_cs) r2 <- tryCatch(cr2_jaar(lm(cov_formule("y", "jaar", gecorrigeerd, ".centrum"), data = d), d$.centrum),
+                                     error = function(e) rep(NA_real_, 4))
+      }
+      q <- quantile(d$y, c(.25, .5, .75), na.rm = TRUE)
+      res[[length(res) + 1]] <- data.frame(
+        maat = label, groep = g, correctie = if (gecorrigeerd) "gecorrigeerd" else "ongecorrigeerd",
+        n = nrow(d), mediaan_IQR = sprintf("%.0f [%.0f-%.0f]", q[2], q[1], q[3]),
+        min_per_jaar = round(r[1], 2), BI95 = sprintf("%.2f tot %.2f", r[2], r[3]), p = fmt_p(r[4]),
+        min_per_jaar_CR2 = round(r2[1], 2), BI95_CR2 = sprintf("%.2f tot %.2f", r2[2], r2[3]), p_CR2 = fmt_p(r2[4]))
+    }
+  }
+  out <- do.call(rbind, res)
+  rownames(out) <- NULL
+  out
+}

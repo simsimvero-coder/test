@@ -109,6 +109,7 @@ per_mod <- periode_uitkomstmodellen(df, GROEP)
 cat("   Temperatuurmodellen (CR2) - dit kan op een oudere computer 5-15 minuten duren\n")
 flush.console()
 pa <- perfusie_analyse(df, GROEP)
+pd <- perfusie_duur_trends(df, GROEP)
 cat("   Uitkomstmodellen (mixed models en CR2) - ook dit kan enkele minuten duren\n"); flush.console()
 if (requireNamespace("lme4", quietly = TRUE) &&
     inherits(try(lme4::glmer(cbind(1:3, 3:1) ~ 1 + (1 | g), family = binomial,
@@ -157,7 +158,7 @@ excel <- c(
        "Volume per jaar" = inc$per_jaar, "Volume per miljoen - RR" = inc$rr,
        "Periode - electief" = per[["electief aneurysma"]], "Periode - acuut" = per[["acuut"]],
        "Periode - totaal" = per[["Totaal"]],
-       "Periode uitkomstmodellen" = per_mod, "Temp - modellen" = pa$modellen, "Temp - per centrum" = pa$centra,
+       "Periode uitkomstmodellen" = per_mod, "Temp - modellen" = pa$modellen, "Perfusieduur - trends" = pd, "Temp - per centrum" = pa$centra,
        "Temp - mediaan centrum-jaar" = pa$per_centrum_jaar,
        "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
@@ -239,6 +240,8 @@ print(data.frame(populatie = m$populatie, groep = m$groep, correctie = m$correct
                  p_lineariteit = ifelse(grepl("lineariteit", m$extra_toets), m$p_extra, ""),
                  p_verschil_centra = ifelse(grepl("centra", m$extra_toets), m$p_extra, "")),
       row.names = FALSE, right = FALSE)
+cat("\nPerfusieduren - trend per jaar (minuten per jaar; random intercept per centrum en CR2)\n")
+print(pd, row.names = FALSE)
 cat("\nMinimale temperatuur - trend per centrum\n")
 print(pa$centra, row.names = FALSE)
 
