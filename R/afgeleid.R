@@ -28,9 +28,24 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
   groep <- rep(NA_character_, n)
   basis <- rep(NA_character_, n)
   geen_path <- !path_acuut & !path_electief
+  alle_path_onbekend <- rowSums(!is.na(path)) == 0
   zet <- function(sel, g, tekst) { groep[sel] <<- g; basis[sel] <<- tekst }
 
-  if (identical(cfg$voorrang, "urgentie")) {
+  if (identical(cfg$voorrang, "strikt")) {
+    # Strikt: urgentie én pathologie moeten de groep bevestigen.
+    #   electief = urgentie 10/20 + pathologie 10, zonder pathologie 20
+    #   acuut    = urgentie 30/40 + pathologie 10 of 20
+    # Alle andere combinaties worden uitgesloten, met de reden in 'basis'.
+    zet(!is.na(urg) & !urg_acuut & !urg_electief, NA, "uitgesloten: urgentie niet 10-40")
+    zet(is.na(urg), NA, "uitgesloten: urgentie onbekend")
+    zet(!is.na(urg) & geen_path & alle_path_onbekend, NA, "uitgesloten: pathologie onbekend (alle 3 leeg)")
+    zet(!is.na(urg) & geen_path & !alle_path_onbekend, NA, "uitgesloten: andere pathologie (0/30/40/90/91)")
+    zet(urg_electief & path_acuut & !path_electief, NA, "uitgesloten: pathologie 20 bij urgentie 10/20")
+    zet(urg_electief & path_acuut & path_electief, NA, "uitgesloten: pathologie 10 en 20 bij urgentie 10/20")
+    zet(urg_electief & path_electief & !path_acuut, "electief", "pathologie 10 + urgentie 10/20")
+    zet(urg_acuut & path_electief & !path_acuut, "acuut", "pathologie 10 + urgentie 30/40")
+    zet(urg_acuut & path_acuut, "acuut", "pathologie 20 + urgentie 30/40")
+  } else if (identical(cfg$voorrang, "urgentie")) {
     # Urgentie 30/40 is altijd acuut; een acute dissectie (pathologie 20) ook.
     # Volgorde is van belang: latere regels overschrijven eerdere.
     zet(mag_urgentie & urg_electief, "electief", "urgentie 10/20 (geen pathologie 10/20)")
@@ -63,6 +78,7 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
   overzicht$groep[is.na(overzicht$groep)] <- "niet ingedeeld"
   overzicht$basis <- as.character(overzicht$basis)
   overzicht$basis[is.na(overzicht$basis)] <- "-"
+  overzicht <- overzicht[order(overzicht$groep == "niet ingedeeld", overzicht$groep, -overzicht$n), ]
 
   # Kruistabel om de indeling te controleren: urgentie x pathologie x groep
   controle <- as.data.frame(table(
@@ -117,4 +133,43 @@ maak_perfusie <- function(df) {
     df$circ_arrest_duur_bij_arrest <- ifelse(met_arrest, df$circ_arrest_duur, NA)
   }
   df
+}
+
+# Hoeveel geregistreerde patiënten per jaar en per centrum in elke groep vallen
+# en hoeveel er worden uitgesloten. Bij de strikte indeling is dit essentieel:
+# ontbrekende pathologie komt vooral in de vroege jaren en in bepaalde centra
+# voor, zodat uitsluiting trends en de benchmark kan vertekenen.
+selectie_overzicht <- function(df_alle, groep = GROEP) {
+  g <- as.character(df_alle[[groep]]); g[is.na(g)] <- "uitgesloten"
+  per <- function(kolom) {
+    tab <- table(df_alle[[kolom]], factor(g, levels = c(unname(ACUUT_ELECTIEF$labels), "uitgesloten")))
+    out <- data.frame(x = rownames(tab), geregistreerd = as.integer(rowSums(tab)), check.names = FALSE)
+    for (k in colnames(tab)) out[[k]] <- as.integer(tab[, k])
+    out$uitgesloten_pct <- round(100 * out$uitgesloten / out$geregistreerd, 1)
+    names(out)[1] <- kolom
+    if (kolom == CENTRUM_KOLOM) out <- out[order(suppressWarnings(as.numeric(out[[1]]))), ]
+    out
+  }
+  list(jaar = per(TREND_JAAR), centrum = per(CENTRUM_KOLOM))
+}
+
+# Gevoeligheid voor de definitie: groepsgrootte en ruwe vroege mortaliteit per
+# periode onder elke indeling (strikt / urgentie / pathologie).
+vergelijk_definities <- function(df_alle, definities = c("strikt", "urgentie", "pathologie")) {
+  jaar <- suppressWarnings(as.numeric(as.character(df_alle[[TREND_JAAR]])))
+  periode <- rep(NA_character_, nrow(df_alle))
+  for (p in names(PERIODES)) periode[jaar %in% PERIODES[[p]]] <- p
+  pct <- function(x) { x <- x[!is.na(x)]; if (!length(x)) NA else round(100 * mean(x == "ja"), 1) }
+  do.call(rbind, lapply(definities, function(def) {
+    cfg <- ACUUT_ELECTIEF; cfg$voorrang <- def
+    gr <- as.character(maak_acuut_electief(df_alle, cfg)$data$acuut_electief)
+    sel <- expand.grid(periode = c(names(PERIODES), "alle jaren"), groep = unname(cfg$labels),
+                       stringsAsFactors = FALSE)
+    do.call(rbind, lapply(seq_len(nrow(sel)), function(i) {
+      rij <- gr %in% sel$groep[i] & (sel$periode[i] == "alle jaren" | periode %in% sel$periode[i])
+      data.frame(definitie = def, groep = sel$groep[i], periode = sel$periode[i], n = sum(rij),
+                 ziekenhuismortaliteit_pct = pct(df_alle$overleden_zh[rij]),
+                 mortaliteit_30d_pct = pct(df_alle$overl30d[rij]))
+    }))
+  }))
 }

@@ -32,17 +32,21 @@ De resultaten komen in de map `output/` in de projectmap.
 
 ## Indeling acuut vs. electief aneurysma (`R/afgeleid.R`)
 
-Standaard (`voorrang = "urgentie"` in `R/config.R`):
+Standaard (`voorrang = "strikt"` in `R/config.R`): urgentie én pathologie moeten de groep bevestigen.
 
 | Groep | Regel |
 |---|---|
-| acuut | urgentie 30 (spoed) / 40 (redding), **of** pathologie 20 (acute dissectie) in asc/boog/desc |
-| electief aneurysma | overige patiënten met pathologie 10 (aneurysma), of — zonder pathologie 10/20 — urgentie 10/20 |
-| niet ingedeeld | geen pathologie 10/20 en geen bekende urgentie |
+| electief aneurysma | urgentie 10/20 **en** pathologie 10 in asc/boog/desc, zonder pathologie 20 |
+| acuut | urgentie 30/40 **en** pathologie 10 of 20 |
+| uitgesloten | alle andere combinaties (pathologie onbekend, acute dissectie met urgentie 10/20, andere pathologie, urgentie onbekend) |
 
-- Een aneurysma met urgentie 30/40 telt als **acuut**.
+- Pathologie ontbreekt vooral in 2013-2018 en in bepaalde centra. Controleer daarom de tabbladen
+  *Selectie per jaar*, *Selectie per centrum* en *Selectie - definities* (groepsgrootte en ruwe mortaliteit
+  onder elke definitie). Het landelijke volume per jaar telt altijd alle geregistreerde boogoperaties.
+- Met `voorrang = "urgentie"` is urgentie 30/40 altijd acuut en pathologie 20 ook; overige patiënten met
+  pathologie 10, of zonder pathologie urgentie 10/20, zijn electief (ruimere definitie, als gevoeligheidsanalyse).
 - Met `voorrang = "pathologie"` bepaalt pathologie 20/10 de groep en telt urgentie alleen als de pathologie onbekend is.
-- De basis van de indeling staat per patiënt in `acuut_electief_basis`. Het tabblad *Indeling acuut-electief* geeft de kruistabel urgentie × pathologie × groep.
+- De basis van de indeling staat per patiënt in `acuut_electief_basis`. De reden van uitsluiting staat in *Indeling - redenen*; het tabblad *Indeling acuut-electief* geeft de kruistabel urgentie × pathologie × groep.
 
 ## Volume en incidentie (`R/incidentie.R`)
 

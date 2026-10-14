@@ -1,7 +1,9 @@
 # =============================================================================
 # Operatievolume per jaar en incidentie per miljoen inwoners
 #
-# - Aantallen per jaar: totaal, acuut, electief en niet ingedeeld
+# - Aantallen per jaar: alle geregistreerde boogoperaties (ook niet ingedeelde
+#   patiënten: het landelijke volume hangt niet af van de groepsindeling),
+#   acuut, electief en niet ingedeeld
 # - Operaties per miljoen inwoners (CBS-bevolking uit config.R)
 # - Poisson-regressie met log(bevolking) als offset: rate ratio (RR) per jaar
 #   voor het totaal (alle jaren) en per groep (vanaf GROEPEN_VANAF_JAAR)
@@ -64,10 +66,10 @@ incidentie <- function(df_alle, groep = GROEP, jaar_kolom = TREND_JAAR) {
   periode_alle <- sprintf("%d-%d", min(jaren), max(jaren))
   periode_groep <- sprintf("%d-%d", max(min(jaren), GROEPEN_VANAF_JAAR), max(jaren))
   rr <- rbind(
-    poisson_rr(per_jaar$totaal, per_jaar$jaar, per_jaar$bevolking, "Totaal (incl. niet ingedeeld)", periode_alle),
+    poisson_rr(per_jaar$totaal, per_jaar$jaar, per_jaar$bevolking, "Alle geregistreerde boogoperaties", periode_alle),
     if (periode_groep != periode_alle)
       poisson_rr(per_jaar$totaal[vanaf], per_jaar$jaar[vanaf], per_jaar$bevolking[vanaf],
-                 "Totaal (incl. niet ingedeeld)", periode_groep),
+                 "Alle geregistreerde boogoperaties", periode_groep),
     do.call(rbind, lapply(setdiff(niveaus, "niet ingedeeld"), function(niv)
       poisson_rr(per_jaar[[niv]][vanaf], per_jaar$jaar[vanaf], per_jaar$bevolking[vanaf], niv, periode_groep)))
   )
