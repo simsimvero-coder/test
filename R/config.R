@@ -26,9 +26,9 @@ GROEP <- "acuut_electief"
 #   acuut              = urgentie 30/40 (ALTIJD), of pathologie 20 (acute dissectie)
 #                        in asc/boog/desc (ALTIJD, ook bij urgentie 10/20)
 #   electief aneurysma = urgentie 10 (geen dissectie); urgentie 20 alleen bij
-#                        pathologie 10 (aneurysma); pathologie 10 zonder urgentie
-#   niet ingedeeld     = urgentie 20 zonder pathologie 10/20, of geen urgentie en
-#                        geen pathologie 10/20
+#                        pathologie 10 (aneurysma)
+#   niet ingedeeld     = urgentie 20 zonder pathologie 10/20, of geen bekende
+#                        urgentie (behalve acute dissectie)
 # voorrang = "strikt" (gevoeligheidsanalyse): urgentie én pathologie moeten de
 #   groep bevestigen (electief = urgentie 10/20 + pathologie 10 zonder 20;
 #   acuut = urgentie 30/40 + pathologie 10 of 20); de rest wordt uitgesloten.
@@ -51,15 +51,6 @@ ACUUT_ELECTIEF <- list(
   aortachir_kolom    = NULL,
   labels             = c(electief = "electief aneurysma", acuut = "acuut")
 )
-# PRIMAIRE ANALYSE: deze originele combinatie blijft ongewijzigd.
-# Aanvullende analyse in een AFZONDERLIJK Excelbestand:
-#   urgentie 10 = electief; urgentie 20 = urgent, apart;
-#   urgentie 30/40 = acuut. Geen aanvullende pathologiegroepen.
-# Onbekende/andere urgentie blijft NA voor de gevoeligheidsanalyse.
-URGENTIE_SENS_ACTIEF <- TRUE
-URGENTIE_SENS_KOLOM <- "urgentie_sens"
-# LET OP: de bestaande mengdefinitie combineert pathologie en urgentie.
-# Eerst klinisch valideren alvorens deze als primaire indeling te publiceren.
 # Patiënten die niet als acuut of electief aneurysma ingedeeld kunnen worden
 # (bv. geen aortachirurgie) uit de analyse laten? FALSE = wel in 'Totaal'.
 ALLEEN_INGEDEELDE_PATIENTEN <- TRUE
@@ -259,9 +250,7 @@ UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
 # Gevoeligheidsanalyse: dezelfde modellen, gecorrigeerd voor EuroSCORE II.
 # Alleen EuroSCORE II, omdat leeftijd, geslacht en eerdere cardiochirurgie daar
 # al in zitten (anders dubbele correctie). Uitvoer: gevoeligheid_euroscore.xlsx.
-# NULL = overslaan. In de directe vergelijking acuut (30/40) vs electief
-# (urgentie-gevoeligheidsanalyse) wordt EuroSCORE II altijd weggelaten, omdat
-# urgentie een onderdeel van EuroSCORE II is.
+# NULL = overslaan.
 GEVOELIGHEID_EUROSCORE_COVARIATEN <- c("EuroscoreII")
 # Alleen jaren waarin EuroSCORE II vrijwel compleet is geregistreerd (vanaf 2018
 # ontbreekt het bij <= 13% van de patiënten; in 2013-2017 bij 27-82%). In de

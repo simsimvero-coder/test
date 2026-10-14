@@ -1,7 +1,7 @@
 # Synthetische mini-test (bevat GEEN patientdata). Start vanuit de projectmap:
 # source("tests/smoke_test.R")
 for (p in c("R/config.R", "R/inlezen.R", "R/afgeleid.R", "R/analyse.R",
-            "R/model_hulpfuncties.R", "R/trend.R", "R/gevoeligheid_urgentie.R")) source(p, encoding = "UTF-8")
+            "R/model_hulpfuncties.R", "R/trend.R")) source(p, encoding = "UTF-8")
 stopifnot(is.function(overleving_cox_trend), is.function(trendanalyse))
 set.seed(123)
 n <- 1200L
@@ -35,41 +35,20 @@ cox <- overleving_cox_trend(D, "acuut_electief")
 stopifnot(nrow(cox) == 4L, all(c("ongecorrigeerd", "gecorrigeerd") %in% cox$correctie))
 cat("Synthetische mini-test afgerond. Geen echte data gebruikt.\n")
 
-# Controleer exacte betekenis van primaire versus alternatieve definitie.
-# Gevoeligheidsanalyse: urgentie 20 is een eigen groep, behalve bij een acute
-# dissectie (pathologie 20): die is altijd acuut.
+# Controleer de primaire indeling (urgentie gaat boven pathologie; acute
+# dissectie is altijd acuut).
 klein <- data.frame(
   urgentie = factor(c("10 electief", "20 urgent", "30 spoed", "40 redding",
-                      "-1", "90")),
+                      "-1", "90", "20 urgent", "10 electief", "-1")),
   aorta_asc_path = factor(c("10 aneurysma", "10 aneurysma", "10 aneurysma",
-                            "20 acute dissectie", "20 acute dissectie", "30 chronische dissectie")),
-  aortaboog_path = factor(rep("0 geen", 6)),
-  aorta_desc_path = factor(rep("0 geen", 6)),
-  jaar = factor(rep(2020, 6)),
-  overleden_zh = factor(rep("nee", 6)),
-  overl30d = factor(rep("nee", 6))
+                            "20 acute dissectie", "20 acute dissectie", "30 chronische dissectie",
+                            "0 geen", "20 acute dissectie", "10 aneurysma")),
+  aortaboog_path = factor(rep("0 geen", 9)),
+  aorta_desc_path = factor(rep("0 geen", 9))
 )
 stopifnot(identical(ACUUT_ELECTIEF$voorrang, "urgentie"))
-prim <- maak_acuut_electief(klein)$data
-sens <- maak_urgentie_sens(prim)
-stopifnot(identical(as.character(sens$acuut_electief[2]), "electief aneurysma"))
-stopifnot(identical(as.character(sens$acuut_electief[3]), "acuut"))
-stopifnot(identical(as.character(sens$acuut_electief[5]), "acuut"))
-stopifnot(identical(as.character(sens$urgentie_sens[1:4]),
-                    c("electief (10)", "urgent (20)", "acuut (30/40 of dissectie)",
-                      "acuut (30/40 of dissectie)")))
-# Acute dissectie zonder bekende urgentie is ook in de gevoeligheidsanalyse acuut
-stopifnot(identical(as.character(sens$urgentie_sens[5]), "acuut (30/40 of dissectie)"))
-stopifnot(is.na(sens$urgentie_sens[6]))
-summ <- overzicht_urgentie_sens(sens)
-stopifnot(sum(summ$overzicht$n[summ$overzicht$periode == "alle jaren"]) == 6L)
-stopifnot(!any(grepl("chronisch|overig", levels(sens$urgentie_sens), ignore.case = TRUE)))
-
-# Groepsdefinitie voor de echte regressiemodellen met synthetische gegevens.
-D$urgentie <- factor(sample(c("10 electief", "20 urgent", "30 spoed", "40 redding"), n, TRUE))
-D <- maak_urgentie_sens(D)
-stopifnot(nlevels(D$urgentie_sens) == 3L)
-stopifnot(sum(D$urgentie_sens == "urgent (20)", na.rm = TRUE) > 0)
-stopifnot(sum(as.character(D$urgentie_sens) %in% c("electief (10)", "acuut (30/40 of dissectie)")) +
-          sum(D$urgentie_sens == "urgent (20)", na.rm = TRUE) == n)
-cat("Urgentie-gebaseerde gevoeligheidsindeling gecontroleerd (synthetische data).\n")
+prim <- as.character(maak_acuut_electief(klein)$data$acuut_electief)
+verwacht <- c("electief aneurysma", "electief aneurysma", "acuut", "acuut", "acuut",
+              NA, NA, "acuut", NA)
+stopifnot(identical(prim, verwacht))
+cat("Primaire indeling acuut/electief gecontroleerd (synthetische data).\n")

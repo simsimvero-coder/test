@@ -9,39 +9,24 @@
 - Per centrum: modellen met centrumcluster/centrumintercept, en landelijke versus binnen-centrum temperatuurtrends. Standaardisatie van jaartrends voor case-mix is beschrijvend: niet causaal.
 - Meet registratieverschillen en ontbrekende waarden; `n` kan verschillen tussen ruwe en gecorrigeerde modellen (complete cases). Een methodologisch vervolg is multiple imputation indien passend.
 
-## Definitieve hoofdindeling én geplande gevoeligheidsanalyse
+## Groepsindeling en gevoeligheidsanalyse
 
-**Primaire analyse (ongewijzigd):** `ACUUT_ELECTIEF` met
-`voorrang = "urgentie"` combineert de aortapathologiecodes 10 (aneurysma)
-en 20 (acute dissectie) met urgentie 10/20/30/40. De oorspronkelijke
-prioriteits- en fallbackregels blijven **letterlijk ongewijzigd**.
-De hoofdresultaten blijven dus `acuut` versus `electief aneurysma`.
+**Primaire indeling** (`voorrang = "urgentie"`; urgentie gaat boven pathologie):
 
-**Gevoeligheidsanalyse (urgentie uitsluitend):**
+| Situatie | Groep |
+|---|---|
+| urgentie 30/40 | acuut (altijd) |
+| pathologie 20 (acute dissectie) | acuut (altijd, ook bij urgentie 10/20 of onbekend) |
+| urgentie 10, geen dissectie | electief aneurysma |
+| urgentie 20 + pathologie 10 | electief aneurysma |
+| urgentie 20 zonder pathologie 10/20; geen bekende urgentie (geen dissectie) | niet ingedeeld |
 
-| Urgentie | Groep | Vergelijking |
-|---|---|---|
-| 10 | electief (10) | hoofdpaar E versus S |
-| 20 | urgent (20) | **apart**; niet samengevoegd met electief |
-| 30/40 (en elke acute dissectie) | acuut (30/40 of dissectie) | hoofdpaar E versus S |
-| ontbrekend/anders | geen groep | wel opgenomen in het volledigheidsoverzicht |
+**Gevoeligheidsanalyse:** dezelfde modellen gecorrigeerd voor alleen EuroSCORE II,
+beperkt tot 2018-2024 omdat EuroSCORE II in 2013-2017 bij 27-82% van de patiënten
+ontbreekt (`output/gevoeligheid_euroscore.xlsx`).
 
-Deze indeling gebruikt **geen pathologiecode** om een urgentiegroep toe te wijzen.
-Er worden **geen afzonderlijke subgroepen** aangemaakt voor chronische dissectie
-of overige pathologie. De oorspronkelijke pathologiegegevens worden niet
-verwijderd: zij blijven onderdeel van de bron en van de ongewijzigde primaire
-definitie. De gevoeligheidsanalyse is dus geen restrictie op pathologie.
-
-De gevoeligheidsanalyse begint bij het cohort vóór uitsluiting van patiënten
-zonder primaire groep; aantallen kunnen daarom verschillen. In
-`output/gevoeligheid_urgentie.xlsx` staan de drie groepen, de directe E-versus-S-
-uitkomstmodellen, afzonderlijke ongecorrigeerde/gecorrigeerde modellen per groep,
-per-jaartrends, KM/Cox, temperatuur/perfusie en het urgente subcohort. In
-`output/resultaten.xlsx` staan de primaire analyse en controles.
-
-Voor publicatie: rapporteer beide definities met een stroomdiagram, en maak
-helder dat de directe urgentievergelijking *associatief* is en geen causaal
-effect van urgentie vaststelt.
+Voor publicatie: rapporteer de indeling met een stroomdiagram (tabbladen
+*Indeling - redenen*, *Selectie per jaar* en *Selectie per centrum*).
 
 ## Overlevingsanalyse
 

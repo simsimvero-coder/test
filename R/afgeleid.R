@@ -48,6 +48,8 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
   } else if (identical(cfg$voorrang, "urgentie")) {
     # Urgentie 30/40 is altijd acuut; een acute dissectie (pathologie 20) ook.
     # Electief = urgentie 10, of urgentie 20 met pathologie 10 (aneurysma).
+    # Urgentie gaat boven pathologie: zonder bekende urgentie geen indeling,
+    # behalve bij een acute dissectie (altijd acuut).
     # Volgorde is van belang: latere regels overschrijven eerdere.
     # Urgentie 10 is electief (tenzij acute dissectie, zie hieronder). Urgentie 20
     # wordt op de pathologie ingedeeld: pathologie 10 = electief, 20 = acuut;
@@ -55,7 +57,7 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
     u10 <- urg %in% 10; u20 <- urg %in% 20
     zet(mag_urgentie & u10, "electief", ifelse(alle_path_onbekend, "urgentie 10 (pathologie niet ingevuld)", "urgentie 10 (andere pathologie)")[mag_urgentie & u10])
     zet(mag_urgentie & u20, NA, ifelse(alle_path_onbekend, "niet ingedeeld: urgentie 20, pathologie niet ingevuld", "niet ingedeeld: urgentie 20, andere pathologie")[mag_urgentie & u20])
-    zet(path_electief & !urg_electief, "electief", "pathologie 10 (urgentie onbekend)")
+    zet(path_electief & !urg_electief, NA, "niet ingedeeld: pathologie 10, urgentie onbekend")
     zet(path_electief & urg_electief, "electief", "pathologie 10 + urgentie 10/20")
     zet(path_acuut & !urg_acuut, "acuut", "pathologie 20 (urgentie 10/20 of onbekend)")
     zet(urg_acuut & geen_path, "acuut", ifelse(alle_path_onbekend, "urgentie 30/40 (pathologie niet ingevuld)", "urgentie 30/40 (andere pathologie)")[urg_acuut & geen_path])
@@ -156,60 +158,4 @@ selectie_overzicht <- function(df_alle, groep = GROEP) {
     out
   }
   list(jaar = per(TREND_JAAR), centrum = per(CENTRUM_KOLOM))
-}
-
-# SENSITIVITEIT: indeling op urgentie (10 / 20 apart / 30-40), waarbij een acute
-# dissectie (pathologie 20) altijd acuut is. GEEN categorieen voor chronische dissectie
-# of overige pathologie. Alle oorspronkelijke pathologiekolommen blijven wel
-# ongewijzigd beschikbaar in het bronbestand en in de primaire indeling.
-maak_urgentie_sens <- function(df, kolom = ACUUT_ELECTIEF$urgentie_kolom) {
-  if (!kolom %in% names(df)) stop("Urgentiekolom niet gevonden: ", kolom)
-  u <- suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(df[[kolom]]))))
-  g <- rep(NA_character_, length(u))
-  # Acute dissectie (pathologie 20 in asc/boog/desc) is ALTIJD acuut, ook bij urgentie 10/20.
-  pk <- intersect(ACUUT_ELECTIEF$path_kolommen, names(df))
-  dissectie <- if (length(pk)) rowSums(sapply(pk, function(k)
-    suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(df[[k]])))) %in% 20)) > 0 else rep(FALSE, length(u))
-  g[u %in% 10] <- "electief (10)"
-  g[u %in% 20] <- "urgent (20)"
-  g[u %in% c(30, 40) | dissectie] <- "acuut (30/40 of dissectie)"
-  df[[URGENTIE_SENS_KOLOM]] <- factor(
-    g, levels = c("electief (10)", "urgent (20)", "acuut (30/40 of dissectie)"))
-  df
-}
-
-# Tabel met per jaar / periode alle drie urgentiegroepen, plus niet-codeerbaar.
-# Rijen buiten 10/20/30/40 blijven in de noemer voor volledigheidscontrole.
-overzicht_urgentie_sens <- function(df) {
-  if (!URGENTIE_SENS_KOLOM %in% names(df)) stop("Maak eerst urgentie_sens aan")
-  u <- as.character(df[[URGENTIE_SENS_KOLOM]])
-  u[is.na(u)] <- "onbekende/andere urgentie"
-  p <- as.character(df[["acuut_electief"]]); p[is.na(p)] <- "niet ingedeeld"
-  jaar <- suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]])))
-  periode <- rep(NA_character_, nrow(df))
-  for (naam in names(PERIODES)) periode[jaar %in% PERIODES[[naam]]] <- naam
-  periode[is.na(periode)] <- "buiten periodes/onbekend jaar"
-  mortaliteit <- function(x) {
-    v <- as.character(x)
-    v <- v[!is.na(v)]
-    if (!length(v)) return(NA_real_)
-    round(100 * mean(v == "ja"), 1)
-  }
-  groepen <- c(levels(df[[URGENTIE_SENS_KOLOM]]), "onbekende/andere urgentie")
-  periodes <- c("alle jaren", names(PERIODES))
-  overzicht <- do.call(rbind, lapply(periodes, function(per) do.call(rbind, lapply(groepen, function(gr) {
-    sel <- u == gr & (per == "alle jaren" | periode == per)
-    data.frame(definitie = "urgentie uitsluitend", periode = per, groep = gr, n = sum(sel),
-               ziekenhuismortaliteit_pct = mortaliteit(df$overleden_zh[sel]),
-               mortaliteit_30d_pct = mortaliteit(df$overl30d[sel]))
-  }))))
-  kruistabel <- as.data.frame(table(
-    primaire_indeling = p,
-    gevoeligheid_urgentie = factor(u, levels = groepen)), responseName = "n")
-  kruistabel <- kruistabel[kruistabel$n > 0, , drop = FALSE]
-  jaar_telling <- as.data.frame(table(
-    jaar = ifelse(is.na(jaar), "onbekend", as.character(jaar)),
-    urgentiegroep = factor(u, levels = groepen)), responseName = "n")
-  jaar_telling <- jaar_telling[jaar_telling$n >= 0, , drop = FALSE]
-  list(overzicht = overzicht, kruistabel = kruistabel, per_jaar = jaar_telling)
 }

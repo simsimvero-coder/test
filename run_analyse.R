@@ -42,7 +42,6 @@ source("R/periode.R", encoding = "UTF-8")
 source("R/perfusie.R", encoding = "UTF-8")
 source("R/uitkomsten.R", encoding = "UTF-8")
 source("R/benchmark.R", encoding = "UTF-8")
-source("R/gevoeligheid_urgentie.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -82,11 +81,8 @@ ontbr <- ontbrekende_waarden(df)
 
 cat("   Indeling acuut / electief aneurysma:\n")
 print(indeling$overzicht, row.names = FALSE)
-df_alle <- maak_urgentie_sens(df)  # cohort inclusief primair niet-ingedeelde patiënten
-# Urgentiegebaseerde gevoeligheid gebruikt df_alle en wordt NIET beïnvloed
-# door selectie op de primaire combinatie urgentie/pathologie.
+df_alle <- df  # cohort inclusief niet-ingedeelde patiënten (volume en selectiecontrole)
 selectie <- selectie_overzicht(df_alle, GROEP)
-sens_indeling <- overzicht_urgentie_sens(df_alle)
 df <- df_alle
 if (ALLEEN_INGEDEELDE_PATIENTEN) {
   niet <- is.na(df$acuut_electief)
@@ -155,9 +151,6 @@ excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
   list("Indeling acuut-electief" = indeling$controle, "Indeling - redenen" = indeling$overzicht,
        "Selectie per jaar" = selectie$jaar, "Selectie per centrum" = selectie$centrum,
-       "Sens urgentie overzicht" = sens_indeling$overzicht,
-       "Sens urgentie kruistabel" = sens_indeling$kruistabel,
-       "Sens urgentie per jaar" = sens_indeling$per_jaar,
        "Datacontrole bron" = broncontrole$samenvatting,
        "Datacontrole numeriek" = broncontrole$numeriek,
        "Volume per jaar" = inc$per_jaar, "Volume per miljoen - RR" = inc$rr,
@@ -216,8 +209,6 @@ cat("\nSelectie per jaar (indeling: ", ACUUT_ELECTIEF$voorrang, ")\n", sep = "")
 print(selectie$jaar, row.names = FALSE)
 cat("\nSelectie per centrum\n")
 print(selectie$centrum, row.names = FALSE)
-cat("\nGevoeligheid urgentie 10, 20 (apart), 30/40: aantallen en ruwe mortaliteit\n")
-print(sens_indeling$overzicht, row.names = FALSE)
 
 cat("\nVolume per jaar (incl. niet ingedeelde patiënten)\n")
 print(inc$per_jaar, row.names = FALSE)
@@ -282,17 +273,8 @@ print(tr$toetsen[c("maat", "groep", "n", "effectmaat", "schatting", "BI_onder", 
                    "schatting_gecorrigeerd", "BI_onder_gecorrigeerd", "BI_boven_gecorrigeerd",
                    "n_gecorrigeerd", "p_gecorrigeerd", "p_trendverschil_tussen_groepen")], row.names = FALSE)
 
-# Gevoeligheidsanalyse afzonderlijk van de primaire uitkomsten uitvoeren,
-# na de primaire export: dezelfde patiëntenbasis, ANDERE groepdefinitie.
-if (URGENTIE_SENS_ACTIEF) {
-  cat("\n5. Gevoeligheidsanalyse uitsluitend op urgentie: electief (10), urgent (20), acuut (30/40 of dissectie)\n")
-  sens_res <- analyse_urgentie_gevoeligheid(df_alle, UITVOER_MAP)
-  print(sens_res$aantallen, row.names = FALSE)
-}
-
 cat("\nKlaar. Resultaten in '", UITVOER_MAP, "/':\n", sep = "")
 cat("  - resultaten.xlsx (tabellen, twee modellen per groep, overleving, ontbrekende waarden)\n")
 cat("  - analyse_data.csv\n")
-if (URGENTIE_SENS_ACTIEF) cat("  - gevoeligheid_urgentie.xlsx (10 vs 30/40, met 20 apart)\n")
 if (!is.null(sens_es)) cat("  - gevoeligheid_euroscore.xlsx (modellen gecorrigeerd voor EuroSCORE II)\n")
 for (f in figuren) cat("  - figuren/", basename(f), "\n", sep = "")

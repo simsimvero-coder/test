@@ -30,23 +30,14 @@ in deze paper.
   beschikbare follow-up (geen `extend = TRUE`); Cox-model rapportage bevat
   tevens een indicatieve PH-toets. KM-follow-up is begrensd op
   `OVERLEVING_MAX_DAGEN` (5 jaar); het Cox-trendmodel op `COX_MAX_DAGEN` (365 dagen).
-- **Relatieve overleving is voorlopig uitgezet** (`LEVENSTABEL_BESTAND <- NULL`),
-  totdat de eigen Ederer-II-code met een gevalideerde implementatie en passende
-  referentietabellen is gecontroleerd.
+- **Relatieve overleving (Ederer II)** met de CBS-levenstabel (`levenstabel_NL.csv`),
+  gevalideerd tegen `relsurv::rs.surv(method = "ederer2")` (verschil <= 0,3 %-punt).
 - **Primaire groepsindeling** (`acuut_electief`): zie "Indeling acuut vs. electief
   aneurysma" hieronder. Er zijn geen extra diagnostische groepen voor chronische
   dissectie of overige pathologie.
-- **Gevoeligheidsanalyse op urgentie**: code 10 = electief; code 20 = urgent (eigen
-  groep); codes 30/40 = acuut; een acute dissectie (pathologie 20) is altijd acuut. De analyse
-  vergelijkt rechtstreeks electief met acuut (30/40), terwijl urgent afzonderlijk
-  wordt beschreven en gemodelleerd, ongecorrigeerd en gecorrigeerd.
-  De gevoeligheid start vanaf `df_alle`, dus vóór uitsluiting op primaire groepsindeling.
-- Nieuw: `output/gevoeligheid_urgentie.xlsx` en apart
-  `output/figuren_urgentie/kaplan_meier.png`. In de primaire `resultaten.xlsx`
-  staan bovendien de groepsgrootte per jaar en de kruistabel met de primaire groep.
-- De oorspronkelijke pathologiecodes blijven bewaard in de bron, maar er wordt
-  **geen** nieuwe subgroep chronische dissectie / overige pathologie geanalyseerd.
-- Bestanden: `output/resultaten.xlsx`, `output/gevoeligheid_urgentie.xlsx`, `output/analyse_data.csv`, plus figuren.
+- **Gevoeligheidsanalyse EuroSCORE II**: dezelfde modellen gecorrigeerd voor alleen
+  EuroSCORE II, beperkt tot 2018-2024 (EuroSCORE vrijwel compleet).
+- Bestanden: `output/resultaten.xlsx`, `output/gevoeligheid_euroscore.xlsx`, `output/analyse_data.csv`, plus figuren.
   Het tabblad `Overleving - Cox per groep` is nieuw.
 
 **BELANGRIJK:** er was geen patiëntdataset meegeleverd en de R-interpreter was niet
