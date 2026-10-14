@@ -32,6 +32,17 @@ samengesteld <- function(df, vars) {
   ifelse(rowSums(m, na.rm = TRUE) > 0, TRUE, ifelse(rowSums(!is.na(m)) == ncol(m), FALSE, NA))
 }
 
+# Event-free discharge: levend ontslagen zonder major complicatie
+# (MAJOR_COMPLICATIES). Onbekend als overlijden of een complicatie onbekend is
+# en er geen bekende gebeurtenis is.
+maak_event_free <- function(df) {
+  if (!"overleden_zh" %in% names(df)) return(df)
+  gebeurtenis <- samengesteld(df, c("overleden_zh", MAJOR_COMPLICATIES))
+  df$event_free_ontslag <- factor(ifelse(is.na(gebeurtenis), NA, ifelse(gebeurtenis, "nee", "ja")),
+                                  levels = c("nee", "ja"))
+  df
+}
+
 # Logistisch model met random intercept per centrum. Primair lme4::glmer (Laplace);
 # lukt dat niet (bv. een lme4/Matrix-versieconflict), dan MASS::glmmPQL als terugval.
 logit_mixed <- function(f, d, term) {
@@ -78,7 +89,9 @@ uitkomst_trends <- function(df, groep = GROEP) {
     list("Ziekenhuismortaliteit", "mortaliteit", dood("overleden_zh", 0)),
     list("30-dagenmortaliteit", "mortaliteit", dood("overl30d", 30)),
     list("1-jaarsmortaliteit", "mortaliteit", dood("overl1j", 365)),
-    list("Major complicaties", "composiet", major)
+    list("Major complicaties", "composiet", major),
+    list("Event-free discharge", "composiet",
+         if ("event_free_ontslag" %in% names(df)) code_positief(df$event_free_ontslag) else rep(NA, nrow(df)))
   )
   for (l in names(SECUNDAIRE_UITKOMSTEN)) if (SECUNDAIRE_UITKOMSTEN[[l]] %in% names(df))
     uitkomsten[[length(uitkomsten) + 1]] <- list(l, "secundair", code_positief(df[[SECUNDAIRE_UITKOMSTEN[[l]]]]))
@@ -330,4 +343,43 @@ relatieve_overleving <- function(df, groep = GROEP, tijden = c(1, 3, 5)) {
                RS_BI95 = sprintf("%.1f-%.1f", 100 * lo / s_exp[idx], 100 * hi / s_exp[idx]),
                ratio_tov_1_jaar_pct = round(100 * (s_obs[idx] / s_exp[idx]) / (s_obs[idx[1]] / s_exp[idx[1]]), 1))
   }))
+}
+
+# Standardised mortality ratio (SMR): waargenomen sterfte / verwachte sterfte in de
+# algemene bevolking van dezelfde leeftijd, geslacht en kalenderjaar (CBS-levenstabel).
+# Verwacht = som over patiënten van de cumulatieve populatiehazard tijdens hun eigen
+# follow-up binnen het tijdvenster (maandstappen). 95%-BI exact (Poisson).
+# Vensters: 0-1 jaar, 1-5 jaar (alleen patiënten die het eerste jaar overleefden)
+# en 0-5 jaar.
+smr_analyse <- function(df, groep = GROEP,
+                        vensters = list("0-1 jaar" = c(0, 1), "1-5 jaar" = c(1, 5), "0-5 jaar" = c(0, 5))) {
+  lt <- lees_levenstabel()
+  if (is.null(lt) || !all(c(OVERLEVING_TIJD, OVERLEVING_STATUS, "leeftijd", "geslacht") %in% names(df))) return(NULL)
+  d <- data.frame(groep = as.character(df[[groep]]), t = df[[OVERLEVING_TIJD]] / 365.25,
+                  dood = as.integer(code_positief(df[[OVERLEVING_STATUS]])),
+                  leeftijd = df$leeftijd, geslacht = as.character(df$geslacht),
+                  jaar = suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))))
+  d <- d[complete.cases(d) & d$geslacht %in% c("man", "vrouw"), ]
+  h_tab <- setNames(lt$hazard, paste(lt$jaar, lt$geslacht, lt$leeftijd))
+  hazard <- function(r, s) h_tab[paste(pmin(pmax(r$jaar + floor(s), min(lt$jaar)), max(lt$jaar)),
+                                       r$geslacht, pmin(floor(r$leeftijd + s), max(lt$leeftijd)))]
+  stap <- 1 / 12
+  out <- do.call(rbind, lapply(split(d, d$groep), function(x) do.call(rbind, lapply(names(vensters), function(v) {
+    a <- vensters[[v]][1]; b <- vensters[[v]][2]
+    if (a > 0) x <- x[x$t > a, ]           # at risk bij begin van het venster
+    O <- sum(x$dood == 1 & x$t <= b)
+    E <- 0
+    for (s in seq(a, b - stap, by = stap)) {
+      r <- x[x$t > s, ]
+      if (!nrow(r)) break
+      E <- E + sum(hazard(r, s) * pmin(stap, r$t - s), na.rm = TRUE)
+    }
+    ci <- if (O > 0) c(qchisq(0.025, 2 * O) / 2, qchisq(0.975, 2 * (O + 1)) / 2) / E else c(0, qchisq(0.975, 2) / 2 / E)
+    data.frame(groep = x$groep[1], venster = v, n = nrow(x), waargenomen = O, verwacht = round(E, 1),
+               SMR = round(O / E, 2), BI95 = sprintf("%.2f-%.2f", ci[1], ci[2]),
+               p = fmt_p(poisson.test(O, E)$p.value),
+               extra_sterfte_per_1000_persoonsjaren = round(1000 * (O - E) / sum(pmin(x$t, b) - a), 1))
+  }))))
+  rownames(out) <- NULL
+  out
 }

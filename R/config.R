@@ -150,7 +150,7 @@ TABELLEN <- list(
     "overleden_zh", "overl30d", "overl120d", "overl1j", "opnameduur",
     "ECMO_opname", "resp_insuff", "beademing", "heropname_IC", "CVA_restletsel",
     "CVA_zonder_restletsel", "nierfalen", "gastroint_compl", "vasc_compl_opname",
-    "delier", "postop_MI"
+    "delier", "postop_MI", "event_free_ontslag"
   )
 )
 

@@ -76,7 +76,7 @@ if (ALLEEN_INCLUSIECOHORT) {
   df <- df[inbegrepen, , drop = FALSE]
 }
 indeling <- maak_acuut_electief(df)
-df <- maak_perfusie(maak_descendens(maak_lvef_categorie(indeling$data)))
+df <- maak_event_free(maak_perfusie(maak_descendens(maak_lvef_categorie(indeling$data))))
 ontbr <- ontbrekende_waarden(df)
 
 cat("   Indeling acuut / electief aneurysma:\n")
@@ -120,6 +120,7 @@ ut <- uitkomst_trends(df, GROEP)
 cv <- centrum_variatie(df, GROEP)
 los <- opnameduur_analyse(df, GROEP)
 rs <- relatieve_overleving(df, GROEP)
+smr <- smr_analyse(df, GROEP)
 bm <- benchmark_centra(df, GROEP)
 
 # Gevoeligheidsanalyse: dezelfde patiëntgebonden modellen, gecorrigeerd voor EuroSCORE II
@@ -161,7 +162,7 @@ excel <- c(
        "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
        "Temp zonder vs met arrest" = cv$zonder_met, "Opnameduur" = los,
-       "Relatieve overleving" = rs, "Benchmark - funnel" = bm,
+       "Relatieve overleving" = rs, "SMR" = smr, "Benchmark - funnel" = bm,
        "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
        "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
        "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
@@ -260,6 +261,7 @@ if (!is.null(sens_es)) {
 cat("\nOpnameduur (ratio per jaar = geometrische verandering)\n")
 print(los, row.names = FALSE)
 if (!is.null(rs)) { cat("\nKaplan-Meier en relatieve overleving (Ederer II)\n"); print(rs, row.names = FALSE) }
+if (!is.null(smr)) { cat("\nStandardised mortality ratio t.o.v. de Nederlandse bevolking (CBS-levenstabel)\n"); print(smr, row.names = FALSE) }
 
 cat("\nBenchmark per centrum (funnel plots) - centra buiten de grenzen\n")
 print(bm[bm$status != "binnen grenzen", c("groep", "uitkomst", "centrum", "n", "geobserveerd", "verwacht",
