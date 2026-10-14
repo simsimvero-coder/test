@@ -143,7 +143,7 @@ TABELLEN <- list(
     "tklepchir", "aortachir", "aotachir_benadering", "aorta_asc", "aorta_asc_path",
     "aortaboog_path", "aorta_desc", "aorta_desc_path", "descendens_ingreep",
     "descendens_pathologie", "cardiochir_overig",
-    "ECC", "ECC_duur", "AoX_duur", "circ_arrest", "circ_arrest_clean", "circ_arrest_duur",
+    "ECC", "ECC_duur", "AoX_duur", "circ_arrest", "circ_arrest_duur",
     "circ_arrest_duur_bij_arrest", "min_temp", "temp_categorie"
   ),
   "Tabel 3 - Postoperatieve uitkomsten" = c(
@@ -199,7 +199,7 @@ TREND_COMPLICATIES <- list(
 FTR_UITKOMST <- "overleden_zh"
 
 TREND_TEMPERATUUR  <- "min_temp"
-TREND_CIRC_ARREST  <- "circ_arrest_clean"   # zelfde variabele als in Tabel 2
+TREND_CIRC_ARREST  <- "circ_arrest"   # zelfde variabele als CIRC_ARREST_KOLOM
 
 # ── Volume en incidentie per miljoen inwoners (R/incidentie.R) ──────────────
 # Bevolking van Nederland op 1 januari (CBS StatLine, tabel 37296ned
@@ -227,8 +227,10 @@ PERIODES <- list("2013-2018" = 2013:2018, "2019-2024" = 2019:2024)
 # Grenzen (°C) voor de temperatuurcategorieën: <= 20 diep, 20-28 matig, > 28.
 TEMP_GRENZEN <- c(20, 28)
 # Variabele die bepaalt of er circulatiestilstand was (voor de duur bij
-# patiënten met stilstand). "circ_arrest_clean" valt terug op "circ_arrest".
-CIRC_ARREST_KOLOM <- "circ_arrest_clean"
+# patiënten met stilstand). Het geregistreerde "nee" gaat voor een ingevulde duur,
+# dus de ruwe variabele circ_arrest (niet circ_arrest_clean, die "nee" met duur > 0
+# omzet naar "ja").
+CIRC_ARREST_KOLOM <- "circ_arrest"
 # Kolom met het centrum, voor de random-intercept- en fixed-effects-modellen.
 CENTRUM_KOLOM <- "centrum"
 
