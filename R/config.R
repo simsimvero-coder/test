@@ -22,21 +22,20 @@ INCLUSIE_KOLOM        <- "incl_cohort"
 GROEP <- "acuut_electief"
 
 # ── Indeling acuut vs. electief aneurysma ───────────────────────────────────
-# voorrang = "strikt" (standaard):
+# voorrang = "urgentie" (standaard):
 #   acuut              = pathologie 20 (acute dissectie) in asc/boog/desc, ongeacht
-#                        urgentie; of pathologie 10 + urgentie 30/40
-#   electief aneurysma = pathologie 10 (zonder 20) + urgentie 10/20
-#   pathologie niet ingevuld (alle 3 leeg): indeling op urgentie
-#                        (10/20 = electief, 30/40 = acuut)
-#   uitgesloten        = andere pathologie (0/30/40/90/91) zonder 10/20, of geen
-#                        bruikbare urgentie (behalve bij acute dissectie)
-#   De reden per patiënt staat in 'Indeling - redenen'.
-# voorrang = "urgentie": urgentie 30/40 is altijd acuut, pathologie 20 ook;
-#   anders electief bij pathologie 10, of urgentie 10/20 als de pathologie ontbreekt.
+#                        urgentie; of urgentie 30/40 (ook bij pathologie 10)
+#   electief aneurysma = pathologie 10 (zonder 20) met urgentie 10/20 of onbekend
+#   geen pathologie 10/20 (niet ingevuld of andere code 0/30/40/90/91):
+#                        indeling op urgentie (10/20 = electief, 30/40 = acuut)
+#   niet ingedeeld     = geen pathologie 10/20 en geen bruikbare urgentie
+# voorrang = "strikt" (gevoeligheidsanalyse): urgentie én pathologie moeten de
+#   groep bevestigen (electief = urgentie 10/20 + pathologie 10 zonder 20;
+#   acuut = urgentie 30/40 + pathologie 10 of 20); de rest wordt uitgesloten.
 # voorrang = "pathologie": pathologie 20/10 bepaalt de groep; urgentie alleen
 #   als de pathologie onbekend is.
 ACUUT_ELECTIEF <- list(
-  voorrang           = "strikt",   # "strikt", "urgentie" of "pathologie"
+  voorrang           = "urgentie",   # "urgentie", "strikt" of "pathologie"
   path_kolommen      = c("aorta_asc_path", "aortaboog_path", "aorta_desc_path"),
   path_acuut         = 20,
   path_electief      = 10,

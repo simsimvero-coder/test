@@ -32,20 +32,21 @@ De resultaten komen in de map `output/` in de projectmap.
 
 ## Indeling acuut vs. electief aneurysma (`R/afgeleid.R`)
 
-Standaard (`voorrang = "strikt"` in `R/config.R`):
+Standaard (`voorrang = "urgentie"` in `R/config.R`):
 
 | Groep | Regel |
 |---|---|
-| acuut | pathologie 20 (acute dissectie) in asc/boog/desc, **ongeacht urgentie**; of pathologie 10 + urgentie 30/40 |
-| electief aneurysma | pathologie 10 (zonder 20) + urgentie 10/20 |
-| pathologie niet ingevuld | indeling op urgentie: 10/20 = electief, 30/40 = acuut |
-| uitgesloten | andere pathologie (0/30/40/90/91) zonder 10/20, of geen bruikbare urgentie (behalve bij acute dissectie) |
+| acuut | pathologie 20 (acute dissectie) in asc/boog/desc, **ongeacht urgentie**; of urgentie 30/40 (ook bij pathologie 10) |
+| electief aneurysma | pathologie 10 (zonder 20) met urgentie 10/20 of onbekende urgentie |
+| geen pathologie 10/20 (niet ingevuld of andere code) | indeling op urgentie: 10/20 = electief, 30/40 = acuut |
+| niet ingedeeld | geen pathologie 10/20 en geen bruikbare urgentie |
 
 - Controleer de tabbladen *Selectie per jaar*, *Selectie per centrum* en *Selectie - definities*
   (groepsgrootte en ruwe mortaliteit onder elke definitie). Het landelijke volume per jaar telt altijd
   alle geregistreerde boogoperaties.
-- Met `voorrang = "urgentie"` is urgentie 30/40 altijd acuut en pathologie 20 ook; overige patiënten met
-  pathologie 10, of zonder pathologie urgentie 10/20, zijn electief (ruimere definitie, als gevoeligheidsanalyse).
+- Met `voorrang = "strikt"` (gevoeligheidsanalyse) moeten urgentie én pathologie de groep bevestigen:
+  electief = urgentie 10/20 + pathologie 10 zonder 20, acuut = urgentie 30/40 + pathologie 10/20;
+  alle andere patiënten worden uitgesloten.
 - Met `voorrang = "pathologie"` bepaalt pathologie 20/10 de groep en telt urgentie alleen als de pathologie onbekend is.
 - De basis van de indeling staat per patiënt in `acuut_electief_basis`. De reden van uitsluiting staat in *Indeling - redenen*; het tabblad *Indeling acuut-electief* geeft de kruistabel urgentie × pathologie × groep.
 

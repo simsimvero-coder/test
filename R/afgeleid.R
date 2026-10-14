@@ -32,32 +32,27 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
   zet <- function(sel, g, tekst) { groep[sel] <<- g; basis[sel] <<- tekst }
 
   if (identical(cfg$voorrang, "strikt")) {
-    # Strikt (onderzoeksprotocol):
-    #   - acute dissectie (pathologie 20 in asc/boog/desc) = altijd acuut, ook bij
-    #     urgentie 10/20 of onbekende urgentie
-    #   - aneurysma (pathologie 10, geen 20): urgentie 10/20 = electief, 30/40 = acuut
-    #   - pathologie niet ingevuld (alle 3 leeg): indeling op urgentie
-    #     (10/20 = electief, 30/40 = acuut)
-    #   - uitgesloten: alleen andere pathologie (0/30/40/90/91, geen 10/20) en
-    #     patiënten zonder bruikbare urgentie (behalve acute dissectie)
-    # Latere regels overschrijven eerdere.
+    # Strikt (alleen als gevoeligheidsanalyse): urgentie én pathologie moeten
+    # de groep bevestigen.
+    #   electief = urgentie 10/20 + pathologie 10, zonder pathologie 20
+    #   acuut    = urgentie 30/40 + pathologie 10 of 20
+    # Alle andere combinaties worden uitgesloten, met de reden in 'basis'.
     zet(!is.na(urg) & !urg_acuut & !urg_electief, NA, "uitgesloten: urgentie niet 10-40")
     zet(is.na(urg), NA, "uitgesloten: urgentie onbekend")
-    zet(geen_path & !alle_path_onbekend, NA, "uitgesloten: andere pathologie (0/30/40/90/91)")
-    zet(alle_path_onbekend & urg_electief, "electief", "pathologie niet ingevuld + urgentie 10/20")
-    zet(alle_path_onbekend & urg_acuut, "acuut", "pathologie niet ingevuld + urgentie 30/40")
-    zet(path_electief & !path_acuut & urg_electief, "electief", "pathologie 10 + urgentie 10/20")
-    zet(path_electief & !path_acuut & urg_acuut, "acuut", "pathologie 10 + urgentie 30/40")
-    zet(path_acuut & urg_acuut, "acuut", "pathologie 20 + urgentie 30/40")
-    zet(path_acuut & !urg_acuut, "acuut", "pathologie 20 + urgentie 10/20 of onbekend")
+    zet(!is.na(urg) & geen_path & alle_path_onbekend, NA, "uitgesloten: pathologie onbekend (alle 3 leeg)")
+    zet(!is.na(urg) & geen_path & !alle_path_onbekend, NA, "uitgesloten: andere pathologie (0/30/40/90/91)")
+    zet(urg_electief & path_acuut, NA, "uitgesloten: pathologie 20 bij urgentie 10/20")
+    zet(urg_electief & path_electief & !path_acuut, "electief", "pathologie 10 + urgentie 10/20")
+    zet(urg_acuut & path_electief & !path_acuut, "acuut", "pathologie 10 + urgentie 30/40")
+    zet(urg_acuut & path_acuut, "acuut", "pathologie 20 + urgentie 30/40")
   } else if (identical(cfg$voorrang, "urgentie")) {
     # Urgentie 30/40 is altijd acuut; een acute dissectie (pathologie 20) ook.
     # Volgorde is van belang: latere regels overschrijven eerdere.
-    zet(mag_urgentie & urg_electief, "electief", "urgentie 10/20 (geen pathologie 10/20)")
+    zet(mag_urgentie & urg_electief, "electief", ifelse(alle_path_onbekend, "urgentie 10/20 (pathologie niet ingevuld)", "urgentie 10/20 (andere pathologie)")[mag_urgentie & urg_electief])
     zet(path_electief & !urg_electief, "electief", "pathologie 10 (urgentie onbekend)")
     zet(path_electief & urg_electief, "electief", "pathologie 10 + urgentie 10/20")
     zet(path_acuut & !urg_acuut, "acuut", "pathologie 20 (urgentie 10/20 of onbekend)")
-    zet(urg_acuut & geen_path, "acuut", "urgentie 30/40 (geen pathologie 10/20)")
+    zet(urg_acuut & geen_path, "acuut", ifelse(alle_path_onbekend, "urgentie 30/40 (pathologie niet ingevuld)", "urgentie 30/40 (andere pathologie)")[urg_acuut & geen_path])
     zet(urg_acuut & path_electief & !path_acuut, "acuut", "urgentie 30/40 (overschrijft pathologie 10)")
     zet(urg_acuut & path_acuut, "acuut", "urgentie 30/40 + pathologie 20")
   } else {
