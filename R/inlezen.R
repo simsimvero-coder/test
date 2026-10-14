@@ -1,5 +1,5 @@
 # =============================================================================
-# Inlezen en opschonen
+# Inlezen en typeconversie (zonder verwijderen of inhoudelijk opschonen)
 # =============================================================================
 
 # NHR-handboek: -1 (of -1,0 / -1,00) = onbekend
@@ -48,7 +48,7 @@ lees_data <- function(pad, blad = NULL) {
   cat(sprintf("   werkblad '%s', kopregel op rij %d (%d van %d bekende kolommen gevonden)\n",
               beste$blad, beste$rij, beste$score, length(bekend)))
 
-  # Alles als tekst inlezen; het opschonen zet de typen daarna goed
+  # Alles eerst als tekst lezen; alleen benodigde typen en code-labels worden omgezet
   df <- as.data.frame(readxl::read_excel(pad, sheet = beste$blad, skip = beste$rij - 1,
                                          col_types = "text"))
   attr(df, "kopregel") <- beste$rij
@@ -60,109 +60,52 @@ lees_data <- function(pad, blad = NULL) {
     match <- bekend[tolower(bekend) == tolower(names(df)[i])]
     if (length(match) == 1) names(df)[i] <- match
   }
-  df
-}
-
-schoon_op <- function(df) {
-  kopregel <- if (is.null(attr(df, "kopregel"))) 1 else attr(df, "kopregel")
-  logboek <- list()
-  noteer <- function(stap, kolom, rij, oud, nieuw) {
-    if (length(rij) == 0) return(invisible())
-    # rij + kopregel = regelnummer zoals in Excel
-    logboek[[length(logboek) + 1]] <<- data.frame(
-      stap = stap, kolom = kolom %||% NA_character_, rij_in_bestand = rij + kopregel,
-      oude_waarde = as.character(oud), nieuwe_waarde = as.character(nieuw)
-    )
-  }
-  `%||%` <- function(a, b) if (is.null(a)) b else a
-
-  df$.rij <- seq_len(nrow(df))
-  for (k in setdiff(names(df), ".rij")) {
+  # Alleen representatie omzetten voor statistische functies. GEEN rijen verwijderen,
+  # duplicaten verwijderen, inclusie selecteren, of waarden op grens afkappen.
+  # -1/onbekend -> NA conform geregistreerde missingscodering (wordt gerapporteerd).
+  for (k in names(df)) {
     x <- trimws(as.character(df[[k]]))
-    x[tolower(x) %in% ONTBREKEND_CODES] <- NA
-    df[[k]] <- x
+    x[tolower(x) %in% ONTBREKEND_CODES] <- NA_character_
+    if (k %in% names(NUMERIEK)) {
+      getal <- suppressWarnings(as.numeric(gsub(",", ".", x, fixed = TRUE)))
+      onleesbaar <- !is.na(x) & is.na(getal)
+      if (any(onleesbaar)) warning(sprintf("Kolom '%s': %d niet-numerieke waarden als NA geinterpreteerd (geen rijen verwijderd)",
+                                            k, sum(onleesbaar)))
+      df[[k]] <- getal
+    } else if (k %in% CATEGORISCH) {
+      if (!is.null(HERCODERING[[k]])) {
+        codering <- HERCODERING[[k]]
+        hit <- tolower(x) %in% tolower(names(codering))
+        x[hit] <- unname(codering[match(tolower(x[hit]), tolower(names(codering)))])
+      }
+      geldig <- unique(tolower(x[!is.na(x)]))
+      if (length(geldig) && all(geldig %in% c(JA_CODES, NEE_CODES))) {
+        x <- ifelse(is.na(x), NA_character_, ifelse(tolower(x) %in% JA_CODES, "ja", "nee"))
+        df[[k]] <- factor(x, levels = c("nee", "ja"))
+      } else df[[k]] <- factor(x)
+    } else df[[k]] <- x
   }
-
-  # Lege en dubbele rijen
-  leeg <- rowSums(!is.na(df[setdiff(names(df), ".rij")])) == 0
-  noteer("lege rij verwijderd", NULL, df$.rij[leeg], NA, NA)
-  df <- df[!leeg, ]
-  dubbel <- duplicated(df[setdiff(names(df), ".rij")])
-  noteer("dubbele rij verwijderd", NULL, df$.rij[dubbel], NA, NA)
-  df <- df[!dubbel, ]
-
-  ontbreekt <- setdiff(unique(c(names(NUMERIEK), CATEGORISCH)), names(df))
-  if (length(ontbreekt)) message("LET OP - kolommen uit config.R niet in de data: ",
-                                 paste(ontbreekt, collapse = ", "))
-  onbekend <- setdiff(names(df), c(".rij", names(NUMERIEK), CATEGORISCH))
-  if (length(onbekend)) message("LET OP - kolommen niet in config.R (blijven tekst): ",
-                                paste(onbekend, collapse = ", "))
-
-  # Numerieke variabelen
-  for (k in intersect(names(NUMERIEK), names(df))) {
-    ruw <- df[[k]]
-    getal <- suppressWarnings(as.numeric(gsub(",", ".", ruw, fixed = TRUE)))
-    fout <- is.na(getal) & !is.na(ruw)
-    if (sum(!is.na(ruw)) > 0 && mean(fout[!is.na(ruw)]) > 0.5) {
-      message("LET OP - '", k, "' is grotendeels geen getal; wordt als categorie behandeld. ",
-              "Zet de variabele in config.R bij CATEGORISCH.")
-      CATEGORISCH <<- union(CATEGORISCH, k)
-      next
-    }
-    noteer("geen geldig getal", k, df$.rij[fout], ruw[fout], NA)
-
-    grens <- NUMERIEK[[k]]
-    buiten <- !is.na(getal) & ((!is.na(grens[1]) & getal < grens[1]) |
-                               (!is.na(grens[2]) & getal > grens[2]))
-    noteer(sprintf("buiten bereik [%s, %s]", grens[1], grens[2]), k,
-           df$.rij[buiten], getal[buiten], NA)
-    getal[buiten] <- NA
-    df[[k]] <- getal
-  }
-
-  # Categorische variabelen
-  for (k in intersect(CATEGORISCH, names(df))) {
-    ruw <- df[[k]]
-    sleutel <- tolower(ruw)
-    nieuw <- ruw
-    if (!is.null(HERCODERING[[k]])) {
-      map <- HERCODERING[[k]]
-      names(map) <- tolower(names(map))
-      treffer <- sleutel %in% names(map)
-      nieuw[treffer] <- map[sleutel[treffer]]
-    }
-    waarden <- unique(na.omit(tolower(nieuw)))
-    is_janee <- length(waarden) > 0 && all(waarden %in% c(JA_CODES, NEE_CODES))
-    if (is_janee) {
-      nieuw <- ifelse(tolower(nieuw) %in% JA_CODES, "ja", "nee")
-      nieuw[is.na(ruw)] <- NA
-    }
-    veranderd <- !is.na(ruw) & ruw != nieuw
-    # ja/nee-hercodering (1 -> ja) is voorspelbaar; alleen echte wijzigingen loggen
-    # Alleen tekstcorrecties loggen (bv. "M " -> man); NHR-codes -> labels zijn voorspelbaar
-    veranderd <- veranderd & !grepl("^-?[0-9.]+$", ruw)
-    if (!is_janee) noteer("hercodering", k, df$.rij[veranderd], ruw[veranderd], nieuw[veranderd])
-    df[[k]] <- if (is_janee) factor(nieuw, levels = c("nee", "ja")) else factor(nieuw)
-  }
-
-  # Inclusie
-  if (ALLEEN_INCLUSIECOHORT && INCLUSIE_KOLOM %in% names(df)) {
-    excl <- is.na(df[[INCLUSIE_KOLOM]]) | df[[INCLUSIE_KOLOM]] != "ja"
-    noteer("niet in inclusiecohort", INCLUSIE_KOLOM, df$.rij[excl], df[[INCLUSIE_KOLOM]][excl], NA)
-    df <- df[!excl, ]
-  }
-
-  logboek <- if (length(logboek)) do.call(rbind, logboek) else
-    data.frame(stap = character(), kolom = character(), rij_in_bestand = integer(),
-               oude_waarde = character(), nieuwe_waarde = character())
-  df$.rij <- NULL
-  rownames(df) <- NULL
-  list(data = df, logboek = logboek)
+  df
 }
 
 ontbrekende_waarden <- function(df) {
   n <- colSums(is.na(df))
   out <- data.frame(variabele = names(n), ontbrekend_n = n,
-                    ontbrekend_pct = round(100 * n / nrow(df), 1))
+                    ontbrekend_pct = if (nrow(df)) round(100 * n / nrow(df), 1) else NA_real_)
   out[order(-out$ontbrekend_n), ]
+}
+
+# Louter signaleren: verandert GEEN enkele rij of waarde.
+controle_bron <- function(df) {
+  leeg <- if (ncol(df)) rowSums(is.na(df)) == ncol(df) else rep(TRUE, nrow(df))
+  sm <- data.frame(controle = c("ingelezen rijen", "exact dubbele rijen", "geheel lege rijen"),
+                   aantal = c(nrow(df), sum(duplicated(df)), sum(leeg)))
+  numeriek <- do.call(rbind, lapply(intersect(names(NUMERIEK), names(df)), function(k) {
+    x <- df[[k]]; gr <- NUMERIEK[[k]]
+    fout <- (!is.na(x)) & ((!is.na(gr[1]) & x < gr[1]) |
+                             (!is.na(gr[2]) & x > gr[2]))
+    data.frame(variabele = k, ontbrekend = sum(is.na(x)),
+               buiten_documentatiebereik = sum(fout), rijen_niet_verwijderd = TRUE)
+  }))
+  list(samenvatting = sm, numeriek = numeriek)
 }

@@ -6,7 +6,8 @@
 # Aantallen:          Poisson-regressie (incidence rate ratio per jaar).
 # Temperatuur:        mediaan [IQR] per jaar; trend = lineaire regressie
 #   (verandering in °C per jaar).
-# Alles per groep (acuut / electief) en voor het totaal.
+# Modellen per groep: ongecorrigeerd + leeftijd/geslacht/EuroSCORE II/redo.
+# Beschrijvende jaarlijkse aantallen blijven ongecorrigeerde frequenties.
 # =============================================================================
 
 # TRUE bij "ja" of bij een NHR-code > 0 (bv. gastroint_compl "10 bloeding")
@@ -70,6 +71,17 @@ pct_per_jaar <- function(d, y, maat, groep) {
   out
 }
 
+# rbind voor tabellen met (deels) verschillende kolommen; ontbrekende kolommen worden NA/""
+rbind_vul <- function(...) {
+  delen <- Filter(function(x) !is.null(x) && nrow(x), list(...))
+  if (!length(delen)) return(NULL)
+  kol <- unique(unlist(lapply(delen, names)))
+  do.call(rbind, lapply(delen, function(x) {
+    for (k in setdiff(kol, names(x))) x[[k]] <- if (any(sapply(delen, function(y) k %in% names(y) && is.numeric(y[[k]])))) NA_real_ else ""
+    x[kol]
+  }))
+}
+
 trend_binair <- function(d, y, maat, groep, correctie = NULL) {
   d$.y <- y
   do.call(rbind, lapply(names(gs <- per_groep(d, groep)), function(g) {
@@ -77,22 +89,38 @@ trend_binair <- function(d, y, maat, groep, correctie = NULL) {
     rij <- data.frame(maat = maat, groep = g, n = nrow(x), events = sum(x$.y),
                       effectmaat = "OR per jaar", schatting = NA, BI_onder = NA, BI_boven = NA,
                       p = "", schatting_gecorrigeerd = NA, p_gecorrigeerd = "",
+                      n_gecorrigeerd = NA_integer_, BI_onder_gecorrigeerd = NA_real_,
+                      BI_boven_gecorrigeerd = NA_real_, status_gecorrigeerd = "",
                       p_trendverschil_tussen_groepen = "")
     if (g == "Totaal") rij$p_trendverschil_tussen_groepen <-
       p_interactie(d$.y, d$.jaar, groepsvector(d, groep), binomial())
-    if (sum(x$.y) < 2 || sum(!x$.y) < 2 || length(unique(x$.jaar)) < 2) return(rij)
+    if (sum(x$.y) < 2 || sum(!x$.y) < 2 || length(unique(x$.jaar)) < 2) {
+      if (length(correctie)) {
+        rij$n_gecorrigeerd <- nrow(modelgevallen(x, ".y"))
+        rij$status_gecorrigeerd <- "onvoldoende events of kalenderjaren"
+      }
+      return(rij)
+    }
     m <- suppressWarnings(glm(.y ~ .jaar, family = binomial, data = x))
     s <- coef(summary(m))[".jaar", ]
     ci <- exp(s[1] + c(-1.96, 1.96) * s[2])
     rij$schatting <- round(exp(s[1]), 3); rij$BI_onder <- round(ci[1], 3)
     rij$BI_boven <- round(ci[2], 3); rij$p <- fmt_p(s[4])
-    correctie <- intersect(correctie, names(x))
     if (length(correctie)) {
-      f <- reformulate(c(".jaar", paste0("`", correctie, "`")), ".y")
-      mc <- suppressWarnings(glm(f, family = binomial, data = x))
-      sc <- coef(summary(mc))[".jaar", ]
-      rij$schatting_gecorrigeerd <- round(exp(sc[1]), 3)
-      rij$p_gecorrigeerd <- fmt_p(sc[4])
+      xc <- modelgevallen(x, ".y")
+      rij$n_gecorrigeerd <- nrow(xc)
+      if (nrow(xc) <= length(MODEL_TERMS) + 5 || sum(xc$.y) < 5 || sum(!xc$.y) < 5) {
+        rij$status_gecorrigeerd <- "te weinig complete observaties/events"
+      } else tryCatch({
+        mc <- suppressWarnings(glm(cov_formule(".y", ".jaar", TRUE),
+                                    family = binomial, data = xc))
+        sc <- coef(summary(mc))[".jaar", ]
+        rij$schatting_gecorrigeerd <- round(exp(sc[1]), 3)
+        rij$BI_onder_gecorrigeerd <- round(exp(sc[1] - 1.96 * sc[2]), 3)
+        rij$BI_boven_gecorrigeerd <- round(exp(sc[1] + 1.96 * sc[2]), 3)
+        rij$p_gecorrigeerd <- fmt_p(sc[4])
+        rij$status_gecorrigeerd <- "OK"
+      }, error = function(e) rij$status_gecorrigeerd <<- conditionMessage(e))
     }
     rij
   }))
@@ -138,7 +166,9 @@ trend_numeriek <- function(d, y, maat, groep) {
     rij <- data.frame(maat = maat, groep = g, n = nrow(x), events = NA,
                       effectmaat = "verandering per jaar", schatting = NA, BI_onder = NA,
                       BI_boven = NA, p = "", schatting_gecorrigeerd = NA, p_gecorrigeerd = "",
-                      p_trendverschil_tussen_groepen = "")
+                      p_trendverschil_tussen_groepen = "",
+                      n_gecorrigeerd = NA_integer_, BI_onder_gecorrigeerd = NA_real_,
+                      BI_boven_gecorrigeerd = NA_real_, status_gecorrigeerd = "")
     if (g == "Totaal") rij$p_trendverschil_tussen_groepen <-
       p_interactie(d$.y, d$.jaar, groepsvector(d, groep), gaussian())
     if (nrow(x) < 3 || length(unique(x$.jaar)) < 2) return(rij)
@@ -146,6 +176,18 @@ trend_numeriek <- function(d, y, maat, groep) {
     rij$schatting <- round(s[1], 2)
     rij$BI_onder <- round(s[1] - 1.96 * s[2], 2); rij$BI_boven <- round(s[1] + 1.96 * s[2], 2)
     rij$p <- fmt_p(s[4])
+    xc <- modelgevallen(x, ".y")
+    rij$n_gecorrigeerd <- nrow(xc)
+    if (nrow(xc) > length(MODEL_TERMS) + 5 && length(unique(xc$.jaar)) >= 2) {
+      tryCatch({
+        t <- coef(summary(lm(cov_formule(".y", ".jaar", TRUE), data = xc)))[".jaar", ]
+        rij$schatting_gecorrigeerd <- round(t[1], 3)
+        rij$BI_onder_gecorrigeerd <- round(t[1] - 1.96 * t[2], 3)
+        rij$BI_boven_gecorrigeerd <- round(t[1] + 1.96 * t[2], 3)
+        rij$p_gecorrigeerd <- fmt_p(t[4])
+        rij$status_gecorrigeerd <- "OK"
+      }, error = function(e) rij$status_gecorrigeerd <<- conditionMessage(e))
+    } else rij$status_gecorrigeerd <- "te weinig complete observaties"
     rij
   }))
   # p-waarde verschil tussen de groepen binnen elk jaar (Mann-Whitney / Kruskal-Wallis)
@@ -163,7 +205,7 @@ trend_numeriek <- function(d, y, maat, groep) {
 
 # Hoofdfunctie: voert de zes trendanalyses uit.
 trendanalyse <- function(df, groep = GROEP) {
-  d <- df
+  d <- voeg_modelcovariaten_toe(df, df)
   if (TREND_ALLEEN_BOOG_OK) {
     if (!BOOG_KOLOM %in% names(d)) stop("Kolom '", BOOG_KOLOM, "' niet gevonden")
     boog <- !is.na(d[[BOOG_KOLOM]]) & !as.character(d[[BOOG_KOLOM]]) %in% c("0", "nee")
@@ -181,19 +223,20 @@ trendanalyse <- function(df, groep = GROEP) {
   if (!is.null(groep) && groep %in% names(d) && "acuut" %in% d[[groep]]) {
     # Verandert het aandeel acute operaties over de jaren? (alleen totaal)
     tb <- trend_binair(d, as.character(d[[groep]]) == "acuut", "Aandeel acuut", NULL)
-    aantal$toets <- rbind(aantal$toets, tb)
+    aantal$toets <- rbind_vul(aantal$toets, tb)
   }
   for (label in names(TREND_MORTALITEIT)) {
     m <- TREND_MORTALITEIT[[label]]
     if (!m$var %in% names(d)) next
     y <- is_ja(d[[m$var]])
     # levend en te kort gevolgd -> uitkomst onbekend
-    y[!is.na(y) & !y & !is.na(tijd) & tijd < m$min_followup] <- NA
+    if (m$min_followup > 0) y[!is.na(y) & !y & (is.na(tijd) | tijd < m$min_followup)] <- NA
     binair[[label]] <- list(y = y, onderdeel = "2. Mortaliteit", correctie = TREND_CORRECTIE)
   }
   complicatie_lijst <- lapply(TREND_COMPLICATIES, combineer_ja, df = d)
   for (label in names(complicatie_lijst))
-    binair[[label]] <- list(y = complicatie_lijst[[label]], onderdeel = "3. Complicaties")
+    binair[[label]] <- list(y = complicatie_lijst[[label]], onderdeel = "3. Complicaties",
+                            correctie = TREND_CORRECTIE)
 
   # Failure to rescue: noemer = patiënten met >= 1 major complicatie
   enige_compl <- if (exists("MAJOR_COMPLICATIES")) combineer_ja(d, MAJOR_COMPLICATIES) %in% TRUE else
@@ -201,11 +244,11 @@ trendanalyse <- function(df, groep = GROEP) {
   if (FTR_UITKOMST %in% names(d)) {
     ftr <- is_ja(d[[FTR_UITKOMST]])
     ftr[!enige_compl] <- NA            # alleen patiënten met een complicatie
-    binair[["Failure to rescue"]] <- list(y = ftr, onderdeel = "4. Failure to rescue")
+    binair[["Failure to rescue"]] <- list(y = ftr, onderdeel = "4. Failure to rescue", correctie = TREND_CORRECTIE)
   }
   if (TREND_CIRC_ARREST %in% names(d))
     binair[["Gebruik circulatiestilstand"]] <- list(y = is_ja(d[[TREND_CIRC_ARREST]]),
-                                                    onderdeel = "6. Circulatiestilstand")
+                                                    onderdeel = "6. Circulatiestilstand", correctie = TREND_CORRECTIE)
 
   pct <- do.call(rbind, lapply(names(binair), function(l) {
     r <- pct_per_jaar(d, binair[[l]]$y, l, groep); r$onderdeel <- binair[[l]]$onderdeel; r }))
@@ -216,7 +259,18 @@ trendanalyse <- function(df, groep = GROEP) {
   temp <- if (TREND_TEMPERATUUR %in% names(d))
     trend_numeriek(d, d[[TREND_TEMPERATUUR]], "Minimale temperatuur (°C)", groep)
 
-  toetsen <- rbind(aantal$toets, toetsen_bin, temp$toets)
+  # Kolommen van de gepaarde modellen ook bij niet-corrigeerbare volumetellingen tonen.
+  # NA-velden bij count-modellen (geen zinvolle case-mixcorrectie van nationaal volume).
+  sjabloon <- toetsen_bin
+  for (k in setdiff(names(sjabloon), names(aantal$toets))) {
+    if (is.numeric(sjabloon[[k]])) aantal$toets[[k]] <- rep(NA_real_, nrow(aantal$toets))
+    else aantal$toets[[k]] <- rep("", nrow(aantal$toets))
+  }
+  for (k in setdiff(names(sjabloon), names(temp$toets))) {
+    if (is.numeric(sjabloon[[k]])) temp$toets[[k]] <- rep(NA_real_, nrow(temp$toets))
+    else temp$toets[[k]] <- rep("", nrow(temp$toets))
+  }
+  toetsen <- rbind(aantal$toets[names(sjabloon)], toetsen_bin[names(sjabloon)], temp$toets[names(sjabloon)])
   rownames(toetsen) <- NULL
   per_jaar_temp <- temp$per_jaar
 

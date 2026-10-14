@@ -1,7 +1,7 @@
 # =============================================================================
 # Klinische uitkomsten, variatie tussen centra, opnameduur en (relatieve) overleving
 #
-# Alles apart voor acuut en electief, zonder correctie voor urgentie of EuroSCORE.
+# Alles apart voor acuut en electief: ruwe en gecorrigeerde trends (4 covariaten).
 #
 # 1. Uitkomsttrends (OR per kalenderjaar) voor mortaliteit, major complicaties
 #    (composiet), secundaire morbiditeit en failure to rescue:
@@ -60,84 +60,96 @@ voortgang <- function(...) { cat("   ", sprintf(...), "\n", sep = ""); flush.con
 
 # ── 1. Uitkomsttrends ───────────────────────────────────────────────────────
 uitkomst_trends <- function(df, groep = GROEP) {
-  heeft_lme4 <- requireNamespace("lme4", quietly = TRUE)
+  if (!requireNamespace("lme4", quietly = TRUE))
+    warning("lme4 ontbreekt: voor sommige modellen kan PQL worden gebruikt; interpreteer met voorzichtigheid")
   heeft_cs <- requireNamespace("clubSandwich", quietly = TRUE) && UITKOMST_CR2
-  if (!heeft_lme4) message("LET OP - pakket 'lme4' ontbreekt; MASS::glmmPQL wordt als terugval gebruikt. Installeer lme4 met: ",
-                           "install.packages(\"lme4\", repos = \"https://cloud.r-project.org\", type = \"binary\")")
-
-  tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(Inf, nrow(df))
+  tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(df))
   dood <- function(var, min_fu) {
     y <- code_positief(df[[var]])
-    y[!is.na(y) & !y & !is.na(tijd) & tijd < min_fu] <- NA   # levend maar te kort gevolgd
+    if (min_fu > 0) {
+      # Geen follow-upbewijs voor negatieve uitkomst betekent onbekend, niet 'nee'.
+      y[!is.na(y) & !y & (is.na(tijd) | tijd < min_fu)] <- NA
+    }
     y
   }
   major <- samengesteld(df, MAJOR_COMPLICATIES)
   ftr <- code_positief(df[[FTR_UITKOMST]]); ftr[!(major %in% TRUE)] <- NA
-
   uitkomsten <- list(
     list("Ziekenhuismortaliteit", "mortaliteit", dood("overleden_zh", 0)),
-    list("30-dagenmortaliteit (volledige follow-up)", "mortaliteit", dood("overl30d", 30)),
-    list("1-jaarsmortaliteit (volledige follow-up)", "mortaliteit", dood("overl1j", 365)),
-    list(paste0("Major complicaties (", paste(MAJOR_COMPLICATIES, collapse = "/"), ")"), "composiet", major)
+    list("30-dagenmortaliteit", "mortaliteit", dood("overl30d", 30)),
+    list("1-jaarsmortaliteit", "mortaliteit", dood("overl1j", 365)),
+    list("Major complicaties", "composiet", major)
   )
   for (l in names(SECUNDAIRE_UITKOMSTEN)) if (SECUNDAIRE_UITKOMSTEN[[l]] %in% names(df))
     uitkomsten[[length(uitkomsten) + 1]] <- list(l, "secundair", code_positief(df[[SECUNDAIRE_UITKOMSTEN[[l]]]]))
-  uitkomsten[[length(uitkomsten) + 1]] <- list("Failure to rescue (overleden in zh bij major complicatie)", "FTR", ftr)
-
+  uitkomsten[[length(uitkomsten) + 1]] <- list("Failure to rescue", "FTR", ftr)
   basis <- data.frame(jaar = suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))),
                       .centrum = factor(df[[CENTRUM_KOLOM]]),
                       groep = as.character(df[[groep]]))
-  cov <- intersect(UITKOMST_COVARIATEN, names(df))
-  for (k in cov) basis[[k]] <- if (k == "leeftijd") df[[k]] / 10 else df[[k]]
+  basis <- voeg_modelcovariaten_toe(basis, df)
   basis$jaar_c <- basis$jaar - round(mean(basis$jaar, na.rm = TRUE))
-
-  rij <- function(g, u, d, ...) {
-    a <- list(...)
-    k <- function(naam, leeg) if (is.null(a[[naam, exact = TRUE]])) leeg else a[[naam, exact = TRUE]]
-    data.frame(groep = g, uitkomst = u[[1]], type = u[[2]], n = nrow(d), events = sum(d$y),
-               pct = round(100 * mean(d$y), 1), model_primair = k("model", ""),
-               OR_primair = k("or", NA), BI95_primair = k("bi", ""), p_primair = k("p", NA),
-               OR_CR2 = k("or2", NA), BI95_CR2 = k("bi2", ""), p_CR2 = k("p2", NA))
+  fit_1 <- function(d, adjusted) {
+    d <- if (adjusted) modelgevallen(d, "y") else d
+    n <- nrow(d); events <- sum(d$y)
+    a <- list(n = n, events = events, OR = NA_real_, BI95 = "", p = NA_real_, model = "")
+    if (n < 30 || events < 5 || n - events < 5 || length(unique(d$jaar)) < 2) {
+      a$model <- "onvoldoende observaties of events"; return(a)
+    }
+    f <- cov_formule("y", "jaar_c", adjusted)
+    r <- tryCatch(logit_mixed(f, d, "jaar_c"), error = function(e)
+      list(model = paste("mislukt:", conditionMessage(e))))
+    a$model <- r$model
+    if (!is.null(r$est) && is.finite(r$est) && is.finite(r$se)) {
+      a$OR <- round(exp(r$est), 3)
+      a$BI95 <- sprintf("%.3f-%.3f", exp(r$est - 1.96 * r$se), exp(r$est + 1.96 * r$se))
+      a$p <- unname(r$p)
+    } else if (!is.null(r$fout)) a$model <- paste(a$model, r$fout)
+    a
   }
-  `%||%` <- function(a, b) if (is.null(a)) b else a
-  f_cov <- if (length(cov)) paste("+", paste(cov, collapse = " + ")) else ""
-
   res <- list()
   for (g in sort(unique(na.omit(basis$groep)))) for (u in uitkomsten) {
-    d <- basis; d$y <- u[[3]]
-    d <- d[d$groep %in% g & !is.na(d$y) & !is.na(d$jaar) & !is.na(d$.centrum), ]
-    d <- droplevels(d[complete.cases(d[, c("y", cov), drop = FALSE]), ])
-    if (nrow(d) < 30 || sum(d$y) < 5) { res[[length(res) + 1]] <- rij(g, u, d); next }
-    voortgang("uitkomstmodel: %s - %s (n = %d)", g, u[[1]], nrow(d))
-    a <- list()
-    r <- logit_mixed(as.formula(paste("y ~ jaar_c", f_cov)), d, "jaar_c")
-    a[["model"]] <- r$model
-    if (!is.null(r$est)) {
-      a[["or"]] <- round(exp(r$est), 3); a[["p"]] <- r$p
-      a[["bi"]] <- sprintf("%.3f-%.3f", exp(r$est - 1.96 * r$se), exp(r$est + 1.96 * r$se))
-    } else a[["bi"]] <- r$fout
-    if (heeft_cs) tryCatch({
-      m <- glm(as.formula(paste("y ~ jaar", f_cov, "+ .centrum")), data = d, family = binomial)
-      r <- cr2_jaar(m, d$.centrum)
-      a[["or2"]] <- round(exp(r[1]), 3); a[["bi2"]] <- sprintf("%.3f-%.3f", exp(r[2]), exp(r[3])); a[["p2"]] <- r[4]
-    }, error = function(e) a[["bi2"]] <<- paste("mislukt:", conditionMessage(e)))
-    res[[length(res) + 1]] <- do.call(rij, c(list(g, u, d), a))
+    d <- basis
+    d$y <- u[[3]]
+    d <- droplevels(d[d$groep == g & !is.na(d$y) & !is.na(d$jaar) & !is.na(d$.centrum), , drop = FALSE])
+    voortgang("uitkomstmodel: %s - %s (n ruw = %d)", g, u[[1]], nrow(d))
+    onge <- fit_1(d, FALSE)
+    gec <- fit_1(d, TRUE)
+    cr2 <- list(OR = NA_real_, BI95 = "", p = NA_real_)
+    dc <- modelgevallen(d, "y")
+    if (heeft_cs && nrow(dc) >= 30 && sum(dc$y) >= 5 && sum(!dc$y) >= 5 && nlevels(dc$.centrum) >= 3) {
+      tryCatch({
+        m <- glm(cov_formule("y", "jaar", TRUE, ".centrum"), family = binomial, data = dc)
+        r <- cr2_jaar(m, dc$.centrum)
+        cr2 <- list(OR = round(exp(r[1]), 3),
+                    BI95 = sprintf("%.3f-%.3f", exp(r[2]), exp(r[3])), p = unname(r[4]))
+      }, error = function(e) message("CR2 overgeslagen voor ", g, ": ", conditionMessage(e)))
+    }
+    res[[length(res) + 1]] <- data.frame(
+      groep = g, uitkomst = u[[1]], type = u[[2]],
+      n_ongecorrigeerd = onge$n, events_ongecorrigeerd = onge$events,
+      pct_ongecorrigeerd = if (onge$n) round(100 * onge$events / onge$n, 1) else NA_real_,
+      model_ongecorrigeerd = onge$model,
+      OR_ongecorrigeerd = onge$OR, BI95_ongecorrigeerd = onge$BI95, p_ongecorrigeerd = onge$p,
+      n_gecorrigeerd = gec$n, events_gecorrigeerd = gec$events,
+      model_gecorrigeerd = gec$model,
+      OR_gecorrigeerd = gec$OR, BI95_gecorrigeerd = gec$BI95, p_gecorrigeerd = gec$p,
+      OR_CR2_gecorrigeerd = cr2$OR, BI95_CR2_gecorrigeerd = cr2$BI95,
+      p_CR2_gecorrigeerd = cr2$p)
   }
   out <- do.call(rbind, res)
   rownames(out) <- NULL
-
-  # Benjamini-Hochberg over de secundaire uitkomsten, per groep
-  out$q_BH_primair <- NA; out$q_BH_CR2 <- NA
-  for (g in unique(out$groep)) {
-    sel <- out$groep == g & out$type == "secundair"
-    out$q_BH_primair[sel] <- p.adjust(out$p_primair[sel], method = "BH")
-    out$q_BH_CR2[sel] <- p.adjust(out$p_CR2[sel], method = "BH")
+  # BH apart over secundaire eindpunten per groep én correctiestatus.
+  for (naam in c("p_ongecorrigeerd", "p_gecorrigeerd", "p_CR2_gecorrigeerd")) {
+    qnaam <- sub("^p_", "q_BH_", naam)
+    out[[qnaam]] <- NA_real_
+    for (g in unique(out$groep)) {
+      i <- which(out$groep == g & out$type == "secundair")
+      out[[qnaam]][i] <- p.adjust(out[[naam]][i], method = "BH")
+    }
   }
-  for (k in c("p_primair", "p_CR2", "q_BH_primair", "q_BH_CR2"))
-    out[[k]] <- sapply(out[[k]], function(p) if (is.na(p)) "" else fmt_p(p))
-  attr(out, "noot") <- paste0("Gecorrigeerd voor: ", paste(cov, collapse = ", "),
-                              " (leeftijd per 10 jaar); OR per kalenderjaar; BH over: ",
-                              paste(names(SECUNDAIRE_UITKOMSTEN), collapse = ", "))
+  for (naam in grep("^(p_|q_BH_)", names(out), value = TRUE))
+    out[[naam]] <- vapply(out[[naam]], fmt_p, character(1))
+  attr(out, "noot") <- "Per groep eerst ongecorrigeerd, dan leeftijd/geslacht/EuroSCORE II/eerdere cardiochirurgie; CR2 alleen gecorrigeerde gevoeligheidsanalyse; complete-case-aantallen apart"
   out
 }
 
@@ -151,6 +163,7 @@ centrum_variatie <- function(df, groep = GROEP) {
                    arrest = code_positief(df[[arrest_kol]]),
                    duur = df$circ_arrest_duur_bij_arrest)
 
+  d0 <- voeg_modelcovariaten_toe(d0, df)
   per_centrum <- do.call(rbind, lapply(split(d0, list(d0$groep, d0$.centrum), drop = TRUE), function(x)
     data.frame(groep = x$groep[1], centrum = as.character(x$.centrum[1]), n = nrow(x),
                mediaan_temp = round(median(x$temp, na.rm = TRUE), 1),
@@ -199,10 +212,24 @@ centrum_variatie <- function(df, groep = GROEP) {
       ct <- clubSandwich::coef_test(m, vcov = V, test = "Satterthwaite", coefs = "zonder")
       c(ci$beta, ci$CI_L, ci$CI_U, ct[[grep("^p_", names(ct), value = TRUE)[1]]])
     }, error = function(e) rep(NA, 4)) else rep(NA, 4)
+    xc <- modelgevallen(x, "temp")
+    rc <- if (requireNamespace("clubSandwich", quietly = TRUE) && nrow(xc) > 20 &&
+              sum(xc$arrest) >= 5 && sum(!xc$arrest) >= 5 && nlevels(xc$.centrum) >= 3) tryCatch({
+      xc$zonder <- as.integer(!xc$arrest)
+      m <- lm(cov_formule("temp", "zonder", TRUE, ".centrum"), data = xc)
+      V <- clubSandwich::vcovCR(m, cluster = xc$.centrum, type = "CR2")
+      ci <- clubSandwich::conf_int(m, vcov = V, coefs = "zonder")
+      ct <- clubSandwich::coef_test(m, vcov = V, test = "Satterthwaite", coefs = "zonder")
+      c(ci$beta, ci$CI_L, ci$CI_U, ct[[grep("^p_", names(ct), value = TRUE)[1]]])
+    }, error = function(e) rep(NA_real_, 4)) else rep(NA_real_, 4)
     data.frame(groep = x$groep[1], n_zonder = sum(!x$arrest), temp_zonder = q(x$temp[!x$arrest]),
                n_met = sum(x$arrest), temp_met = q(x$temp[x$arrest]),
+               n_gecorrigeerd = nrow(xc),
                verschil_binnen_centra = round(r[1], 2),
-               BI95 = sprintf("%.2f tot %.2f", r[2], r[3]), p = fmt_p(r[4]))
+               BI95 = sprintf("%.2f tot %.2f", r[2], r[3]), p = fmt_p(r[4]),
+               verschil_gecorrigeerd = round(rc[1], 2),
+               BI95_gecorrigeerd = sprintf("%.2f tot %.2f", rc[2], rc[3]),
+               p_gecorrigeerd = fmt_p(rc[4]))
   }))
 
   list(per_centrum = per_centrum, bereik = bereik, icc = icc, zonder_met = zonder_met)
@@ -214,18 +241,28 @@ opnameduur_analyse <- function(df, groep = GROEP) {
   d0 <- data.frame(groep = as.character(df[[groep]]), .centrum = factor(df[[CENTRUM_KOLOM]]),
                    jaar = suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))),
                    los = df$opnameduur, levend = !code_positief(df$overleden_zh))
+  d0 <- voeg_modelcovariaten_toe(d0, df)
   d0$jaar_c <- d0$jaar - round(mean(d0$jaar, na.rm = TRUE))
-  do.call(rbind, lapply(split(d0, d0$groep), function(x) do.call(rbind, lapply(c("alle patiënten", "levend ontslagen"), function(pop) {
-    y <- x[!is.na(x$los) & !is.na(x$jaar) & (pop == "alle patiënten" | x$levend %in% TRUE), ]
-    q <- sprintf("%.1f [%.1f-%.1f]", median(y$los), quantile(y$los, .25), quantile(y$los, .75))
-    tr <- tryCatch({   # log(opnameduur + 1): ratio per jaar (geometrisch)
-      m <- nlme::lme(log(los + 1) ~ jaar_c, random = ~ 1 | .centrum, data = y, method = "REML")
-      t <- summary(m)$tTable["jaar_c", ]
-      c(exp(t["Value"]), exp(t["Value"] - 1.96 * t["Std.Error"]), exp(t["Value"] + 1.96 * t["Std.Error"]), t["p-value"])
-    }, error = function(e) rep(NA, 4))
-    data.frame(groep = x$groep[1], populatie = pop, n = nrow(y), mediaan_IQR = q,
-               ratio_per_jaar = round(tr[1], 3), BI95 = sprintf("%.3f-%.3f", tr[2], tr[3]), p = fmt_p(tr[4]))
-  }))))
+  do.call(rbind, lapply(split(d0, d0$groep), function(x) do.call(rbind,
+    lapply(c("alle patiënten", "levend ontslagen"), function(pop) do.call(rbind,
+      lapply(c(FALSE, TRUE), function(gecorrigeerd) {
+        y <- x[!is.na(x$los) & !is.na(x$jaar) & !is.na(x$.centrum) &
+                   (pop == "alle patiënten" | x$levend %in% TRUE), , drop = FALSE]
+        if (gecorrigeerd) y <- modelgevallen(y, "los")
+        q <- if (nrow(y)) sprintf("%.1f [%.1f-%.1f]", median(y$los), quantile(y$los, .25), quantile(y$los, .75)) else ""
+        r <- tryCatch({
+          if (nrow(y) < 20 || nlevels(droplevels(y$.centrum)) < 2) stop("te weinig observaties/centra")
+          m <- nlme::lme(cov_formule("log(los + 1)", "jaar_c", gecorrigeerd),
+                         random = ~ 1 | .centrum, data = droplevels(y), method = "REML")
+          t <- summary(m)$tTable["jaar_c", ]
+          c(exp(t["Value"]), exp(t["Value"] - 1.96 * t["Std.Error"]),
+            exp(t["Value"] + 1.96 * t["Std.Error"]), t["p-value"])
+        }, error = function(e) rep(NA_real_, 4))
+        data.frame(groep = x$groep[1], populatie = pop,
+                   correctie = if (gecorrigeerd) "gecorrigeerd" else "ongecorrigeerd",
+                   n = nrow(y), mediaan_IQR = q, ratio_per_jaar = round(r[1], 3),
+                   BI95 = sprintf("%.3f-%.3f", r[2], r[3]), p = fmt_p(r[4]))
+      }))))))
 }
 
 # ── 5. Relatieve overleving (Ederer II) ─────────────────────────────────────

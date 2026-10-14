@@ -34,6 +34,7 @@ source("R/config.R", encoding = "UTF-8")
 source("R/inlezen.R", encoding = "UTF-8")
 source("R/afgeleid.R", encoding = "UTF-8")
 source("R/analyse.R", encoding = "UTF-8")
+source("R/model_hulpfuncties.R", encoding = "UTF-8")
 source("R/figuren.R", encoding = "UTF-8")
 source("R/trend.R", encoding = "UTF-8")
 source("R/incidentie.R", encoding = "UTF-8")
@@ -41,6 +42,7 @@ source("R/periode.R", encoding = "UTF-8")
 source("R/perfusie.R", encoding = "UTF-8")
 source("R/uitkomsten.R", encoding = "UTF-8")
 source("R/benchmark.R", encoding = "UTF-8")
+source("R/gevoeligheid_urgentie.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -59,27 +61,33 @@ cat("1. Inlezen:", bestand, "\n")
 ruw <- lees_data(bestand, EXCEL_BLAD)
 cat(sprintf("   %d rijen, %d kolommen\n", nrow(ruw), ncol(ruw)))
 
-# 2. Opschonen ----------------------------------------------------------------
-cat("2. Opschonen\n")
-res <- schoon_op(ruw)
-df <- res$data
-logboek <- res$logboek
-cat(sprintf("   %d patiënten in de analyse, %d regels in het opschoonlogboek\n",
-            nrow(df), nrow(logboek)))
+# 2. Inhoudelijke selectie, zonder opschoonfunctie of automatische dataverwijdering
+cat("2. Selectie en variabelen afleiden (geen opschoning)\n")
+df <- ruw
+broncontrole <- controle_bron(ruw)
+print(broncontrole$samenvatting, row.names = FALSE)
+cat(sprintf("   %d originele rijen; dubbele en lege rijen NIET verwijderd\n", nrow(df)))
+if (ALLEEN_INCLUSIECOHORT) {
+  if (!INCLUSIE_KOLOM %in% names(df))
+    stop("De inclusiekolom ontbreekt: ", INCLUSIE_KOLOM,
+         ". Zet ALLEEN_INCLUSIECOHORT op FALSE als de bron al uitsluitend het cohort bevat.")
+  inbegrepen <- tolower(as.character(df[[INCLUSIE_KOLOM]])) %in% c("ja", "1", "true")
+  cat(sprintf("   Expliciete cohortselectie op '%s': %d van %d rijen\n",
+              INCLUSIE_KOLOM, sum(inbegrepen), nrow(df)))
+  df <- df[inbegrepen, , drop = FALSE]
+}
 indeling <- maak_acuut_electief(df)
 df <- maak_perfusie(maak_descendens(maak_lvef_categorie(indeling$data)))
-if (nrow(logboek)) {
-  telling <- sort(table(paste0(logboek$stap, ifelse(is.na(logboek$kolom), "", paste0(" (", logboek$kolom, ")")))),
-                  decreasing = TRUE)
-  for (n in names(telling)) cat(sprintf("     - %s: %d\n", n, telling[[n]]))
-}
 ontbr <- ontbrekende_waarden(df)
 
 cat("   Indeling acuut / electief aneurysma:\n")
 print(indeling$overzicht, row.names = FALSE)
-df_alle <- df   # alle patiënten, ook niet ingedeeld (voor volume per jaar en selectiecontrole)
+df_alle <- maak_urgentie_sens(df)  # cohort inclusief primair niet-ingedeelde patiënten
+# Urgentiegebaseerde gevoeligheid gebruikt df_alle en wordt NIET beïnvloed
+# door selectie op de primaire combinatie urgentie/pathologie.
 selectie <- selectie_overzicht(df_alle, GROEP)
-definities <- vergelijk_definities(df_alle)
+sens_indeling <- overzicht_urgentie_sens(df_alle)
+df <- df_alle
 if (ALLEEN_INGEDEELDE_PATIENTEN) {
   niet <- is.na(df$acuut_electief)
   df <- df[!niet, ]
@@ -97,9 +105,11 @@ tabellen <- lapply(TABELLEN, maak_tabel, df = df, groep = GROEP)
 oe_groep   <- if (!is.null(GROEP)) oe_ratio(df, GROEP)
 oe_centrum <- oe_ratio(df, "centrum")
 km <- overleving(df, GROEP)
+cox <- overleving_cox_trend(df, GROEP)
 tr <- trendanalyse(df, GROEP)
 inc <- incidentie(df_alle, GROEP)
 per <- periodevergelijking(df, GROEP)
+per_mod <- periode_uitkomstmodellen(df, GROEP)
 cat("   Temperatuurmodellen (CR2) - dit kan op een oudere computer 5-15 minuten duren\n")
 flush.console()
 pa <- perfusie_analyse(df, GROEP)
@@ -120,10 +130,15 @@ excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
   list("Indeling acuut-electief" = indeling$controle, "Indeling - redenen" = indeling$overzicht,
        "Selectie per jaar" = selectie$jaar, "Selectie per centrum" = selectie$centrum,
-       "Selectie - definities" = definities,
+       "Sens urgentie overzicht" = sens_indeling$overzicht,
+       "Sens urgentie kruistabel" = sens_indeling$kruistabel,
+       "Sens urgentie per jaar" = sens_indeling$per_jaar,
+       "Datacontrole bron" = broncontrole$samenvatting,
+       "Datacontrole numeriek" = broncontrole$numeriek,
        "Volume per jaar" = inc$per_jaar, "Volume per miljoen - RR" = inc$rr,
        "Periode - electief" = per[["electief aneurysma"]], "Periode - acuut" = per[["acuut"]],
-       "Periode - totaal" = per[["Totaal"]], "Temp - modellen" = pa$modellen, "Temp - per centrum" = pa$centra,
+       "Periode - totaal" = per[["Totaal"]],
+       "Periode uitkomstmodellen" = per_mod, "Temp - modellen" = pa$modellen, "Temp - per centrum" = pa$centra,
        "Temp - mediaan centrum-jaar" = pa$per_centrum_jaar,
        "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
@@ -136,11 +151,12 @@ excel <- c(
        "O-E per groep" = oe_groep, "O-E per centrum" = oe_centrum,
        "Overleving" = km$tabel,
        "Trend - toetsen" = tr$toetsen, "Trend - aantallen" = tr$aantal,
-       "Trend - percentages" = tr$pct, "Trend - temperatuur" = tr$temp, "Ontbrekende waarden" = ontbr, "Opschoonlogboek" = logboek)
+       "Trend - percentages" = tr$pct, "Trend - temperatuur" = tr$temp,
+       "Overleving - Cox per groep" = cox, "Ontbrekende waarden" = ontbr)
 )
 excel <- excel[!sapply(excel, is.null)]
 writexl::write_xlsx(excel, file.path(UITVOER_MAP, "resultaten.xlsx"))
-write.csv(df, file.path(UITVOER_MAP, "opgeschoonde_data.csv"), row.names = FALSE, na = "")
+write.csv(df, file.path(UITVOER_MAP, "analyse_data.csv"), row.names = FALSE, na = "")
 
 # 4. Figuren ------------------------------------------------------------------
 cat("4. Figuren\n")
@@ -168,14 +184,15 @@ if (!is.null(km)) {
   cat("\nOverleving (Kaplan-Meier)", if (km$logrank_p != "") paste0("- log-rank p = ", km$logrank_p), "\n")
   print(km$tabel, row.names = FALSE)
 }
+if (!is.null(cox)) { cat("\nCox-overlevingstrend (ongecorrigeerd en gecorrigeerd per groep)\n"); print(cox, row.names = FALSE) }
 if (!is.null(oe_groep)) { cat("\nGeobserveerde/verwachte ziekenhuismortaliteit\n"); print(oe_groep, row.names = FALSE) }
 
 cat("\nSelectie per jaar (indeling: ", ACUUT_ELECTIEF$voorrang, ")\n", sep = "")
 print(selectie$jaar, row.names = FALSE)
 cat("\nSelectie per centrum\n")
 print(selectie$centrum, row.names = FALSE)
-cat("\nGevoeligheid voor de definitie: groepsgrootte en ruwe mortaliteit per periode\n")
-print(definities, row.names = FALSE)
+cat("\nGevoeligheid urgentie 10, 20 (apart), 30/40: aantallen en ruwe mortaliteit\n")
+print(sens_indeling$overzicht, row.names = FALSE)
 
 cat("\nVolume per jaar (incl. niet ingedeelde patiënten)\n")
 print(inc$per_jaar, row.names = FALSE)
@@ -187,6 +204,7 @@ for (n in names(per)) {
   print(selecteer_rijen(per[[n]], PERIODE_KERNVARIABELEN), row.names = FALSE, right = FALSE)
 }
 
+if (!is.null(per_mod)) { cat("\nPeriode-uitkomstmodellen (per groep, ongecorrigeerd + gecorrigeerd)\n"); print(per_mod, row.names = FALSE) }
 cat("\nMinimale temperatuur - ontbrekend per jaar\n")
 print(pa$ontbrekend_jaar, row.names = FALSE)
 cat("\nMinimale temperatuur - ontbrekend per centrum\n")
@@ -197,7 +215,7 @@ for (n in names(pa$categorieen)) {
 }
 cat("\nMinimale temperatuur - trendmodellen (°C per jaar; volledig in tabblad 'Temp - modellen')\n")
 m <- pa$modellen
-print(data.frame(populatie = m$populatie, groep = m$groep, model = m$model, n = m$n,
+print(data.frame(populatie = m$populatie, groep = m$groep, correctie = m$correctie, model = m$model, n = m$n,
                  trend = sprintf("%.3f (%.3f tot %.3f)", m$verandering_per_jaar, m$BI95_onder, m$BI95_boven),
                  p = m$p, SD_centra = m$SD_slope_tussen_centra, PI95_centra = m$PI95_trend_centrum,
                  ICC = m$ICC_centrum,
@@ -228,9 +246,19 @@ print(unique(bm[, c("groep", "uitkomst", "landelijk")]), row.names = FALSE)
 cat(sprintf("\nTrendanalyse (%d boog-OK's, %s-%s)\n", nrow(tr$data),
             min(tr$data$.jaar), max(tr$data$.jaar)))
 print(tr$toetsen[c("maat", "groep", "n", "effectmaat", "schatting", "BI_onder", "BI_boven", "p",
-                   "schatting_gecorrigeerd", "p_gecorrigeerd", "p_trendverschil_tussen_groepen")], row.names = FALSE)
+                   "schatting_gecorrigeerd", "BI_onder_gecorrigeerd", "BI_boven_gecorrigeerd",
+                   "n_gecorrigeerd", "p_gecorrigeerd", "p_trendverschil_tussen_groepen")], row.names = FALSE)
+
+# Gevoeligheidsanalyse afzonderlijk van de primaire uitkomsten uitvoeren,
+# na de primaire export: dezelfde patiëntenbasis, ANDERE groepdefinitie.
+if (URGENTIE_SENS_ACTIEF) {
+  cat("\n5. Gevoeligheidsanalyse uitsluitend op urgentie: electief (10), urgent (20), spoed/redding (30/40)\n")
+  sens_res <- analyse_urgentie_gevoeligheid(df_alle, UITVOER_MAP)
+  print(sens_res$aantallen, row.names = FALSE)
+}
 
 cat("\nKlaar. Resultaten in '", UITVOER_MAP, "/':\n", sep = "")
-cat("  - resultaten.xlsx (tabellen, O/E, overleving, ontbrekende waarden, opschoonlogboek)\n")
-cat("  - opgeschoonde_data.csv\n")
+cat("  - resultaten.xlsx (tabellen, twee modellen per groep, overleving, ontbrekende waarden)\n")
+cat("  - analyse_data.csv\n")
+if (URGENTIE_SENS_ACTIEF) cat("  - gevoeligheid_urgentie.xlsx (10 vs 30/40, met 20 apart)\n")
 for (f in figuren) cat("  - figuren/", basename(f), "\n", sep = "")

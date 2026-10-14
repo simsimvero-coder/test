@@ -21,7 +21,7 @@ INCLUSIE_KOLOM        <- "incl_cohort"
 # NULL = alleen het totaal. "acuut_electief" is een afgeleide variabele (zie hieronder).
 GROEP <- "acuut_electief"
 
-# ── Indeling acuut vs. electief aneurysma ───────────────────────────────────
+# ── PRIMAIRE indeling: originele combinatie urgentie/pathologie ──────────────
 # voorrang = "urgentie" (standaard):
 #   acuut              = pathologie 20 (acute dissectie) in asc/boog/desc, ongeacht
 #                        urgentie; of urgentie 30/40 (ook bij pathologie 10)
@@ -51,6 +51,15 @@ ACUUT_ELECTIEF <- list(
   aortachir_kolom    = NULL,
   labels             = c(electief = "electief aneurysma", acuut = "acuut")
 )
+# PRIMAIRE ANALYSE: deze originele combinatie blijft ongewijzigd.
+# Aanvullende analyse in een AFZONDERLIJK Excelbestand:
+#   urgentie 10 = electief; urgentie 20 = urgent, apart;
+#   urgentie 30/40 = spoed/redding. Geen aanvullende pathologiegroepen.
+# Onbekende/andere urgentie blijft NA voor de gevoeligheidsanalyse.
+URGENTIE_SENS_ACTIEF <- TRUE
+URGENTIE_SENS_KOLOM <- "urgentie_sens"
+# LET OP: de bestaande mengdefinitie combineert pathologie en urgentie.
+# Eerst klinisch valideren alvorens deze als primaire indeling te publiceren.
 # Patiënten die niet als acuut of electief aneurysma ingedeeld kunnen worden
 # (bv. geen aortachirurgie) uit de analyse laten? FALSE = wel in 'Totaal'.
 ALLEEN_INGEDEELDE_PATIENTEN <- TRUE
@@ -64,11 +73,11 @@ ANALYSE_TOTAAL <- FALSE
 # ── Overleving ──────────────────────────────────────────────────────────────
 OVERLEVING_TIJD   <- "overltijd_dag"   # follow-up in dagen
 OVERLEVING_STATUS <- "mort_status"     # overleden ja/nee (of 1/0)
-OVERLEVING_MAX_DAGEN <- 5 * 365        # tot hoever de curve getoond wordt
+OVERLEVING_MAX_DAGEN <- 5 * 365        # KM-curve tot maximaal 5 jaar
+COX_MAX_DAGEN <- 365                  # Cox-trend: primair overlijden binnen 1 jaar
 
 # ── Variabelen ──────────────────────────────────────────────────────────────
-# Numerieke variabelen met plausibel bereik c(min, max). Waarden daarbuiten
-# worden ontbrekend (NA) gemaakt en vastgelegd in het opschoonlogboek.
+# Numerieke variabelen; bereik is alleen documentatie, er wordt NIET op afgekapt.
 # Gebruik NA voor 'geen grens'.
 NUMERIEK <- list(
   leeftijd         = c(18, 100),
@@ -177,10 +186,8 @@ TREND_MORTALITEIT <- list(
   "30-dagenmortaliteit"   = list(var = "overl30d",     min_followup = 30),
   "1-jaarsmortaliteit"    = list(var = "overl1j",      min_followup = 365)
 )
-# Mortaliteitstrend ook gecorrigeerd voor deze variabele(n) (NULL = niet).
-# Standaard niet: acuut en electief worden apart geanalyseerd en we beschrijven
-# de ruwe trend binnen elke groep.
-TREND_CORRECTIE <- NULL
+# In elke klinische groep eerst het ruwe en dan dit vooraf gespecificeerde model.
+TREND_CORRECTIE <- c("leeftijd", "geslacht", "EuroscoreII", "cardiochir_eerder")
 
 # Complicaties; meerdere variabelen samen = 'ja' als minstens één 'ja' is.
 TREND_COMPLICATIES <- list(
@@ -243,9 +250,17 @@ SECUNDAIRE_UITKOMSTEN <- c(
   "Beademing > 24 uur"             = "beademing"
 )
 
-# Correctievariabelen in de logistische modellen (geen urgentie, geen EuroSCORE).
-# Leeftijd wordt per 10 jaar ingevoerd.
-UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
+# Correctievariabelen in alle patientgebonden trendmodellen; per groep 2 modellen
+# (ongecorrigeerd + gecorrigeerd). Leeftijd wordt per 10 jaar ingevoerd.
+# LET OP: EuroSCORE II bevat zelf leeftijd, geslacht, eerdere cardiochirurgie en
+# urgentie. Samen met die losse factoren corrigeer je dus dubbel en (binnen de
+# groep) deels voor urgentie. Zonder EuroSCORE II:
+#   UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
+# In de directe vergelijking spoed/redding vs electief wordt EuroSCORE II altijd
+# weggelaten, omdat urgentie daar de te vergelijken factor is.
+UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "EuroscoreII", "cardiochir_eerder")
+PERFUSIE_COVARIATEN <- UITKOMST_COVARIATEN
+OVERLEVING_COVARIATEN <- UITKOMST_COVARIATEN
 
 # Gevoeligheidsanalyse met centrum-fixed-effects en CR2 (traag; FALSE = overslaan)
 UITKOMST_CR2 <- TRUE
@@ -255,6 +270,7 @@ UITKOMST_CR2 <- TRUE
 # Kolommen: jaar, geslacht (man/vrouw), leeftijd (0-99), sterftekans (kans om binnen
 # een jaar te overlijden, 0-1). Zoek je het bestand op het bureaublad, geef dan
 # alleen de naam. NULL = relatieve overleving overslaan.
+# Gevalideerd tegen relsurv::rs.surv(method = "ederer2"): verschil <= 0,3 %-punt.
 LEVENSTABEL_BESTAND <- "levenstabel_NL.csv"
 
 # ── Benchmark per centrum: funnel plots (R/benchmark.R) ─────────────────────

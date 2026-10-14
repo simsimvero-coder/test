@@ -1,3 +1,62 @@
+# WAT IS GEWIJZIGD — update voor paper 1
+
+**Doel:** landelijke ontwikkelingen in aortaboogchirurgie (volume, case-mix,
+uitkomsten en perfusiepraktijk); géén causale vergelijking tussen perfusiestrategieën
+in deze paper.
+
+- `schoon_op()` is **verwijderd**. Er wordt niet automatisch gededupliceerd,
+  gefilterd op plausibiliteitsgrenzen of geïncludeerd tijdens opschonen. De
+  Excel-import doet *alleen noodzakelijke type-/labelconversie* en zet de NHR-
+  code `-1` om in ontbrekend. De originele aantallen rijen blijven zichtbaar.
+- De **expliciete inhoudelijke cohortselectie** `incl_cohort` blijft, omdat dit
+  een inclusiecriterium is en geen data-opschoning. Zet
+  `ALLEEN_INCLUSIECOHORT <- FALSE` wanneer de bron al uitsluitend de bedoelde
+  cohortpopulatie bevat. Niet-ingedeelde patiënten blijven in `df_alle` zichtbaar
+  en worden alleen indien ingesteld voor subgroepanalyses uitgesloten.
+  De tabbladen `Datacontrole bron` en `Datacontrole numeriek` **signaleren**
+  dubbele/lege rijen en waarden buiten documentatiebereik zonder iets te verwijderen.
+- Klinische **patiëntgebonden trendmodellen** rapporteren per groep steeds eerst
+  **ongecorrigeerd**, daarna **gecorrigeerd** voor vier variabelen: leeftijd
+  (per 10 jaar), geslacht, EuroSCORE II (per procentpunt) en eerdere cardiochirurgie.
+  Dit geldt voor binaire trends/complicaties/FTR/circulatiestilstand, periode-uitkomstmodellen, temperatuur
+  (mixed/CR2/landelijk), opnameduur en Cox-overleving; centrumvariatie in temperatuur
+  met/zonder circulatiestilstand krijgt beide CR2-effecten.
+- **Ruwe jaaraantallen, beschrijvende tabellen, O/E en Kaplan-Meier** worden niet
+  'gecorrigeerd': bij jaaraantallen is patiëntenrisico-adjustment niet passend;
+  bij Kaplan-Meier gebruikt men apart een Cox-model voor gecorrigeerde
+  survivaltrends. Het aantal complete cases per gecorrigeerd model wordt getoond.
+- Kaplan-Meier rapporteert uitsluitend tijdstippen binnen daadwerkelijk
+  beschikbare follow-up (geen `extend = TRUE`); Cox-model rapportage bevat
+  tevens een indicatieve PH-toets. KM-follow-up is begrensd op
+  `OVERLEVING_MAX_DAGEN` (5 jaar); het Cox-trendmodel op `COX_MAX_DAGEN` (365 dagen).
+- **Relatieve overleving is voorlopig uitgezet** (`LEVENSTABEL_BESTAND <- NULL`),
+  totdat de eigen Ederer-II-code met een gevalideerde implementatie en passende
+  referentietabellen is gecontroleerd.
+- **Primaire groepsindeling ONGEWIJZIGD**: `acuut_electief` blijft precies de
+  oorspronkelijke gecombineerde definitie van urgentie en aneurysma/acute dissectie.
+  Er zijn geen extra diagnostische groepen voor chronische dissectie of overige
+  pathologie toegevoegd.
+- **Nieuwe gevoeligheidsanalyse op alléén urgentie**: code 10 = electief;
+  code 20 = urgent (eigen groep); codes 30/40 = spoed/redding. De analyse
+  vergelijkt rechtstreeks electief met spoed/redding, terwijl urgent afzonderlijk
+  wordt beschreven en gemodelleerd, ongecorrigeerd en gecorrigeerd.
+  De gevoeligheid start vanaf `df_alle`, dus vóór uitsluiting op primaire groepsindeling.
+- Nieuw: `output/gevoeligheid_urgentie.xlsx` en apart
+  `output/figuren_urgentie/kaplan_meier.png`. In de primaire `resultaten.xlsx`
+  staan bovendien de groepsgrootte per jaar en de kruistabel met de primaire groep.
+- De oorspronkelijke pathologiecodes blijven bewaard in de bron, maar er wordt
+  **geen** nieuwe subgroep chronische dissectie / overige pathologie geanalyseerd.
+- Bestanden: `output/resultaten.xlsx`, `output/gevoeligheid_urgentie.xlsx`, `output/analyse_data.csv`, plus figuren.
+  Het tabblad `Overleving - Cox per groep` is nieuw.
+
+**BELANGRIJK:** er was geen patiëntdataset meegeleverd en de R-interpreter was niet
+beschikbaar bij deze wijziging; de aangepaste code is statisch gecontroleerd,
+maar **niet uitgevoerd/gevalideerd op echte gegevens**. Eerst met eigen Excel-
+bestand testen; controleer factoren, ontbrekende waarden, modelconvergentie,
+proportional hazards, interpretatie van EuroSCORE II en de groepsdefinitie.
+
+---
+
 # Analyse aortaboogchirurgie (R, NHR-dataset)
 
 R-code voor de analyse van aortaboogpatiënten uit de Nederlandse Hart Registratie
@@ -41,7 +100,7 @@ Standaard (`voorrang = "urgentie"` in `R/config.R`):
 | geen pathologie 10/20 (niet ingevuld of andere code) | indeling op urgentie: 10/20 = electief, 30/40 = acuut |
 | niet ingedeeld | geen pathologie 10/20 en geen bruikbare urgentie |
 
-- Controleer de tabbladen *Selectie per jaar*, *Selectie per centrum* en *Selectie - definities*
+- Controleer de tabbladen *Selectie per jaar*, *Selectie per centrum* en *Sens urgentie overzicht*
   (groepsgrootte en ruwe mortaliteit onder elke definitie). Het landelijke volume per jaar telt altijd
   alle geregistreerde boogoperaties.
 - Met `voorrang = "strikt"` (gevoeligheidsanalyse) moeten urgentie én pathologie de groep bevestigen:
@@ -94,14 +153,14 @@ staan bij beide groepen. De kolom "Totaal" in Tabel 1–3 en het totale volume p
 
 ## Klinische uitkomsten en variatie tussen centra (`R/uitkomsten.R`)
 
-Apart voor acuut en electief, **zonder correctie voor urgentie of EuroSCORE II**.
+Apart voor acuut en electief: ongecorrigeerd en gecorrigeerd inclusief EuroSCORE II.
 
 - **Uitkomsttrends** (OR per kalenderjaar): ziekenhuis-, 30-dagen- en 1-jaarsmortaliteit (alleen
   patiënten met volledige follow-up), major complicaties (`MAJOR_COMPLICATIES`), secundaire
   morbiditeit (`SECUNDAIRE_UITKOMSTEN`) en failure to rescue (ziekenhuismortaliteit bij ≥ 1 major
   complicatie).
-  - primair: logistisch mixed model, random intercept per centrum, gecorrigeerd voor leeftijd (per 10
-    jaar), geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4::glmer`, met
+  - primair: logistisch mixed model, random intercept per centrum, ongecorrigeerd en gecorrigeerd voor leeftijd (per 10
+    jaar), geslacht, EuroSCORE II en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4::glmer`, met
     `MASS::glmmPQL` als terugval; de kolom `model_primair` toont welk model gebruikt is);
   - gevoeligheid: centrum-fixed-effects met CR2 (Satterthwaite) (`UITKOMST_CR2`);
   - Benjamini–Hochberg (q-waarden) over de secundaire uitkomsten, per groep.
@@ -110,7 +169,7 @@ Apart voor acuut en electief, **zonder correctie voor urgentie of EuroSCORE II**
 - **Temperatuur zonder vs. met circulatiestilstand**, verschil binnen centra (CR2).
 - **Opnameduur**: alle patiënten en levend ontslagen, met trend (geometrische ratio per jaar).
 - **Relatieve overleving (Ederer II)** op 1, 3 en 5 jaar, met KM-overleving en 95%-BI.
-  Hiervoor is een levenstabel nodig (`LEVENSTABEL_BESTAND`, standaard `levenstabel_NL.csv` op het
+  Hiervoor is een levenstabel nodig (`LEVENSTABEL_BESTAND`, standaard `NULL` (uitgeschakeld tot validatie), anders bestand op het
   bureaublad): CBS StatLine tabel **37360ned** "Levensverwachting; geslacht, leeftijd", onderwerp
   *Sterftekans*, geslacht mannen en vrouwen, leeftijd 0–99 jaar, perioden 2013–2024 → downloaden als
   CSV. Kolommen voor jaar/perioden, geslacht, leeftijd en sterftekans worden automatisch herkend.
@@ -152,7 +211,7 @@ dan die termijn niet mee.
 
 - `resultaten.xlsx`: Tabel 1–3, Indeling acuut-electief, O/E per groep en per centrum, Overleving,
   Trend (toetsen, aantallen, percentages, temperatuur), Ontbrekende waarden, Opschoonlogboek
-- `opgeschoonde_data.csv`
+- `analyse_data.csv`
 - `figuren/*.png`: alle figuren tonen de bijbehorende p-waarden
 
 ## Bestanden

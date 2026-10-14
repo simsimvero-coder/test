@@ -152,23 +152,54 @@ selectie_overzicht <- function(df_alle, groep = GROEP) {
   list(jaar = per(TREND_JAAR), centrum = per(CENTRUM_KOLOM))
 }
 
-# Gevoeligheid voor de definitie: groepsgrootte en ruwe vroege mortaliteit per
-# periode onder elke indeling (strikt / urgentie / pathologie).
-vergelijk_definities <- function(df_alle, definities = c("strikt", "urgentie", "pathologie")) {
-  jaar <- suppressWarnings(as.numeric(as.character(df_alle[[TREND_JAAR]])))
-  periode <- rep(NA_character_, nrow(df_alle))
-  for (p in names(PERIODES)) periode[jaar %in% PERIODES[[p]]] <- p
-  pct <- function(x) { x <- x[!is.na(x)]; if (!length(x)) NA else round(100 * mean(x == "ja"), 1) }
-  do.call(rbind, lapply(definities, function(def) {
-    cfg <- ACUUT_ELECTIEF; cfg$voorrang <- def
-    gr <- as.character(maak_acuut_electief(df_alle, cfg)$data$acuut_electief)
-    sel <- expand.grid(periode = c(names(PERIODES), "alle jaren"), groep = unname(cfg$labels),
-                       stringsAsFactors = FALSE)
-    do.call(rbind, lapply(seq_len(nrow(sel)), function(i) {
-      rij <- gr %in% sel$groep[i] & (sel$periode[i] == "alle jaren" | periode %in% sel$periode[i])
-      data.frame(definitie = def, groep = sel$groep[i], periode = sel$periode[i], n = sum(rij),
-                 ziekenhuismortaliteit_pct = pct(df_alle$overleden_zh[rij]),
-                 mortaliteit_30d_pct = pct(df_alle$overl30d[rij]))
-    }))
-  }))
+# SENSITIVITEIT: onafhankelijk van de primaire combinatie urgentie/pathologie.
+# Dit is een URGENTIE-only indeling; GEEN categorieen voor chronische dissectie
+# of overige pathologie. Alle oorspronkelijke pathologiekolommen blijven wel
+# ongewijzigd beschikbaar in het bronbestand en in de primaire indeling.
+maak_urgentie_sens <- function(df, kolom = ACUUT_ELECTIEF$urgentie_kolom) {
+  if (!kolom %in% names(df)) stop("Urgentiekolom niet gevonden: ", kolom)
+  u <- suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(df[[kolom]]))))
+  g <- rep(NA_character_, length(u))
+  g[u %in% 10] <- "electief (10)"
+  g[u %in% 20] <- "urgent (20)"
+  g[u %in% c(30, 40)] <- "spoed/redding (30/40)"
+  df[[URGENTIE_SENS_KOLOM]] <- factor(
+    g, levels = c("electief (10)", "urgent (20)", "spoed/redding (30/40)"))
+  df
+}
+
+# Tabel met per jaar / periode alle drie urgentiegroepen, plus niet-codeerbaar.
+# Rijen buiten 10/20/30/40 blijven in de noemer voor volledigheidscontrole.
+overzicht_urgentie_sens <- function(df) {
+  if (!URGENTIE_SENS_KOLOM %in% names(df)) stop("Maak eerst urgentie_sens aan")
+  u <- as.character(df[[URGENTIE_SENS_KOLOM]])
+  u[is.na(u)] <- "onbekende/andere urgentie"
+  p <- as.character(df[["acuut_electief"]]); p[is.na(p)] <- "niet ingedeeld"
+  jaar <- suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]])))
+  periode <- rep(NA_character_, nrow(df))
+  for (naam in names(PERIODES)) periode[jaar %in% PERIODES[[naam]]] <- naam
+  periode[is.na(periode)] <- "buiten periodes/onbekend jaar"
+  mortaliteit <- function(x) {
+    v <- as.character(x)
+    v <- v[!is.na(v)]
+    if (!length(v)) return(NA_real_)
+    round(100 * mean(v == "ja"), 1)
+  }
+  groepen <- c(levels(df[[URGENTIE_SENS_KOLOM]]), "onbekende/andere urgentie")
+  periodes <- c("alle jaren", names(PERIODES))
+  overzicht <- do.call(rbind, lapply(periodes, function(per) do.call(rbind, lapply(groepen, function(gr) {
+    sel <- u == gr & (per == "alle jaren" | periode == per)
+    data.frame(definitie = "urgentie uitsluitend", periode = per, groep = gr, n = sum(sel),
+               ziekenhuismortaliteit_pct = mortaliteit(df$overleden_zh[sel]),
+               mortaliteit_30d_pct = mortaliteit(df$overl30d[sel]))
+  }))))
+  kruistabel <- as.data.frame(table(
+    primaire_indeling = p,
+    gevoeligheid_urgentie = factor(u, levels = groepen)), responseName = "n")
+  kruistabel <- kruistabel[kruistabel$n > 0, , drop = FALSE]
+  jaar_telling <- as.data.frame(table(
+    jaar = ifelse(is.na(jaar), "onbekend", as.character(jaar)),
+    urgentiegroep = factor(u, levels = groepen)), responseName = "n")
+  jaar_telling <- jaar_telling[jaar_telling$n >= 0, , drop = FALSE]
+  list(overzicht = overzicht, kruistabel = kruistabel, per_jaar = jaar_telling)
 }

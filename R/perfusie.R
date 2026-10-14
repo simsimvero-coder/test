@@ -8,7 +8,7 @@
 #      toets of de trend tussen centra verschilt (LRT, 50:50-mengverdeling)
 #   3. Centrum-fixed-effects met CR2 cluster-robuuste SE en Satterthwaite-df
 #   4. Lineariteit: lineair vs. natural spline (3 df) voor jaar (LRT, ML)
-#   5. Alles apart voor acuut en electief, zonder correctie voor urgentie
+#   5. Alles apart voor acuut en electief, ONGEcorrigeerd + vier covariaten
 #      (gepoold "Totaal" alleen als ANALYSE_TOTAAL = TRUE)
 #   6. Gevoeligheidsanalyse: alleen centrum-jaren met >= TEMP_MIN_COMPLEET compleet
 #   7. Landelijke trend (marginaal, zonder centrumcorrectie, CR2 geclusterd op
@@ -51,6 +51,7 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
       df[[kol]] %in% "ja"
     } else rep(NA, nrow(df))
   )
+  basis <- voeg_modelcovariaten_toe(basis, df)
   basis <- basis[!is.na(basis$jaar) & !is.na(basis$.centrum), ]
   jaar_midden <- round(mean(basis$jaar))
   basis$jaar_c <- basis$jaar - jaar_midden
@@ -76,10 +77,11 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
   }
   ontbr_matrix <- matrix_compleet(populaties[["met circulatiestilstand"]])
 
-  # ── Modellen ───────────────────────────────────────────────────────────────
+  # ── Modellen: steeds eerst ongecorrigeerd, daarna gecorrigeerd ─────────────
   rij <- function(pop, g, model, d, est = NA, lo = NA, hi = NA, p = NA, sd_slope = NA,
                   p_extra = NA, extra_label = "", icc = NA)
-    data.frame(populatie = pop, groep = g, model = model, n = nrow(d),
+    data.frame(populatie = pop, groep = g,
+               correctie = corr_status, model = model, n = nrow(d),
                n_centra = length(unique(d$.centrum)), verandering_per_jaar = round(est, 3),
                BI95_onder = round(lo, 3), BI95_boven = round(hi, 3), p = fmt_p(p),
                SD_slope_tussen_centra = round(sd_slope, 3),
@@ -91,11 +93,11 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
                                                    t["Value"] + q * t["Std.Error"], t["p-value"]) }
 
   model_ri <- function(d, pop, g) tryCatch({
-    m <- nlme::lme(y ~ jaar_c, random = ~ 1 | .centrum, data = d, method = "REML")
+    m <- nlme::lme(cov_formule("y", "jaar_c", gecorrigeerd), random = ~ 1 | .centrum, data = d, method = "REML")
     r <- t_ci(summary(m)$tTable["jaar_c", ])
     # Lineariteit: lineair vs. natural spline (ML)
-    m_lin <- nlme::lme(y ~ jaar_c, random = ~ 1 | .centrum, data = d, method = "ML")
-    m_spl <- nlme::lme(y ~ splines::ns(jaar_c, df = 3), random = ~ 1 | .centrum, data = d, method = "ML")
+    m_lin <- nlme::lme(cov_formule("y", "jaar_c", gecorrigeerd), random = ~ 1 | .centrum, data = d, method = "ML")
+    m_spl <- nlme::lme(cov_formule("y", "splines::ns(jaar_c, df = 3)", gecorrigeerd), random = ~ 1 | .centrum, data = d, method = "ML")
     p_lin <- anova(m_lin, m_spl)[["p-value"]][2]
     vc <- as.numeric(nlme::VarCorr(m)[, "Variance"])
     rij(pop, g, "random intercept (centrum)", d, r[1], r[2], r[3], r[4],
@@ -103,7 +105,7 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
   }, error = function(e) rij(pop, g, paste("random intercept - mislukt:", conditionMessage(e)), d))
 
   model_rs <- function(d, pop, g, label = "random slope (trend per centrum)") tryCatch({
-    f <- y ~ jaar_c
+    f <- cov_formule("y", "jaar_c", gecorrigeerd)
     m <- nlme::lme(f, random = ~ 1 + jaar_c | .centrum, data = d, method = "REML", control = lme_ctrl)
     m0 <- nlme::lme(f, random = ~ 1 | .centrum, data = d, method = "REML")
     r <- t_ci(summary(m)$tTable["jaar_c", ])
@@ -116,7 +118,7 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
   model_cr2 <- function(d, pop, g, label = "centrum fixed effects, CR2 (Satterthwaite)") {
     if (!heeft_cs) return(rij(pop, g, paste(label, "- clubSandwich ontbreekt"), d))
     tryCatch({
-      m <- lm(y ~ jaar + .centrum, data = d)
+      m <- lm(cov_formule("y", "jaar", gecorrigeerd, ".centrum"), data = d)
       r <- cr2_jaar(m, d$.centrum)
       rij(pop, g, label, d, r[1], r[2], r[3], r[4])
     }, error = function(e) rij(pop, g, paste(label, "- mislukt:", conditionMessage(e)), d))
@@ -133,9 +135,9 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
     tryCatch({
       d$.gem_centrum <- ave(d$y, d$.centrum)
       d$.binnen <- d$y - d$.gem_centrum
-      r1 <- cr2_slope(y ~ jaar, d)
-      r2 <- cr2_slope(.binnen ~ jaar, d)
-      r3 <- cr2_slope(.gem_centrum ~ jaar, d)
+      r1 <- cr2_slope(cov_formule("y", "jaar", gecorrigeerd), d)
+      r2 <- cr2_slope(cov_formule(".binnen", "jaar", gecorrigeerd), d)
+      r3 <- cr2_slope(cov_formule(".gem_centrum", "jaar", gecorrigeerd), d)
       rbind(rij(pop, g, labels[1], d, r1[1], r1[2], r1[3], r1[4]),
             rij(pop, g, labels[2], d, r2[1], r2[2], r2[3], r2[4]),
             rij(pop, g, labels[3], d, r3[1], r3[2], r3[3], r3[4]))
@@ -150,11 +152,18 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
     goed <- names(compleet)[compleet >= TEMP_MIN_COMPLEET]
     subsets <- split(dp, dp$groep)
     if (ANALYSE_TOTAAL || length(subsets) < 2) subsets[["Totaal"]] <- dp
-    for (g in names(subsets)) {
-      d <- droplevels(subsets[[g]][!is.na(subsets[[g]]$y), ])
-      if (nrow(d) < 20 || nlevels(d$.centrum) < 3) next
-      d_s <- droplevels(d[paste(d$.centrum, d$jaar) %in% goed, ])
-      cat(sprintf("   temperatuurmodellen: %s, %s (n = %d) ...\n", pop, g, nrow(d)))
+    for (g in names(subsets)) for (gecorrigeerd in c(FALSE, TRUE)) {
+      corr_status <- if (gecorrigeerd) "gecorrigeerd" else "ongecorrigeerd"
+      d <- droplevels(subsets[[g]][!is.na(subsets[[g]]$y), , drop = FALSE])
+      if (gecorrigeerd) d <- modelgevallen(d, "y")
+      if (nrow(d) < 20 || nlevels(d$.centrum) < 3) {
+        modellen[[length(modellen) + 1]] <- rij(pop, g,
+          "niet geschat (te weinig complete observaties / centra)", d)
+        next
+      }
+      d_s <- droplevels(d[paste(d$.centrum, d$jaar) %in% goed, , drop = FALSE])
+      cat(sprintf("   temperatuurmodellen: %s, %s, %s (n = %d) ...\n",
+                  pop, g, corr_status, nrow(d)))
       flush.console()
       zelfde <- nrow(d_s) == nrow(d)
       gevoelig <- if (zelfde) {
@@ -171,7 +180,7 @@ perfusie_analyse <- function(df, groep = GROEP, uitkomst = TREND_TEMPERATUUR,
         gevoelig
       )
       # Trend per centrum: eigen lineaire regressie (met 95%-BI) en BLUP uit random-slope-model
-      {
+      if (!gecorrigeerd) {
         blup <- tryCatch({
           m <- nlme::lme(y ~ jaar_c, random = ~ 1 + jaar_c | .centrum, data = d, method = "REML", control = lme_ctrl)
           setNames(coef(m)[, "jaar_c"], rownames(coef(m)))
@@ -222,9 +231,11 @@ fig_temperatuur_centra <- function(pa, map, populatie = "met circulatiestilstand
     d <- pa$centra[pa$centra$populatie == populatie & pa$centra$groep == g & !is.na(pa$centra$trend_eigen), ]
     if (!nrow(d)) next
     rs <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == g &
-                        pa$modellen$model == "GEMIDDELDE trend binnen centra: random slope (trend per centrum)", ]
+                        pa$modellen$model == "GEMIDDELDE trend binnen centra: random slope (trend per centrum)" &
+                        pa$modellen$correctie == "ongecorrigeerd", ]
     land <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == g &
-                          grepl("^LANDELIJKE", pa$modellen$model), ]
+                          grepl("^LANDELIJKE", pa$modellen$model) &
+                          pa$modellen$correctie == "ongecorrigeerd", ]
     d$centrum <- factor(d$centrum, levels = d$centrum[order(d$trend_eigen)])
     p <- ggplot(d, aes(trend_eigen, centrum)) +
       geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
@@ -233,7 +244,7 @@ fig_temperatuur_centra <- function(pa, map, populatie = "met circulatiestilstand
       geom_point(aes(size = n), colour = KLEUR) +
       geom_point(aes(x = trend_random_slope_BLUP), shape = 4, size = 2.5, colour = "#C0392B") +
       labs(title = paste("Trend in minimale temperatuur per centrum -", g),
-           subtitle = paste0(populatie, "; punt + 95%-BI = eigen regressie per centrum, x = schatting random-slope-model",
+           subtitle = paste0(populatie, "; landelijke en centrumlijnen ongecorrigeerd; punt + 95%-BI = eigen regressie per centrum, x = schatting random-slope-model",
                              if (nrow(land)) sprintf("\nrode lijn = landelijke trend %.3f °C/jaar (95%%-BI %.3f tot %.3f, p = %s)",
                                                      land$verandering_per_jaar, land$BI95_onder, land$BI95_boven, land$p),
                              if (nrow(rs)) sprintf("\nSD trend tussen centra %.3f; 95%%-voorspellingsinterval %s; p (verschil tussen centra) = %s",
@@ -257,7 +268,8 @@ fig_temperatuur_per_centrum_jaar <- function(pa, map, populatie = "met circulati
     }
     if (!nrow(d)) next
     land <- pa$modellen[pa$modellen$populatie == populatie & pa$modellen$groep == g &
-                          grepl("^LANDELIJKE", pa$modellen$model), ]
+                          grepl("^LANDELIJKE", pa$modellen$model) &
+                          pa$modellen$correctie == "ongecorrigeerd", ]
     c_tab <- pa$centra[pa$centra$populatie == populatie & pa$centra$groep == g, ]
     d <- d[d$centrum %in% c_tab$centrum, ]
     d$centrum <- factor(d$centrum, levels = c_tab$centrum[order(-c_tab$trend_eigen)])
@@ -273,7 +285,7 @@ fig_temperatuur_per_centrum_jaar <- function(pa, map, populatie = "met circulati
       scale_size_area(max_size = 3, guide = "none") +
       scale_x_continuous(breaks = function(l) seq(ceiling(l[1]), floor(l[2]), 2)) +
       labs(title = paste("Minimale temperatuur per centrum over de jaren -", g),
-           subtitle = paste0(populatie, "; punten = jaarmediaan (grootte = n), blauwe lijn = eigen trend van het centrum",
+           subtitle = paste0(populatie, "; landelijke en centrumlijnen ongecorrigeerd; punten = jaarmediaan (grootte = n), blauwe lijn = eigen trend van het centrum",
                              if (nrow(land)) sprintf("\nrode lijn = landelijke trend %.3f °C/jaar (95%%-BI %.3f tot %.3f, p = %s)",
                                                      land$verandering_per_jaar, land$BI95_onder, land$BI95_boven, land$p)),
            x = NULL, y = "Mediane minimale temperatuur (°C)") + thema
