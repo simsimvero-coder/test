@@ -38,8 +38,8 @@ in deze paper.
   Er zijn geen extra diagnostische groepen voor chronische dissectie of overige
   pathologie toegevoegd.
 - **Nieuwe gevoeligheidsanalyse op alléén urgentie**: code 10 = electief;
-  code 20 = urgent (eigen groep); codes 30/40 = spoed/redding. De analyse
-  vergelijkt rechtstreeks electief met spoed/redding, terwijl urgent afzonderlijk
+  code 20 = urgent (eigen groep); codes 30/40 = acuut. De analyse
+  vergelijkt rechtstreeks electief met acuut (30/40), terwijl urgent afzonderlijk
   wordt beschreven en gemodelleerd, ongecorrigeerd en gecorrigeerd.
   De gevoeligheid start vanaf `df_alle`, dus vóór uitsluiting op primaire groepsindeling.
 - Nieuw: `output/gevoeligheid_urgentie.xlsx` en apart

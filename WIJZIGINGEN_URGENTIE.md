@@ -12,7 +12,7 @@ als in het originele project. Dat blijft de basis voor `resultaten.xlsx`.
 - Urgentie **10**: `electief (10)`.
 - Urgentie **20**: `urgent (20)`, als eigen groep; deze wordt dus nooit bij
   electief gevoegd.
-- Urgentie **30 en 40**: `spoed/redding (30/40)`.
+- Urgentie **30 en 40**: `acuut (30/40)`.
 - Andere/ontbrekende urgentie: geen gevoeligheidsgroep; wel apart geteld.
 
 De gevoeligheidsanalyse gebruikt **niet** de pathologiecodes voor de
@@ -29,7 +29,7 @@ De uitkomsten zijn gescheiden:
   vergelijking, urgent apart, uitkomsttrends, periodes, Cox- en KM-overleving,
   temperatuurtrends, centrumvariatie en opnameduur.
 - `output/figuren_urgentie/kaplan_meier.png`: overleving voor electief
-  versus spoed/redding op basis van urgentie.
+  versus acuut (30/40) op basis van urgentie.
 
 Bij patiëntgebonden regressies wordt eerst ongecorrigeerd en vervolgens
 gecorrigeerd voor leeftijd, geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`),
@@ -42,7 +42,7 @@ De gevoeligheidsanalyse werkt vanaf het gehele **geïncludeerde cohort**
 want anders zouden patiënten met een bruikbare urgentie maar zonder primaire
 classificatie ten onrechte verdwijnen uit de gevoeligheidsgroep.
 
-In de directe vergelijking spoed/redding versus electief wordt EuroSCORE II
+In de directe vergelijking acuut (30/40) versus electief wordt EuroSCORE II
 niet als covariaat gebruikt: urgentie is een onderdeel van EuroSCORE II.
 
 **Tests:** `tests/smoke_test.R` bevat extra tests met synthetische

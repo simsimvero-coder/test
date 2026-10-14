@@ -54,7 +54,7 @@ ACUUT_ELECTIEF <- list(
 # PRIMAIRE ANALYSE: deze originele combinatie blijft ongewijzigd.
 # Aanvullende analyse in een AFZONDERLIJK Excelbestand:
 #   urgentie 10 = electief; urgentie 20 = urgent, apart;
-#   urgentie 30/40 = spoed/redding. Geen aanvullende pathologiegroepen.
+#   urgentie 30/40 = acuut. Geen aanvullende pathologiegroepen.
 # Onbekende/andere urgentie blijft NA voor de gevoeligheidsanalyse.
 URGENTIE_SENS_ACTIEF <- TRUE
 URGENTIE_SENS_KOLOM <- "urgentie_sens"
@@ -259,10 +259,14 @@ UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
 # Gevoeligheidsanalyse: dezelfde modellen, gecorrigeerd voor EuroSCORE II.
 # Alleen EuroSCORE II, omdat leeftijd, geslacht en eerdere cardiochirurgie daar
 # al in zitten (anders dubbele correctie). Uitvoer: gevoeligheid_euroscore.xlsx.
-# NULL = overslaan. In de directe vergelijking spoed/redding vs electief
+# NULL = overslaan. In de directe vergelijking acuut (30/40) vs electief
 # (urgentie-gevoeligheidsanalyse) wordt EuroSCORE II altijd weggelaten, omdat
 # urgentie een onderdeel van EuroSCORE II is.
 GEVOELIGHEID_EUROSCORE_COVARIATEN <- c("EuroscoreII")
+# Alleen jaren waarin EuroSCORE II vrijwel compleet is geregistreerd (vanaf 2018
+# ontbreekt het bij <= 13% van de patiënten; in 2013-2017 bij 27-82%). In de
+# vroege jaren zou een complete-case-analyse een selectie van patiënten zijn.
+GEVOELIGHEID_EUROSCORE_JAREN <- 2018:2024
 PERFUSIE_COVARIATEN <- UITKOMST_COVARIATEN
 OVERLEVING_COVARIATEN <- UITKOMST_COVARIATEN
 

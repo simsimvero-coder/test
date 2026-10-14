@@ -162,9 +162,9 @@ maak_urgentie_sens <- function(df, kolom = ACUUT_ELECTIEF$urgentie_kolom) {
   g <- rep(NA_character_, length(u))
   g[u %in% 10] <- "electief (10)"
   g[u %in% 20] <- "urgent (20)"
-  g[u %in% c(30, 40)] <- "spoed/redding (30/40)"
+  g[u %in% c(30, 40)] <- "acuut (30/40)"
   df[[URGENTIE_SENS_KOLOM]] <- factor(
-    g, levels = c("electief (10)", "urgent (20)", "spoed/redding (30/40)"))
+    g, levels = c("electief (10)", "urgent (20)", "acuut (30/40)"))
   df
 }
 

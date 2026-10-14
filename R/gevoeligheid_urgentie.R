@@ -1,18 +1,18 @@
 # =============================================================================
 # Gevoeligheidsanalyse op basis van alléén urgentie (ONAFHANKELIJK van pathologie)
-# 10 electief; 20 urgent (APART); 30/40 spoed/redding.
+# 10 electief; 20 urgent (APART); 30/40 acuut.
 # 10 versus 30/40 wordt als afzonderlijke tweegroepsvergelijking onderzocht.
 # Geen extra groepen voor chronische dissectie of overige pathologie.
 # =============================================================================
 
-# Directe vergelijking: spoed/redding versus electief, niet versus urgent.
+# Directe vergelijking: acuut (30/40) versus electief, niet versus urgent.
 # Een centrumintercept in beide logistische modellen; de patiëntcovariaten
 # alléén in het gecorrigeerde model, ZONDER EuroSCORE II: urgentie is een
 # onderdeel van EuroSCORE II, dus correctie daarvoor zou het te vergelijken
 # verschil (deels) wegcorrigeren.
 vergelijk_urgentie_es <- function(d) {
   if (!all(c("urgentie_sens", CENTRUM_KOLOM) %in% names(d))) return(NULL)
-  d$spoed <- as.integer(as.character(d$urgentie_sens) == "spoed/redding (30/40)")
+  d$spoed <- as.integer(as.character(d$urgentie_sens) == "acuut (30/40)")
   d$.centrum <- factor(d[[CENTRUM_KOLOM]])
   d <- voeg_modelcovariaten_toe(d, d)
   tijd <- if (OVERLEVING_TIJD %in% names(d)) d[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(d))
@@ -43,7 +43,7 @@ vergelijk_urgentie_es <- function(d) {
         }
       }
       res[[length(res) + 1]] <- data.frame(
-        uitkomst = label, vergelijking = "spoed/redding (30/40) vs electief (10)",
+        uitkomst = label, vergelijking = "acuut (30/40) vs electief (10)",
         model = if (adj) "gecorrigeerd" else "ongecorrigeerd",
         n = nrow(x), events = sum(x$y), OR = round(est, 3),
         BI95_onder = round(ci1, 3), BI95_boven = round(ci2, 3),
@@ -58,7 +58,7 @@ vergelijk_urgentie_es <- function(d) {
 # centrumintercept. Geen causale interpretatie van de vergelijking.
 vergelijk_urgentie_temp <- function(d) {
   if (!all(c("min_temp", "urgentie_sens", CENTRUM_KOLOM) %in% names(d))) return(NULL)
-  d$spoed <- as.integer(as.character(d$urgentie_sens) == "spoed/redding (30/40)")
+  d$spoed <- as.integer(as.character(d$urgentie_sens) == "acuut (30/40)")
   d$.centrum <- factor(d[[CENTRUM_KOLOM]])
   d$y <- d$min_temp
   d <- voeg_modelcovariaten_toe(d, d)
@@ -89,7 +89,7 @@ vergelijk_urgentie_temp <- function(d) {
       }
       res[[length(res) + 1]] <- data.frame(
         populatie = pop,
-        vergelijking = "spoed/redding (30/40) vs electief (10)",
+        vergelijking = "acuut (30/40) vs electief (10)",
         model = if (adj) "gecorrigeerd" else "ongecorrigeerd",
         n = nrow(x), verschil_C = round(eff, 3), BI95_onder = round(onder, 3),
         BI95_boven = round(boven, 3), p = fmt_p(pv), model_status = status)
@@ -102,7 +102,7 @@ analyse_urgentie_gevoeligheid <- function(df_alle, map = UITVOER_MAP) {
   g <- URGENTIE_SENS_KOLOM
   label_e <- "electief (10)"
   label_u <- "urgent (20)"
-  label_s <- "spoed/redding (30/40)"
+  label_s <- "acuut (30/40)"
 
   # Cruciaal: vertrek van df_alle vóór selectie op de *primaire* groepsdefinitie.
   # Anders raakt men ongezien geldige urgentiegevallen kwijt.
@@ -116,11 +116,11 @@ analyse_urgentie_gevoeligheid <- function(df_alle, map = UITVOER_MAP) {
           sum(as.character(df_alle[[g]]) == label_s, na.rm = TRUE),
           sum(is.na(df_alle[[g]])), nrow(df_alle)))
 
-  # Toets electief vs spoed/redding; urgent blijft afzonderlijk zichtbaar in
+  # Toets electief vs acuut (30/40); urgent blijft afzonderlijk zichtbaar in
   # de driedelige analyses en wordt nooit samengevoegd met electief.
   # Voorkom onduidelijke foutmeldingen in zeer kleine datasets.
   if (!all(c(label_e, label_s) %in% as.character(d_es[[g]]))) {
-    warning("Urgentiegevoeligheid: onvoldoende electieve of spoed/redding-patiënten. ",
+    warning("Urgentiegevoeligheid: onvoldoende electieve of acute (30/40) patiënten. ",
             "Alleen de indelingstabellen zijn beschikbaar.")
     return(list(aantallen = aantallen, onderdelen = list()))
   }
@@ -143,12 +143,12 @@ analyse_urgentie_gevoeligheid <- function(df_alle, map = UITVOER_MAP) {
     NULL
   })
   tr3 <- veilig("trends drie urgentiegroepen", function() trendanalyse(d, g))
-  tr_es <- veilig("trendverschil electief vs spoed/redding", function() trendanalyse(d_es, g))
+  tr_es <- veilig("trendverschil electief vs acuut (30/40)", function() trendanalyse(d_es, g))
   ut <- veilig("klinische uitkomsttrends", function() uitkomst_trends(d, g))
   per_mod <- veilig("periode-uitkomsten", function() periode_uitkomstmodellen(d, g))
   cox <- veilig("Cox overleving", function() overleving_cox_trend(d, g))
   km <- veilig("Kaplan-Meier drie urgentiegroepen", function() overleving(d, g))
-  km_es <- veilig("Kaplan-Meier electief vs spoed/redding", function() overleving(d_es, g))
+  km_es <- veilig("Kaplan-Meier electief vs acuut (30/40)", function() overleving(d_es, g))
   perf <- veilig("perfusie en temperatuur", function() perfusie_analyse(d, g))
   los <- veilig("opnameduur", function() opnameduur_analyse(d, g))
   variatie <- veilig("centrumverschillen perfusie", function() centrum_variatie(d, g))

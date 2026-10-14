@@ -56,8 +56,8 @@ stopifnot(identical(as.character(sens$acuut_electief[2]), "electief aneurysma"))
 stopifnot(identical(as.character(sens$acuut_electief[3]), "acuut"))
 stopifnot(identical(as.character(sens$acuut_electief[5]), "acuut"))
 stopifnot(identical(as.character(sens$urgentie_sens[1:4]),
-                    c("electief (10)", "urgent (20)", "spoed/redding (30/40)",
-                      "spoed/redding (30/40)")))
+                    c("electief (10)", "urgent (20)", "acuut (30/40)",
+                      "acuut (30/40)")))
 stopifnot(all(is.na(sens$urgentie_sens[5:6])))
 summ <- overzicht_urgentie_sens(sens)
 stopifnot(sum(summ$overzicht$n[summ$overzicht$periode == "alle jaren"]) == 6L)
@@ -68,6 +68,6 @@ D$urgentie <- factor(sample(c("10 electief", "20 urgent", "30 spoed", "40 reddin
 D <- maak_urgentie_sens(D)
 stopifnot(nlevels(D$urgentie_sens) == 3L)
 stopifnot(sum(D$urgentie_sens == "urgent (20)", na.rm = TRUE) > 0)
-stopifnot(sum(as.character(D$urgentie_sens) %in% c("electief (10)", "spoed/redding (30/40)")) +
+stopifnot(sum(as.character(D$urgentie_sens) %in% c("electief (10)", "acuut (30/40)")) +
           sum(D$urgentie_sens == "urgent (20)", na.rm = TRUE) == n)
 cat("Urgentie-gebaseerde gevoeligheidsindeling gecontroleerd (synthetische data).\n")

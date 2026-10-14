@@ -129,18 +129,24 @@ bm <- benchmark_centra(df, GROEP)
 # Gevoeligheidsanalyse: dezelfde patiëntgebonden modellen, gecorrigeerd voor EuroSCORE II
 sens_es <- NULL
 if (length(GEVOELIGHEID_EUROSCORE_COVARIATEN)) {
-  cat("   Gevoeligheidsanalyse: correctie voor", paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "), "\n")
+  es_jaren <- if (length(GEVOELIGHEID_EUROSCORE_JAREN)) GEVOELIGHEID_EUROSCORE_JAREN else
+    sort(unique(suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]])))))
+  df_es <- df[suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))) %in% es_jaren, ]
+  es_periode <- sprintf("%d-%d", min(es_jaren), max(es_jaren))
+  cat("   Gevoeligheidsanalyse: correctie voor", paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "),
+      "- jaren", es_periode, "(n =", nrow(df_es), ")\n")
   flush.console()
+  # Periodevergelijking 2013-2018 vs 2019-2024 kan niet binnen deze jaren; wordt overgeslagen.
   sens_es <- met_covariaten(GEVOELIGHEID_EUROSCORE_COVARIATEN, list(
-    "Uitkomst - trends" = uitkomst_trends(df, GROEP),
-    "Trend - toetsen" = trendanalyse(df, GROEP)$toetsen,
-    "Periode uitkomstmodellen" = periode_uitkomstmodellen(df, GROEP),
-    "Overleving - Cox per groep" = overleving_cox_trend(df, GROEP)))
+    "Uitkomst - trends" = uitkomst_trends(df_es, GROEP),
+    "Trend - toetsen" = trendanalyse(df_es, GROEP)$toetsen,
+    "Overleving - Cox per groep" = overleving_cox_trend(df_es, GROEP)))
   sens_es <- c(list("Toelichting" = data.frame(toelichting = c(
     paste0("Gevoeligheidsanalyse: in de kolommen 'gecorrigeerd' is gecorrigeerd voor ",
            paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "), " in plaats van ",
            paste(UITKOMST_COVARIATEN, collapse = ", "), "."),
-    "Ongecorrigeerde kolommen zijn gelijk aan de primaire analyse."))),
+    paste0("Alleen operaties uit ", es_periode, " (EuroSCORE II vrijwel compleet); n = ", nrow(df_es), "."),
+    "De ongecorrigeerde kolommen gaan over dezelfde jaren (vergelijk die met de gecorrigeerde kolommen)."))),
     Filter(Negate(is.null), sens_es))
   writexl::write_xlsx(sens_es, file.path(UITVOER_MAP, "gevoeligheid_euroscore.xlsx"))
 }
@@ -253,10 +259,10 @@ print(cv$zonder_met, row.names = FALSE)
 cat("\nUitkomsttrends - OR per kalenderjaar (", attr(ut, "noot"), ")\n", sep = "")
 print(ut, row.names = FALSE)
 if (!is.null(sens_es)) {
-  cat("\nGevoeligheidsanalyse - uitkomsttrends gecorrigeerd voor ",
+  cat("\nGevoeligheidsanalyse - uitkomsttrends ", es_periode, ", ongecorrigeerd en gecorrigeerd voor ",
       paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "), " (volledig in gevoeligheid_euroscore.xlsx)\n", sep = "")
   u <- sens_es[["Uitkomst - trends"]]
-  print(u[, intersect(c("groep", "uitkomst", "n_gecorrigeerd", "events_gecorrigeerd", "OR_gecorrigeerd",
+  print(u[, intersect(c("groep", "uitkomst", "n_ongecorrigeerd", "OR_ongecorrigeerd", "p_ongecorrigeerd", "n_gecorrigeerd", "events_gecorrigeerd", "OR_gecorrigeerd",
                         "BI95_gecorrigeerd", "p_gecorrigeerd", "q_BH_gecorrigeerd", "OR_CR2_gecorrigeerd",
                         "BI95_CR2_gecorrigeerd", "p_CR2_gecorrigeerd"), names(u))], row.names = FALSE)
 }
@@ -279,7 +285,7 @@ print(tr$toetsen[c("maat", "groep", "n", "effectmaat", "schatting", "BI_onder", 
 # Gevoeligheidsanalyse afzonderlijk van de primaire uitkomsten uitvoeren,
 # na de primaire export: dezelfde patiëntenbasis, ANDERE groepdefinitie.
 if (URGENTIE_SENS_ACTIEF) {
-  cat("\n5. Gevoeligheidsanalyse uitsluitend op urgentie: electief (10), urgent (20), spoed/redding (30/40)\n")
+  cat("\n5. Gevoeligheidsanalyse uitsluitend op urgentie: electief (10), urgent (20), acuut (30/40)\n")
   sens_res <- analyse_urgentie_gevoeligheid(df_alle, UITVOER_MAP)
   print(sens_res$aantallen, row.names = FALSE)
 }
