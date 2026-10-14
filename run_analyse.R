@@ -125,6 +125,9 @@ rs <- relatieve_overleving(df, GROEP)
 smr <- smr_analyse(df, GROEP)
 bm <- benchmark_centra(df, GROEP)
 au <- arrest_uitkomsten(df, GROEP)
+cat("   Mediatieanalyse nierfalen (bootstrap) - kan enkele minuten duren\n"); flush.console()
+med <- mediatie_nierfalen(df, GROEP)
+cva_tab <- tabel_cva(df, GROEP)
 
 # Gevoeligheidsanalyse: dezelfde patiëntgebonden modellen, gecorrigeerd voor EuroSCORE II
 sens_es <- NULL
@@ -165,7 +168,7 @@ excel <- c(
        "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
        "Temp zonder vs met arrest" = cv$zonder_met, "Opnameduur" = los,
-       "Relatieve overleving" = rs, "SMR" = smr, "Benchmark - funnel" = bm, "Arrest - uitkomsten" = au,
+       "Relatieve overleving" = rs, "SMR" = smr, "Benchmark - funnel" = bm, "Arrest - uitkomsten" = au, "Arrest - mediatie nierfalen" = med,
        "Temp - categorie alle" = pa$categorieen[["alle procedures"]],
        "Temp - categorie met arrest" = pa$categorieen[["met circulatiestilstand"]], "Temp - ontbrekend per jaar" = pa$ontbrekend_jaar,
        "Temp - ontbrekend per centrum" = pa$ontbrekend_centrum,
@@ -176,6 +179,7 @@ excel <- c(
        "Trend - percentages" = tr$pct, "Trend - temperatuur" = tr$temp,
        "Overleving - Cox per groep" = cox, "Ontbrekende waarden" = ontbr)
 )
+excel <- c(excel, setNames(cva_tab, substr(names(cva_tab), 1, 31)))
 excel <- excel[!sapply(excel, is.null)]
 writexl::write_xlsx(excel, file.path(UITVOER_MAP, "resultaten.xlsx"))
 write.csv(df, file.path(UITVOER_MAP, "analyse_data.csv"), row.names = FALSE, na = "")
@@ -264,7 +268,8 @@ if (!is.null(sens_es)) {
                         "BI95_CR2_gecorrigeerd", "p_CR2_gecorrigeerd"), names(u))], row.names = FALSE)
 }
 cat("\nCirculatiestilstand en uitkomsten (exploratief; gecorrigeerd voor ", paste(UITKOMST_COVARIATEN, collapse = ", "), ")\n", sep = "")
-print(au[au$correctie == "gecorrigeerd", c("groep", "blootstelling", "uitkomst", "n", "ruw_met_vs_zonder", "effectmaat", "schatting", "BI95", "p", "schatting_CR2", "BI95_CR2", "p_CR2")], row.names = FALSE)
+print(au[au$correctie != "ongecorrigeerd", c("groep", "blootstelling", "uitkomst", "correctie", "n", "ruw_met_vs_zonder", "effectmaat", "schatting", "BI95", "p", "schatting_CR2", "p_CR2")], row.names = FALSE)
+if (!is.null(med)) { cat("\nMediatie: duur circulatiestilstand (+10 min) -> nierfalen -> mortaliteit (risicoverschil in procentpunten)\n"); print(med, row.names = FALSE) }
 cat("\nOpnameduur (ratio per jaar = geometrische verandering)\n")
 print(los, row.names = FALSE)
 if (!is.null(rs)) { cat("\nKaplan-Meier en relatieve overleving (Ederer II)\n"); print(rs, row.names = FALSE) }

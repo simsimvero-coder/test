@@ -4,22 +4,31 @@
 # Apart voor acuut en electief. Twee blootstellingen:
 #   1. circulatiestilstand ja vs nee (alle patiënten)
 #   2. duur van de circulatiestilstand per 10 minuten (alleen bij stilstand)
-# Uitkomsten: nierfalen, GI-complicatie, ziekenhuis-, 30-dagen- en
-# 1-jaarsmortaliteit (logistisch, OR) en opnameduur (log-lineair, ratio).
-# Modellen: random intercept per centrum, ongecorrigeerd en gecorrigeerd voor
-# UITKOMST_COVARIATEN (leeftijd, geslacht, eerdere cardiochirurgie);
-# gevoeligheid: centrum fixed effects met CR2.
+# Uitkomsten: nierfalen, GI-complicatie, CVA met restletsel, CVA (met of zonder
+# restletsel), delier (alleen vanaf DELIER_VANAF_JAAR, eerder niet geregistreerd),
+# ziekenhuis-, 30-dagen- en 1-jaarsmortaliteit (logistisch, OR) en opnameduur
+# (log-lineair, ratio).
+# Modellen: random intercept per centrum; ongecorrigeerd, gecorrigeerd voor
+# UITKOMST_COVARIATEN (leeftijd, geslacht, eerdere cardiochirurgie) en daarnaast
+# ook voor minimale temperatuur; gevoeligheid: centrum fixed effects met CR2.
+# Mediatie: in hoeverre loopt het verband tussen duur en mortaliteit via nierfalen?
 # LET OP: confounding by indication (operatie-uitgebreidheid, ziekte-ernst) is
 # niet uit te sluiten; geen causale interpretatie.
 # =============================================================================
 
-arrest_uitkomsten <- function(df, groep = GROEP) {
+arrest_kern <- function(df, groep = GROEP) {
   heeft_cs <- requireNamespace("clubSandwich", quietly = TRUE)
   tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(df))
   dood <- function(var, fu) mortaliteit_fu(code_positief(df[[var]]), tijd, df[[TREND_JAAR]], fu)
   uitkomsten <- list(
     "Nierfalen" = code_positief(df$nierfalen),
     "Gastro-intestinale complicatie" = code_positief(df$gastroint_compl),
+    "CVA met restletsel" = code_positief(df$CVA_restletsel),
+    "CVA (met of zonder restletsel)" = samengesteld(df, c("CVA_restletsel", "CVA_zonder_restletsel")),
+    "Delier (vanaf registratie)" = {
+      y <- if ("delier" %in% names(df)) code_positief(df$delier) else rep(NA, nrow(df))
+      y[!(suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))) >= DELIER_VANAF_JAAR)] <- NA
+      y },
     "Ziekenhuismortaliteit" = dood("overleden_zh", 0),
     "30-dagenmortaliteit" = dood("overl30d", 30),
     "1-jaarsmortaliteit" = dood("overl1j", 365),
@@ -79,4 +88,83 @@ arrest_uitkomsten <- function(df, groep = GROEP) {
   }
   out <- do.call(rbind, res); rownames(out) <- NULL
   out
+}
+
+arrest_uitkomsten <- function(df, groep = GROEP) {
+  basis <- arrest_kern(df, groep)
+  if (!"min_temp" %in% names(df)) return(basis)
+  # Extra model: ook gecorrigeerd voor minimale temperatuur (patiënten met temperatuur)
+  temp <- met_covariaten(c(UITKOMST_COVARIATEN, "min_temp"),
+                         arrest_kern(df[!is.na(df$min_temp), ], groep))
+  temp <- temp[temp$correctie == "gecorrigeerd", ]
+  temp$correctie <- "gecorrigeerd + temperatuur"
+  out <- rbind(basis, temp)
+  out <- out[order(out$groep, match(out$blootstelling, unique(basis$blootstelling)),
+                   match(out$uitkomst, unique(basis$uitkomst))), ]
+  rownames(out) <- NULL
+  out
+}
+
+# Mediatie door nierfalen (counterfactual, g-formule), alleen bij patiënten met
+# circulatiestilstand. Blootstelling: 10 minuten langere stilstand dan werkelijk.
+# Mediator: nierfalen. Uitkomst: mortaliteit. Logistische modellen met centrum
+# fixed effects en UITKOMST_COVARIATEN; interactie duur x nierfalen toegestaan.
+#   TE  = totaal effect (risicoverschil per 10 min)
+#   NDE = direct effect (niet via nierfalen); NIE = indirect effect via nierfalen
+#   proportie gemedieerd = NIE / TE. 95%-BI met bootstrap (MEDIATIE_BOOTSTRAP).
+# Veronderstelt geen ongemeten confounding van duur-nierfalen-mortaliteit;
+# exploratief.
+mediatie_nierfalen <- function(df, groep = GROEP, B = MEDIATIE_BOOTSTRAP) {
+  tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(df))
+  dood <- function(var, fu) mortaliteit_fu(code_positief(df[[var]]), tijd, df[[TREND_JAAR]], fu)
+  uitk <- list("Ziekenhuismortaliteit" = dood("overleden_zh", 0), "30-dagenmortaliteit" = dood("overl30d", 30),
+               "1-jaarsmortaliteit" = dood("overl1j", 365))
+  basis <- data.frame(groep = as.character(df[[groep]]), .centrum = factor(df[[CENTRUM_KOLOM]]),
+                      a = df$circ_arrest_duur_bij_arrest / 10, m = as.numeric(code_positief(df$nierfalen)))
+  basis <- voeg_modelcovariaten_toe(basis, df)
+  schat <- function(d) {
+    fm <- cov_formule("m", "a", TRUE, ".centrum")
+    fy <- update(cov_formule("y", "a", TRUE, ".centrum"), . ~ . + m + a:m)
+    mm <- suppressWarnings(glm(fm, binomial, d)); my <- suppressWarnings(glm(fy, binomial, d))
+    pm <- function(aw) { nd <- d; nd$a <- aw; predict(mm, nd, type = "response") }
+    py <- function(aw, mw) { nd <- d; nd$a <- aw; nd$m <- mw; predict(my, nd, type = "response") }
+    EY <- function(a, astar) { p <- pm(astar); mean(p * py(a, 1) + (1 - p) * py(a, 0)) }
+    a0 <- d$a; a1 <- d$a + 1
+    te <- EY(a1, a1) - EY(a0, a0); nde <- EY(a1, a0) - EY(a0, a0); nie <- EY(a1, a1) - EY(a1, a0)
+    c(te = te, nde = nde, nie = nie, prop = nie / te)
+  }
+  res <- list()
+  for (g in sort(unique(na.omit(basis$groep)))) for (u in names(uitk)) {
+    d <- basis; d$y <- as.numeric(uitk[[u]])
+    d <- modelgevallen(d[d$groep %in% g & !is.na(d$a) & !is.na(d$m) & !is.na(d$y) & !is.na(d$.centrum), ], "y")
+    d <- droplevels(d)
+    if (nrow(d) < 100 || sum(d$y) < 10 || sum(d$m) < 10) next
+    p <- tryCatch(schat(d), error = function(e) rep(NA, 4))
+    set.seed(2024)
+    bs <- t(replicate(B, tryCatch(schat(d[sample(nrow(d), replace = TRUE), ]), error = function(e) rep(NA, 4))))
+    ci <- apply(bs, 2, quantile, c(.025, .975), na.rm = TRUE)
+    f <- function(i, schaal = 100, dec = 2) sprintf(paste0("%.", dec, "f (%.", dec, "f tot %.", dec, "f)"),
+                                                   schaal * p[i], schaal * ci[1, i], schaal * ci[2, i])
+    res[[length(res) + 1]] <- data.frame(
+      groep = g, uitkomst = u, n = nrow(d), nierfalen = sum(d$m), overleden = sum(d$y),
+      totaal_effect_pp = f(1), direct_effect_pp = f(2), indirect_via_nierfalen_pp = f(3),
+      proportie_gemedieerd_pct = f(4, 100, 0), bootstrap = B)
+  }
+  if (!length(res)) return(NULL)
+  out <- do.call(rbind, res); rownames(out) <- NULL
+  out
+}
+
+# Kenmerken van patiënten met en zonder CVA met restletsel, apart per groep
+# (Tabel 1- en 2-variabelen plus perfusie), met p-waarden.
+tabel_cva <- function(df, groep = GROEP, cva = "CVA_restletsel") {
+  if (!cva %in% names(df)) return(NULL)
+  vars <- setdiff(unique(c(TABELLEN[[1]], TABELLEN[[2]], "overleden_zh")), c("centrum", "jaar"))
+  vars <- c(vars, "jaar")
+  out <- lapply(split(df, as.character(df[[groep]])), function(x) {
+    x$CVA <- factor(ifelse(code_positief(x[[cva]]), "CVA met restletsel", "geen CVA"),
+                    levels = c("geen CVA", "CVA met restletsel"))
+    maak_tabel(x[!is.na(x$CVA), ], intersect(vars, names(x)), "CVA")
+  })
+  setNames(out, paste("CVA -", names(out)))
 }

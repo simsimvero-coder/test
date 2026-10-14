@@ -234,6 +234,11 @@ CIRC_ARREST_KOLOM <- "circ_arrest"
 # Kolom met het centrum, voor de random-intercept- en fixed-effects-modellen.
 CENTRUM_KOLOM <- "centrum"
 
+# Delier wordt pas vanaf 2022 systematisch geregistreerd (daarvoor > 95% leeg).
+DELIER_VANAF_JAAR <- 2022
+# Aantal bootstraptrekkingen voor de mediatieanalyse (nierfalen). Meer = trager.
+MEDIATIE_BOOTSTRAP <- 200
+
 # ── Klinische uitkomsten en variatie tussen centra (R/uitkomsten.R) ─────────
 # Samengestelde uitkomst "major complicaties": ja als minstens één van deze ja is
 # (gastroint_compl: elke code > 0). Ook de noemer voor failure to rescue.
