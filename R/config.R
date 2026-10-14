@@ -23,12 +23,12 @@ GROEP <- "acuut_electief"
 
 # ── PRIMAIRE indeling: originele combinatie urgentie/pathologie ──────────────
 # voorrang = "urgentie" (standaard):
-#   acuut              = pathologie 20 (acute dissectie) in asc/boog/desc, ongeacht
-#                        urgentie; of urgentie 30/40 (ook bij pathologie 10)
-#   electief aneurysma = pathologie 10 (zonder 20) met urgentie 10/20 of onbekend
-#   geen pathologie 10/20 (niet ingevuld of andere code 0/30/40/90/91):
-#                        indeling op urgentie (10/20 = electief, 30/40 = acuut)
-#   niet ingedeeld     = geen pathologie 10/20 en geen bruikbare urgentie
+#   acuut              = urgentie 30/40 (ALTIJD), of pathologie 20 (acute dissectie)
+#                        in asc/boog/desc (ALTIJD, ook bij urgentie 10/20)
+#   electief aneurysma = urgentie 10 (geen dissectie); urgentie 20 alleen bij
+#                        pathologie 10 (aneurysma); pathologie 10 zonder urgentie
+#   niet ingedeeld     = urgentie 20 zonder pathologie 10/20, of geen urgentie en
+#                        geen pathologie 10/20
 # voorrang = "strikt" (gevoeligheidsanalyse): urgentie én pathologie moeten de
 #   groep bevestigen (electief = urgentie 10/20 + pathologie 10 zonder 20;
 #   acuut = urgentie 30/40 + pathologie 10 of 20); de rest wordt uitgesloten.

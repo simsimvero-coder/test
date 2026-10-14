@@ -47,8 +47,14 @@ maak_acuut_electief <- function(df, cfg = ACUUT_ELECTIEF) {
     zet(urg_acuut & path_acuut, "acuut", "pathologie 20 + urgentie 30/40")
   } else if (identical(cfg$voorrang, "urgentie")) {
     # Urgentie 30/40 is altijd acuut; een acute dissectie (pathologie 20) ook.
+    # Electief = urgentie 10, of urgentie 20 met pathologie 10 (aneurysma).
     # Volgorde is van belang: latere regels overschrijven eerdere.
-    zet(mag_urgentie & urg_electief, "electief", ifelse(alle_path_onbekend, "urgentie 10/20 (pathologie niet ingevuld)", "urgentie 10/20 (andere pathologie)")[mag_urgentie & urg_electief])
+    # Urgentie 10 is electief (tenzij acute dissectie, zie hieronder). Urgentie 20
+    # wordt op de pathologie ingedeeld: pathologie 10 = electief, 20 = acuut;
+    # zonder pathologie 10/20 is urgentie 20 niet in te delen.
+    u10 <- urg %in% 10; u20 <- urg %in% 20
+    zet(mag_urgentie & u10, "electief", ifelse(alle_path_onbekend, "urgentie 10 (pathologie niet ingevuld)", "urgentie 10 (andere pathologie)")[mag_urgentie & u10])
+    zet(mag_urgentie & u20, NA, ifelse(alle_path_onbekend, "niet ingedeeld: urgentie 20, pathologie niet ingevuld", "niet ingedeeld: urgentie 20, andere pathologie")[mag_urgentie & u20])
     zet(path_electief & !urg_electief, "electief", "pathologie 10 (urgentie onbekend)")
     zet(path_electief & urg_electief, "electief", "pathologie 10 + urgentie 10/20")
     zet(path_acuut & !urg_acuut, "acuut", "pathologie 20 (urgentie 10/20 of onbekend)")
@@ -152,19 +158,23 @@ selectie_overzicht <- function(df_alle, groep = GROEP) {
   list(jaar = per(TREND_JAAR), centrum = per(CENTRUM_KOLOM))
 }
 
-# SENSITIVITEIT: onafhankelijk van de primaire combinatie urgentie/pathologie.
-# Dit is een URGENTIE-only indeling; GEEN categorieen voor chronische dissectie
+# SENSITIVITEIT: indeling op urgentie (10 / 20 apart / 30-40), waarbij een acute
+# dissectie (pathologie 20) altijd acuut is. GEEN categorieen voor chronische dissectie
 # of overige pathologie. Alle oorspronkelijke pathologiekolommen blijven wel
 # ongewijzigd beschikbaar in het bronbestand en in de primaire indeling.
 maak_urgentie_sens <- function(df, kolom = ACUUT_ELECTIEF$urgentie_kolom) {
   if (!kolom %in% names(df)) stop("Urgentiekolom niet gevonden: ", kolom)
   u <- suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(df[[kolom]]))))
   g <- rep(NA_character_, length(u))
+  # Acute dissectie (pathologie 20 in asc/boog/desc) is ALTIJD acuut, ook bij urgentie 10/20.
+  pk <- intersect(ACUUT_ELECTIEF$path_kolommen, names(df))
+  dissectie <- if (length(pk)) rowSums(sapply(pk, function(k)
+    suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(df[[k]])))) %in% 20)) > 0 else rep(FALSE, length(u))
   g[u %in% 10] <- "electief (10)"
   g[u %in% 20] <- "urgent (20)"
-  g[u %in% c(30, 40)] <- "acuut (30/40)"
+  g[u %in% c(30, 40) | dissectie] <- "acuut (30/40 of dissectie)"
   df[[URGENTIE_SENS_KOLOM]] <- factor(
-    g, levels = c("electief (10)", "urgent (20)", "acuut (30/40)"))
+    g, levels = c("electief (10)", "urgent (20)", "acuut (30/40 of dissectie)"))
   df
 }
 

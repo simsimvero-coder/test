@@ -285,7 +285,7 @@ print(tr$toetsen[c("maat", "groep", "n", "effectmaat", "schatting", "BI_onder", 
 # Gevoeligheidsanalyse afzonderlijk van de primaire uitkomsten uitvoeren,
 # na de primaire export: dezelfde patiëntenbasis, ANDERE groepdefinitie.
 if (URGENTIE_SENS_ACTIEF) {
-  cat("\n5. Gevoeligheidsanalyse uitsluitend op urgentie: electief (10), urgent (20), acuut (30/40)\n")
+  cat("\n5. Gevoeligheidsanalyse uitsluitend op urgentie: electief (10), urgent (20), acuut (30/40 of dissectie)\n")
   sens_res <- analyse_urgentie_gevoeligheid(df_alle, UITVOER_MAP)
   print(sens_res$aantallen, row.names = FALSE)
 }

@@ -12,7 +12,7 @@
 # verschil (deels) wegcorrigeren.
 vergelijk_urgentie_es <- function(d) {
   if (!all(c("urgentie_sens", CENTRUM_KOLOM) %in% names(d))) return(NULL)
-  d$spoed <- as.integer(as.character(d$urgentie_sens) == "acuut (30/40)")
+  d$spoed <- as.integer(as.character(d$urgentie_sens) == "acuut (30/40 of dissectie)")
   d$.centrum <- factor(d[[CENTRUM_KOLOM]])
   d <- voeg_modelcovariaten_toe(d, d)
   tijd <- if (OVERLEVING_TIJD %in% names(d)) d[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(d))
@@ -43,7 +43,7 @@ vergelijk_urgentie_es <- function(d) {
         }
       }
       res[[length(res) + 1]] <- data.frame(
-        uitkomst = label, vergelijking = "acuut (30/40) vs electief (10)",
+        uitkomst = label, vergelijking = "acuut (30/40 of dissectie) vs electief (10)",
         model = if (adj) "gecorrigeerd" else "ongecorrigeerd",
         n = nrow(x), events = sum(x$y), OR = round(est, 3),
         BI95_onder = round(ci1, 3), BI95_boven = round(ci2, 3),
@@ -58,7 +58,7 @@ vergelijk_urgentie_es <- function(d) {
 # centrumintercept. Geen causale interpretatie van de vergelijking.
 vergelijk_urgentie_temp <- function(d) {
   if (!all(c("min_temp", "urgentie_sens", CENTRUM_KOLOM) %in% names(d))) return(NULL)
-  d$spoed <- as.integer(as.character(d$urgentie_sens) == "acuut (30/40)")
+  d$spoed <- as.integer(as.character(d$urgentie_sens) == "acuut (30/40 of dissectie)")
   d$.centrum <- factor(d[[CENTRUM_KOLOM]])
   d$y <- d$min_temp
   d <- voeg_modelcovariaten_toe(d, d)
@@ -89,7 +89,7 @@ vergelijk_urgentie_temp <- function(d) {
       }
       res[[length(res) + 1]] <- data.frame(
         populatie = pop,
-        vergelijking = "acuut (30/40) vs electief (10)",
+        vergelijking = "acuut (30/40 of dissectie) vs electief (10)",
         model = if (adj) "gecorrigeerd" else "ongecorrigeerd",
         n = nrow(x), verschil_C = round(eff, 3), BI95_onder = round(onder, 3),
         BI95_boven = round(boven, 3), p = fmt_p(pv), model_status = status)
@@ -102,7 +102,7 @@ analyse_urgentie_gevoeligheid <- function(df_alle, map = UITVOER_MAP) {
   g <- URGENTIE_SENS_KOLOM
   label_e <- "electief (10)"
   label_u <- "urgent (20)"
-  label_s <- "acuut (30/40)"
+  label_s <- "acuut (30/40 of dissectie)"
 
   # Cruciaal: vertrek van df_alle vóór selectie op de *primaire* groepsdefinitie.
   # Anders raakt men ongezien geldige urgentiegevallen kwijt.

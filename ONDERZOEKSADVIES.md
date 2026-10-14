@@ -23,7 +23,7 @@ De hoofdresultaten blijven dus `acuut` versus `electief aneurysma`.
 |---|---|---|
 | 10 | electief (10) | hoofdpaar E versus S |
 | 20 | urgent (20) | **apart**; niet samengevoegd met electief |
-| 30/40 | acuut (30/40) | hoofdpaar E versus S |
+| 30/40 (en elke acute dissectie) | acuut (30/40 of dissectie) | hoofdpaar E versus S |
 | ontbrekend/anders | geen groep | wel opgenomen in het volledigheidsoverzicht |
 
 Deze indeling gebruikt **geen pathologiecode** om een urgentiegroep toe te wijzen.

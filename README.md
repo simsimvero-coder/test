@@ -33,12 +33,11 @@ in deze paper.
 - **Relatieve overleving is voorlopig uitgezet** (`LEVENSTABEL_BESTAND <- NULL`),
   totdat de eigen Ederer-II-code met een gevalideerde implementatie en passende
   referentietabellen is gecontroleerd.
-- **Primaire groepsindeling ONGEWIJZIGD**: `acuut_electief` blijft precies de
-  oorspronkelijke gecombineerde definitie van urgentie en aneurysma/acute dissectie.
-  Er zijn geen extra diagnostische groepen voor chronische dissectie of overige
-  pathologie toegevoegd.
-- **Nieuwe gevoeligheidsanalyse op alléén urgentie**: code 10 = electief;
-  code 20 = urgent (eigen groep); codes 30/40 = acuut. De analyse
+- **Primaire groepsindeling** (`acuut_electief`): zie "Indeling acuut vs. electief
+  aneurysma" hieronder. Er zijn geen extra diagnostische groepen voor chronische
+  dissectie of overige pathologie.
+- **Gevoeligheidsanalyse op urgentie**: code 10 = electief; code 20 = urgent (eigen
+  groep); codes 30/40 = acuut; een acute dissectie (pathologie 20) is altijd acuut. De analyse
   vergelijkt rechtstreeks electief met acuut (30/40), terwijl urgent afzonderlijk
   wordt beschreven en gemodelleerd, ongecorrigeerd en gecorrigeerd.
   De gevoeligheid start vanaf `df_alle`, dus vóór uitsluiting op primaire groepsindeling.
@@ -96,10 +95,9 @@ Standaard (`voorrang = "urgentie"` in `R/config.R`):
 
 | Groep | Regel |
 |---|---|
-| acuut | pathologie 20 (acute dissectie) in asc/boog/desc, **ongeacht urgentie**; of urgentie 30/40 (ook bij pathologie 10) |
-| electief aneurysma | pathologie 10 (zonder 20) met urgentie 10/20 of onbekende urgentie |
-| geen pathologie 10/20 (niet ingevuld of andere code) | indeling op urgentie: 10/20 = electief, 30/40 = acuut |
-| niet ingedeeld | geen pathologie 10/20 en geen bruikbare urgentie |
+| acuut | urgentie 30/40 (**altijd**), of pathologie 20 (acute dissectie) in asc/boog/desc (**altijd**, ook bij urgentie 10/20) |
+| electief aneurysma | urgentie 10 (geen dissectie); urgentie 20 met pathologie 10 (aneurysma); pathologie 10 zonder bekende urgentie |
+| niet ingedeeld | urgentie 20 zonder pathologie 10/20; geen urgentie en geen pathologie 10/20 |
 
 - Controleer de tabbladen *Selectie per jaar*, *Selectie per centrum* en *Sens urgentie overzicht*
   (groepsgrootte en ruwe mortaliteit onder elke definitie). Het landelijke volume per jaar telt altijd

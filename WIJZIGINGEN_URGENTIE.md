@@ -12,7 +12,7 @@ als in het originele project. Dat blijft de basis voor `resultaten.xlsx`.
 - Urgentie **10**: `electief (10)`.
 - Urgentie **20**: `urgent (20)`, als eigen groep; deze wordt dus nooit bij
   electief gevoegd.
-- Urgentie **30 en 40**: `acuut (30/40)`.
+- Urgentie **30 en 40**, en elke acute dissectie (pathologie 20): `acuut (30/40 of dissectie)`.
 - Andere/ontbrekende urgentie: geen gevoeligheidsgroep; wel apart geteld.
 
 De gevoeligheidsanalyse gebruikt **niet** de pathologiecodes voor de
