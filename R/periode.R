@@ -57,7 +57,7 @@ periode_uitkomstmodellen <- function(df, groep = GROEP) {
     y <- code_positief(df[[m[[uitkomst]]]])
     termijn <- if (uitkomst == "30-dagenmortaliteit") 30 else
                if (uitkomst == "1-jaarsmortaliteit") 365 else 0
-    if (termijn) y[!is.na(y) & !y & (is.na(tijd) | tijd < termijn)] <- NA
+    y <- mortaliteit_fu(y, tijd, df[[TREND_JAAR]], termijn)
     for (gecorrigeerd in c(FALSE, TRUE)) {
       d <- basis; d$y <- y
       d <- droplevels(d[d$groep == g & !is.na(d$y) & !is.na(d$periode) &

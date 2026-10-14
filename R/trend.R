@@ -230,7 +230,7 @@ trendanalyse <- function(df, groep = GROEP) {
     if (!m$var %in% names(d)) next
     y <- is_ja(d[[m$var]])
     # levend en te kort gevolgd -> uitkomst onbekend
-    if (m$min_followup > 0) y[!is.na(y) & !y & (is.na(tijd) | tijd < m$min_followup)] <- NA
+    y <- mortaliteit_fu(y, tijd, d[[TREND_JAAR]], m$min_followup)
     binair[[label]] <- list(y = y, onderdeel = "2. Mortaliteit", correctie = TREND_CORRECTIE)
   }
   complicatie_lijst <- lapply(TREND_COMPLICATIES, combineer_ja, df = d)

@@ -41,3 +41,23 @@ met_covariaten <- function(cov, expr) {
   assign("MODEL_TERMS", sub("^leeftijd$", "leeftijd_10", cov), envir = globalenv())
   expr
 }
+
+# Mortaliteit binnen min_fu dagen met correcte follow-up:
+#  - levend en korter dan min_fu gevolgd (lost to follow-up) -> onbekend (NA);
+#  - operatiejaren waarin een groot deel van de overlevenden nog geen min_fu dagen
+#    gevolgd KON worden (einde follow-up van de database, bv. 2024 voor 1 jaar)
+#    tellen voor deze uitkomst helemaal niet mee. Anders blijven in die jaren alleen
+#    de overledenen over en wordt de mortaliteit sterk overschat.
+mortaliteit_fu <- function(y, tijd, jaar, min_fu, max_onvolledig = FU_MAX_ONVOLLEDIG) {
+  if (!min_fu) return(y)
+  if (is.null(tijd)) tijd <- rep(NA_real_, length(y))
+  jaar <- suppressWarnings(as.numeric(as.character(jaar)))
+  kort <- !is.na(y) & !y & (is.na(tijd) | tijd < min_fu)
+  levend <- !is.na(y) & !y
+  aandeel <- tapply(kort[levend], jaar[levend], mean)
+  weg <- as.numeric(names(aandeel)[aandeel > max_onvolledig])
+  y[kort] <- NA
+  y[jaar %in% weg] <- NA
+  attr(y, "jaren_uitgesloten") <- weg
+  y
+}

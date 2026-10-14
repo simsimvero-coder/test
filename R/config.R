@@ -172,6 +172,11 @@ BOOG_KOLOM <- "aortaboog_path"
 # Mortaliteit: label = c(variabele, minimale follow-up in dagen). Patiënten die
 # nog leven maar korter gevolgd zijn dan deze termijn tellen voor die maat niet
 # mee (anders wordt de mortaliteit in recente jaren onderschat).
+# Operatiejaren waarin meer dan dit aandeel van de overlevenden nog geen volledige
+# follow-up KON hebben (einde database) tellen voor die mortaliteitsmaat niet mee.
+# In de NHR-data: 85% voor 1 jaar in 2024, tegen <= 18% verlies aan follow-up in
+# de andere jaren.
+FU_MAX_ONVOLLEDIG <- 0.50
 TREND_MORTALITEIT <- list(
   "Ziekenhuismortaliteit" = list(var = "overleden_zh", min_followup = 0),
   "30-dagenmortaliteit"   = list(var = "overl30d",     min_followup = 30),

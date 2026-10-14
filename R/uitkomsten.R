@@ -66,10 +66,10 @@ uitkomst_trends <- function(df, groep = GROEP) {
   tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(df))
   dood <- function(var, min_fu) {
     y <- code_positief(df[[var]])
-    if (min_fu > 0) {
-      # Geen follow-upbewijs voor negatieve uitkomst betekent onbekend, niet 'nee'.
-      y[!is.na(y) & !y & (is.na(tijd) | tijd < min_fu)] <- NA
-    }
+    y <- mortaliteit_fu(y, tijd, df[[TREND_JAAR]], min_fu)
+    weg <- attr(y, "jaren_uitgesloten")
+    if (length(weg)) message("   ", var, ": operatiejaar ", paste(weg, collapse = ", "),
+                             " niet meegenomen (follow-up nog geen ", min_fu, " dagen)")
     y
   }
   major <- samengesteld(df, MAJOR_COMPLICATIES)

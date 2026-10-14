@@ -21,11 +21,10 @@ funnel_grenzen <- function(type, x, ref) {
 }
 
 benchmark_centra <- function(df, groep = GROEP) {
-  arrest_tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(Inf, nrow(df))
+  arrest_tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(df))
   dood <- function(var, min_fu) {
     y <- code_positief(df[[var]])
-    y[!is.na(y) & !y & !is.na(arrest_tijd) & arrest_tijd < min_fu] <- NA
-    y
+    mortaliteit_fu(y, arrest_tijd, df[[TREND_JAAR]], min_fu)
   }
   major <- samengesteld(df, MAJOR_COMPLICATIES)
   ftr <- code_positief(df[[FTR_UITKOMST]]); ftr[!(major %in% TRUE)] <- NA
