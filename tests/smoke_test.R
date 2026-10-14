@@ -52,3 +52,13 @@ verwacht <- c("electief aneurysma", "electief aneurysma", "acuut", "acuut", "acu
               NA, NA, "acuut", NA)
 stopifnot(identical(prim, verwacht))
 cat("Primaire indeling acuut/electief gecontroleerd (synthetische data).\n")
+
+# Mortaliteit met onvolledige follow-up: het laatste jaar (vrijwel geen
+# 1-jaars-follow-up, uitkomst onbekend) mag niet meetellen.
+y <- c(rep(TRUE, 2), rep(FALSE, 8), TRUE, rep(NA, 9))
+tijd <- c(rep(10, 2), rep(400, 8), 20, rep(100, 9))
+jaar <- rep(c(2023, 2024), each = 10)
+z <- mortaliteit_fu(y, tijd, jaar, 365)
+stopifnot(identical(attr(z, "jaren_uitgesloten"), 2024), all(is.na(z[jaar == 2024])),
+          sum(z, na.rm = TRUE) == 2)
+cat("Follow-upcorrectie mortaliteit gecontroleerd (synthetische data).\n")
