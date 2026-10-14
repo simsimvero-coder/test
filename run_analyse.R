@@ -126,6 +126,25 @@ los <- opnameduur_analyse(df, GROEP)
 rs <- relatieve_overleving(df, GROEP)
 bm <- benchmark_centra(df, GROEP)
 
+# Gevoeligheidsanalyse: dezelfde patiëntgebonden modellen, gecorrigeerd voor EuroSCORE II
+sens_es <- NULL
+if (length(GEVOELIGHEID_EUROSCORE_COVARIATEN)) {
+  cat("   Gevoeligheidsanalyse: correctie voor", paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "), "\n")
+  flush.console()
+  sens_es <- met_covariaten(GEVOELIGHEID_EUROSCORE_COVARIATEN, list(
+    "Uitkomst - trends" = uitkomst_trends(df, GROEP),
+    "Trend - toetsen" = trendanalyse(df, GROEP)$toetsen,
+    "Periode uitkomstmodellen" = periode_uitkomstmodellen(df, GROEP),
+    "Overleving - Cox per groep" = overleving_cox_trend(df, GROEP)))
+  sens_es <- c(list("Toelichting" = data.frame(toelichting = c(
+    paste0("Gevoeligheidsanalyse: in de kolommen 'gecorrigeerd' is gecorrigeerd voor ",
+           paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "), " in plaats van ",
+           paste(UITKOMST_COVARIATEN, collapse = ", "), "."),
+    "Ongecorrigeerde kolommen zijn gelijk aan de primaire analyse."))),
+    Filter(Negate(is.null), sens_es))
+  writexl::write_xlsx(sens_es, file.path(UITVOER_MAP, "gevoeligheid_euroscore.xlsx"))
+}
+
 excel <- c(
   setNames(tabellen, substr(sub(" - .*", "", names(tabellen)), 1, 31)),
   list("Indeling acuut-electief" = indeling$controle, "Indeling - redenen" = indeling$overzicht,
@@ -233,6 +252,14 @@ cat("\nMinimale temperatuur zonder vs. met circulatiestilstand (verschil binnen 
 print(cv$zonder_met, row.names = FALSE)
 cat("\nUitkomsttrends - OR per kalenderjaar (", attr(ut, "noot"), ")\n", sep = "")
 print(ut, row.names = FALSE)
+if (!is.null(sens_es)) {
+  cat("\nGevoeligheidsanalyse - uitkomsttrends gecorrigeerd voor ",
+      paste(GEVOELIGHEID_EUROSCORE_COVARIATEN, collapse = ", "), " (volledig in gevoeligheid_euroscore.xlsx)\n", sep = "")
+  u <- sens_es[["Uitkomst - trends"]]
+  print(u[, intersect(c("groep", "uitkomst", "n_gecorrigeerd", "events_gecorrigeerd", "OR_gecorrigeerd",
+                        "BI95_gecorrigeerd", "p_gecorrigeerd", "q_BH_gecorrigeerd", "OR_CR2_gecorrigeerd",
+                        "BI95_CR2_gecorrigeerd", "p_CR2_gecorrigeerd"), names(u))], row.names = FALSE)
+}
 cat("\nOpnameduur (ratio per jaar = geometrische verandering)\n")
 print(los, row.names = FALSE)
 if (!is.null(rs)) { cat("\nKaplan-Meier en relatieve overleving (Ederer II)\n"); print(rs, row.names = FALSE) }
@@ -261,4 +288,5 @@ cat("\nKlaar. Resultaten in '", UITVOER_MAP, "/':\n", sep = "")
 cat("  - resultaten.xlsx (tabellen, twee modellen per groep, overleving, ontbrekende waarden)\n")
 cat("  - analyse_data.csv\n")
 if (URGENTIE_SENS_ACTIEF) cat("  - gevoeligheid_urgentie.xlsx (10 vs 30/40, met 20 apart)\n")
+if (!is.null(sens_es)) cat("  - gevoeligheid_euroscore.xlsx (modellen gecorrigeerd voor EuroSCORE II)\n")
 for (f in figuren) cat("  - figuren/", basename(f), "\n", sep = "")

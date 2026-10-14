@@ -31,3 +31,13 @@ modelgevallen <- function(d, y = "y", cov = MODEL_TERMS) {
 cov_formule <- function(respons, tijd, correctie = FALSE, extra = NULL, zonder = NULL) {
   stats::reformulate(c(tijd, extra, if (correctie) setdiff(MODEL_TERMS, zonder)), response = respons)
 }
+
+# Voert 'expr' uit met tijdelijk andere correctievariabelen (bv. alleen
+# EuroSCORE II voor de gevoeligheidsanalyse) en zet daarna alles terug.
+met_covariaten <- function(cov, expr) {
+  oud <- list(UITKOMST_COVARIATEN = UITKOMST_COVARIATEN, MODEL_TERMS = MODEL_TERMS)
+  on.exit(for (k in names(oud)) assign(k, oud[[k]], envir = globalenv()))
+  assign("UITKOMST_COVARIATEN", cov, envir = globalenv())
+  assign("MODEL_TERMS", sub("^leeftijd$", "leeftijd_10", cov), envir = globalenv())
+  expr
+}

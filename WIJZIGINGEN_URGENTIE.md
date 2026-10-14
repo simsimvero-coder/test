@@ -32,7 +32,7 @@ De uitkomsten zijn gescheiden:
   versus spoed/redding op basis van urgentie.
 
 Bij patiëntgebonden regressies wordt eerst ongecorrigeerd en vervolgens
-gecorrigeerd voor leeftijd, geslacht, EuroSCORE II en eerdere cardiochirurgie,
+gecorrigeerd voor leeftijd, geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`),
 net als in de vorige ZIP. Ruwe aantallen en Kaplan-Meier-curves blijven
 beschrijvend. Directe E-versus-S-effectmaten beschrijven associaties,
 geen causale effecten.

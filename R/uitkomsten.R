@@ -149,7 +149,9 @@ uitkomst_trends <- function(df, groep = GROEP) {
   }
   for (naam in grep("^(p_|q_BH_)", names(out), value = TRUE))
     out[[naam]] <- vapply(out[[naam]], fmt_p, character(1))
-  attr(out, "noot") <- "Per groep eerst ongecorrigeerd, dan leeftijd/geslacht/EuroSCORE II/eerdere cardiochirurgie; CR2 alleen gecorrigeerde gevoeligheidsanalyse; complete-case-aantallen apart"
+  attr(out, "noot") <- paste0("Per groep eerst ongecorrigeerd, dan gecorrigeerd voor ",
+                              paste(UITKOMST_COVARIATEN, collapse = ", "),
+                              "; CR2 alleen gecorrigeerd; complete-case-aantallen apart")
   out
 }
 

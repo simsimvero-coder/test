@@ -135,7 +135,7 @@ analyse_urgentie_gevoeligheid <- function(df_alle, map = UITVOER_MAP) {
   })
 
   # Modellen: voor ELKE groep eerst ongecorrigeerd, dan gecorrigeerd voor
-  # leeftijd, geslacht, EuroSCORE II en eerdere cardiochirurgie.
+  # UITKOMST_COVARIATEN (leeftijd, geslacht, eerdere cardiochirurgie).
   # De 2-groeps trends laten daarnaast p voor verschil in jaartend E vs S zien.
   # Rekenintensieve modules apart afvangen zodat overige uitkomsten blijven staan.
   veilig <- function(naam, fn) tryCatch(fn(), error = function(e) {

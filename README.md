@@ -17,7 +17,8 @@ in deze paper.
   dubbele/lege rijen en waarden buiten documentatiebereik zonder iets te verwijderen.
 - Klinische **patiëntgebonden trendmodellen** rapporteren per groep steeds eerst
   **ongecorrigeerd**, daarna **gecorrigeerd** voor vier variabelen: leeftijd
-  (per 10 jaar), geslacht, EuroSCORE II (per procentpunt) en eerdere cardiochirurgie.
+  (per 10 jaar), geslacht en eerdere cardiochirurgie; gevoeligheidsanalyse gecorrigeerd voor EuroSCORE II
+  (`gevoeligheid_euroscore.xlsx`).
   Dit geldt voor binaire trends/complicaties/FTR/circulatiestilstand, periode-uitkomstmodellen, temperatuur
   (mixed/CR2/landelijk), opnameduur en Cox-overleving; centrumvariatie in temperatuur
   met/zonder circulatiestilstand krijgt beide CR2-effecten.
@@ -153,14 +154,15 @@ staan bij beide groepen. De kolom "Totaal" in Tabel 1–3 en het totale volume p
 
 ## Klinische uitkomsten en variatie tussen centra (`R/uitkomsten.R`)
 
-Apart voor acuut en electief: ongecorrigeerd en gecorrigeerd inclusief EuroSCORE II.
+Apart voor acuut en electief: ongecorrigeerd en gecorrigeerd voor leeftijd, geslacht en eerdere
+cardiochirurgie; als gevoeligheidsanalyse gecorrigeerd voor EuroSCORE II (`gevoeligheid_euroscore.xlsx`).
 
 - **Uitkomsttrends** (OR per kalenderjaar): ziekenhuis-, 30-dagen- en 1-jaarsmortaliteit (alleen
   patiënten met volledige follow-up), major complicaties (`MAJOR_COMPLICATIES`), secundaire
   morbiditeit (`SECUNDAIRE_UITKOMSTEN`) en failure to rescue (ziekenhuismortaliteit bij ≥ 1 major
   complicatie).
   - primair: logistisch mixed model, random intercept per centrum, ongecorrigeerd en gecorrigeerd voor leeftijd (per 10
-    jaar), geslacht, EuroSCORE II en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4::glmer`, met
+    jaar), geslacht en eerdere cardiochirurgie (`UITKOMST_COVARIATEN`; `lme4::glmer`, met
     `MASS::glmmPQL` als terugval; de kolom `model_primair` toont welk model gebruikt is);
   - gevoeligheid: centrum-fixed-effects met CR2 (Satterthwaite) (`UITKOMST_CR2`);
   - Benjamini–Hochberg (q-waarden) over de secundaire uitkomsten, per groep.
@@ -194,7 +196,7 @@ figuren `funnel_acuut.png` en `funnel_electief_aneurysma.png`.
 | O/E-ratio | geobserveerde ziekenhuismortaliteit / verwachte (EuroSCORE II), per groep en centrum | O/E ≠ 1 (exacte Poisson); verschil tussen groepen gecorrigeerd voor EuroSCORE II |
 | Overleving | Kaplan-Meier, 30 d / 120 d / 1 / 3 / 5 jaar | log-rank; verschil per tijdpunt |
 | Trend 1 | aantal boog-OK's per jaar; aandeel acuut | Poisson (IRR/jaar); logistisch (OR/jaar) |
-| Trend 2 | mortaliteit: ziekenhuis, 30 dagen, 1 jaar | OR/jaar, ook gecorrigeerd voor EuroSCORE II |
+| Trend 2 | mortaliteit: ziekenhuis, 30 dagen, 1 jaar | OR/jaar, ook gecorrigeerd (leeftijd, geslacht, eerdere cardiochirurgie; EuroSCORE II als gevoeligheidsanalyse) |
 | Trend 3 | nierfalen, resp. insufficiëntie, gastro-intestinaal, CVA (met + zonder restletsel) | OR/jaar |
 | Trend 4 | failure to rescue: ziekenhuismortaliteit bij ≥ 1 complicatie uit trend 3 | OR/jaar |
 | Trend 5 | minimale temperatuur | lineaire regressie (°C/jaar) |

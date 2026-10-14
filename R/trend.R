@@ -6,7 +6,7 @@
 # Aantallen:          Poisson-regressie (incidence rate ratio per jaar).
 # Temperatuur:        mediaan [IQR] per jaar; trend = lineaire regressie
 #   (verandering in °C per jaar).
-# Modellen per groep: ongecorrigeerd + leeftijd/geslacht/EuroSCORE II/redo.
+# Modellen per groep: ongecorrigeerd + gecorrigeerd (UITKOMST_COVARIATEN).
 # Beschrijvende jaarlijkse aantallen blijven ongecorrigeerde frequenties.
 # =============================================================================
 

@@ -186,8 +186,9 @@ TREND_MORTALITEIT <- list(
   "30-dagenmortaliteit"   = list(var = "overl30d",     min_followup = 30),
   "1-jaarsmortaliteit"    = list(var = "overl1j",      min_followup = 365)
 )
-# In elke klinische groep eerst het ruwe en dan dit vooraf gespecificeerde model.
-TREND_CORRECTIE <- c("leeftijd", "geslacht", "EuroscoreII", "cardiochir_eerder")
+# In elke klinische groep eerst het ruwe en dan het gecorrigeerde model
+# (covariaten: UITKOMST_COVARIATEN hieronder). NULL = alleen ruw.
+TREND_CORRECTIE <- c("leeftijd", "geslacht", "cardiochir_eerder")
 
 # Complicaties; meerdere variabelen samen = 'ja' als minstens één 'ja' is.
 TREND_COMPLICATIES <- list(
@@ -250,15 +251,18 @@ SECUNDAIRE_UITKOMSTEN <- c(
   "Beademing > 24 uur"             = "beademing"
 )
 
-# Correctievariabelen in alle patientgebonden trendmodellen; per groep 2 modellen
+# Correctievariabelen in alle patientgebonden modellen; per groep 2 modellen
 # (ongecorrigeerd + gecorrigeerd). Leeftijd wordt per 10 jaar ingevoerd.
-# LET OP: EuroSCORE II bevat zelf leeftijd, geslacht, eerdere cardiochirurgie en
-# urgentie. Samen met die losse factoren corrigeer je dus dubbel en (binnen de
-# groep) deels voor urgentie. Zonder EuroSCORE II:
-#   UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
-# In de directe vergelijking spoed/redding vs electief wordt EuroSCORE II altijd
-# weggelaten, omdat urgentie daar de te vergelijken factor is.
-UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "EuroscoreII", "cardiochir_eerder")
+# Primair zonder EuroSCORE II (geen correctie voor urgentie binnen de groep).
+UITKOMST_COVARIATEN <- c("leeftijd", "geslacht", "cardiochir_eerder")
+
+# Gevoeligheidsanalyse: dezelfde modellen, gecorrigeerd voor EuroSCORE II.
+# Alleen EuroSCORE II, omdat leeftijd, geslacht en eerdere cardiochirurgie daar
+# al in zitten (anders dubbele correctie). Uitvoer: gevoeligheid_euroscore.xlsx.
+# NULL = overslaan. In de directe vergelijking spoed/redding vs electief
+# (urgentie-gevoeligheidsanalyse) wordt EuroSCORE II altijd weggelaten, omdat
+# urgentie een onderdeel van EuroSCORE II is.
+GEVOELIGHEID_EUROSCORE_COVARIATEN <- c("EuroscoreII")
 PERFUSIE_COVARIATEN <- UITKOMST_COVARIATEN
 OVERLEVING_COVARIATEN <- UITKOMST_COVARIATEN
 
