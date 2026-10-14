@@ -22,14 +22,15 @@ INCLUSIE_KOLOM        <- "incl_cohort"
 GROEP <- "acuut_electief"
 
 # ── Indeling acuut vs. electief aneurysma ───────────────────────────────────
-# voorrang = "strikt" (standaard): urgentie én pathologie moeten kloppen
-#   electief aneurysma = urgentie 10/20 + pathologie 10 in asc/boog/desc,
-#                        zonder pathologie 20
-#   acuut              = urgentie 30/40 + pathologie 10 of 20
-#   Alle andere combinaties (o.a. ontbrekende pathologie, acute dissectie met
-#   urgentie 10/20) worden uitgesloten; de reden staat in 'Indeling'.
-#   LET OP: pathologie ontbreekt vooral in 2013-2018 en in sommige centra.
-#   Controleer de tabbladen 'Selectie per jaar/centrum' en 'Selectie - definities'.
+# voorrang = "strikt" (standaard):
+#   acuut              = pathologie 20 (acute dissectie) in asc/boog/desc, ongeacht
+#                        urgentie; of pathologie 10 + urgentie 30/40
+#   electief aneurysma = pathologie 10 (zonder 20) + urgentie 10/20
+#   pathologie niet ingevuld (alle 3 leeg): indeling op urgentie
+#                        (10/20 = electief, 30/40 = acuut)
+#   uitgesloten        = andere pathologie (0/30/40/90/91) zonder 10/20, of geen
+#                        bruikbare urgentie (behalve bij acute dissectie)
+#   De reden per patiënt staat in 'Indeling - redenen'.
 # voorrang = "urgentie": urgentie 30/40 is altijd acuut, pathologie 20 ook;
 #   anders electief bij pathologie 10, of urgentie 10/20 als de pathologie ontbreekt.
 # voorrang = "pathologie": pathologie 20/10 bepaalt de groep; urgentie alleen
