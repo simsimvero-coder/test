@@ -215,6 +215,13 @@ BEVOLKING_1JAN <- c(
 # TRUE = gemiddelde bevolking van het jaar (gemiddelde van 1 januari van dit
 # en het volgende jaar); FALSE = bevolking op 1 januari.
 BEVOLKING_GEMIDDELD <- TRUE
+# Bevolking per jaar, geslacht en leeftijd voor de voor leeftijd en geslacht
+# gestandaardiseerde operatieratio's (R/revisie.R). CBS StatLine tabel 7461BEV
+# "Bevolking; geslacht, leeftijd en burgerlijke staat, 1 januari": kies
+# Burgerlijke staat = Totaal, Geslacht = Mannen en Vrouwen, Leeftijd = 0 t/m 99
+# jaar (losse jaren) en 105 jaar of ouder, Perioden = 2013-2024, en download als CSV.
+# Zet het bestand op het bureaublad. NULL of niet gevonden = overslaan.
+BEVOLKING_LEEFTIJD_BESTAND <- "bevolking_leeftijd_NL.csv"
 
 # Vanaf welk jaar de indeling acuut / electief volledig is (de groepstrends per
 # miljoen inwoners worden vanaf dit jaar berekend; het totaal over alle jaren).
@@ -271,6 +278,14 @@ GEVOELIGHEID_EUROSCORE_COVARIATEN <- c("EuroscoreII")
 # ontbreekt het bij <= 13% van de patiënten; in 2013-2017 bij 27-82%). In de
 # vroege jaren zou een complete-case-analyse een selectie van patiënten zijn.
 GEVOELIGHEID_EUROSCORE_JAREN <- 2018:2024
+# Gevoeligheidsanalyse: dezelfde primaire modellen (zelfde covariaten), alleen in
+# jaren met aantoonbaar consistente registratie (vanaf 2018 is <= 3,4% per jaar niet
+# in te delen; 2013: 33%, 2014: 14%, 2015-2017: 8-10%). Uitvoer:
+# gevoeligheid_registratie.xlsx. NULL = overslaan.
+GEVOELIGHEID_REGISTRATIE_JAREN <- 2018:2024
+# Aanvullende revisieanalyses (R/revisie.R) naar revisie.xlsx; de modelvergelijking
+# (random slope, niet-lineariteit, CR2-vrijheidsgraden) duurt enkele minuten.
+REVISIE_ANALYSES <- TRUE
 PERFUSIE_COVARIATEN <- UITKOMST_COVARIATEN
 OVERLEVING_COVARIATEN <- UITKOMST_COVARIATEN
 

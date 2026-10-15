@@ -44,6 +44,7 @@ source("R/uitkomsten.R", encoding = "UTF-8")
 source("R/benchmark.R", encoding = "UTF-8")
 source("R/arrest_uitkomst.R", encoding = "UTF-8")
 source("R/trendverschil.R", encoding = "UTF-8")
+source("R/revisie.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -157,6 +158,44 @@ if (length(GEVOELIGHEID_EUROSCORE_COVARIATEN)) {
     "De ongecorrigeerde kolommen gaan over dezelfde jaren (vergelijk die met de gecorrigeerde kolommen)."))),
     Filter(Negate(is.null), sens_es))
   writexl::write_xlsx(sens_es, file.path(UITVOER_MAP, "gevoeligheid_euroscore.xlsx"))
+}
+
+# Gevoeligheidsanalyse: primaire modellen alleen in jaren met consistente registratie
+if (length(GEVOELIGHEID_REGISTRATIE_JAREN)) {
+  df_reg <- df[suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))) %in% GEVOELIGHEID_REGISTRATIE_JAREN, ]
+  reg_periode <- sprintf("%d-%d", min(GEVOELIGHEID_REGISTRATIE_JAREN), max(GEVOELIGHEID_REGISTRATIE_JAREN))
+  cat("   Gevoeligheidsanalyse registratie: alleen", reg_periode, "(n =", nrow(df_reg), ")\n"); flush.console()
+  sens_reg <- list(
+    "Toelichting" = data.frame(toelichting = c(
+      paste0("Primaire modellen (correctie voor ", paste(UITKOMST_COVARIATEN, collapse = ", "),
+             "), alleen operaties uit ", reg_periode, ": jaren met consistente registratie; n = ", nrow(df_reg), "."),
+      "Vergelijk met dezelfde tabbladen in resultaten.xlsx (2013-2024).")),
+    "Uitkomst - trends" = uitkomst_trends(df_reg, GROEP),
+    "Trend - toetsen" = trendanalyse(df_reg, GROEP)$toetsen,
+    "Trendverschil acuut-electief" = mortaliteit_interactie(df_reg, GROEP),
+    "Overleving - Cox per groep" = overleving_cox_trend(df_reg, GROEP))
+  writexl::write_xlsx(Filter(Negate(is.null), sens_reg), file.path(UITVOER_MAP, "gevoeligheid_registratie.xlsx"))
+}
+
+# Aanvullende revisieanalyses -> revisie.xlsx
+if (REVISIE_ANALYSES) {
+  cat("   Revisieanalyses: cohortdefinitie, ontbrekende waarden, follow-up en modelvergelijking\n"); flush.console()
+  pu <- pathologie_urgentie(df_alle, GROEP)
+  ni <- niet_ingedeeld(df_alle, GROEP)
+  fu <- followup_overzicht(df, GROEP)
+  vs <- volume_gestandaardiseerd(df_alle, GROEP)
+  revisie <- list(
+    "Cohortdefinitie" = cohort_definitie(ruw, df_alle, GROEP),
+    "Pathologie x urgentie" = pu$kruistabel, "Pathologie per jaar" = pu$per_jaar,
+    "Niet ingedeeld per jaar" = ni$jaar, "Niet ingedeeld per centrum" = ni$centrum,
+    "Ontbrekend per jaar" = ontbrekend_per(df, TREND_JAAR, GROEP),
+    "Ontbrekend per centrum" = ontbrekend_per(df, CENTRUM_KOLOM, GROEP),
+    "Follow-up - wie" = fu$wie, "Follow-up - mediaan" = fu$mediaan, "Follow-up - per jaar" = fu$per_jaar,
+    "FTR - dekking sterfte" = ftr_dekking(df, GROEP),
+    "Volume - overdispersie" = volume_overdispersie(inc$per_jaar),
+    "Volume - gestand. per jaar" = vs$per_jaar, "Volume - gestand. RR" = vs$modellen,
+    "Modelvergelijking" = model_vergelijking(df, GROEP))
+  writexl::write_xlsx(Filter(Negate(is.null), revisie), file.path(UITVOER_MAP, "revisie.xlsx"))
 }
 
 excel <- c(

@@ -69,17 +69,14 @@ logit_mixed <- function(f, d, term) {
 
 voortgang <- function(...) { cat("   ", sprintf(...), "\n", sep = ""); flush.console() }
 
-# ── 1. Uitkomsttrends ───────────────────────────────────────────────────────
-uitkomst_trends <- function(df, groep = GROEP) {
-  if (!requireNamespace("lme4", quietly = TRUE))
-    warning("lme4 ontbreekt: voor sommige modellen kan PQL worden gebruikt; interpreteer met voorzichtigheid")
-  heeft_cs <- requireNamespace("clubSandwich", quietly = TRUE) && UITKOMST_CR2
+# Alle uitkomsten van de trendanalyses: list(label, type, logische vector).
+uitkomst_lijst <- function(df, meldingen = TRUE) {
   tijd <- if (OVERLEVING_TIJD %in% names(df)) df[[OVERLEVING_TIJD]] else rep(NA_real_, nrow(df))
   dood <- function(var, min_fu) {
     y <- code_positief(df[[var]])
     y <- mortaliteit_fu(y, tijd, df[[TREND_JAAR]], min_fu)
     weg <- attr(y, "jaren_uitgesloten")
-    if (length(weg)) message("   ", var, ": operatiejaar ", paste(weg, collapse = ", "),
+    if (length(weg) && meldingen) message("   ", var, ": operatiejaar ", paste(weg, collapse = ", "),
                              " niet meegenomen (follow-up nog geen ", min_fu, " dagen)")
     y
   }
@@ -96,6 +93,15 @@ uitkomst_trends <- function(df, groep = GROEP) {
   for (l in names(SECUNDAIRE_UITKOMSTEN)) if (SECUNDAIRE_UITKOMSTEN[[l]] %in% names(df))
     uitkomsten[[length(uitkomsten) + 1]] <- list(l, "secundair", code_positief(df[[SECUNDAIRE_UITKOMSTEN[[l]]]]))
   uitkomsten[[length(uitkomsten) + 1]] <- list("Failure to rescue", "FTR", ftr)
+  uitkomsten
+}
+
+# ── 1. Uitkomsttrends ───────────────────────────────────────────────────────
+uitkomst_trends <- function(df, groep = GROEP) {
+  if (!requireNamespace("lme4", quietly = TRUE))
+    warning("lme4 ontbreekt: voor sommige modellen kan PQL worden gebruikt; interpreteer met voorzichtigheid")
+  heeft_cs <- requireNamespace("clubSandwich", quietly = TRUE) && UITKOMST_CR2
+  uitkomsten <- uitkomst_lijst(df)
   basis <- data.frame(jaar = suppressWarnings(as.numeric(as.character(df[[TREND_JAAR]]))),
                       .centrum = factor(df[[CENTRUM_KOLOM]]),
                       groep = as.character(df[[groep]]))
