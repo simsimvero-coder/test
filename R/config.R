@@ -142,7 +142,7 @@ TABELLEN <- list(
     "chir_benadering", "CABG", "klepchir_clean", "aklepchir", "mklepchir", "pklepchir",
     "tklepchir", "aortachir", "aotachir_benadering", "aorta_asc", "aorta_asc_path",
     "aortaboog_path", "aorta_desc", "aorta_desc_path", "descendens_ingreep",
-    "descendens_pathologie", "cardiochir_overig",
+    "cardiochir_overig",
     "ECC", "ECC_duur", "AoX_duur", "circ_arrest_clean", "circ_arrest_duur",
     "circ_arrest_duur_bij_arrest", "min_temp", "temp_categorie"
   ),

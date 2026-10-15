@@ -9,7 +9,7 @@
 # Variabelen die in de console getoond worden (alles staat in resultaten.xlsx)
 PERIODE_KERNVARIABELEN <- c("leeftijd", "geslacht", "EuroscoreII", "urgentie",
                             "klepchir_clean", "aorta_asc_path", "aortaboog_path",
-                            "descendens_ingreep", "descendens_pathologie", "circ_arrest_clean",
+                            "descendens_ingreep", "circ_arrest_clean",
                             "min_temp", "overleden_zh", "overl30d")
 
 periodevergelijking <- function(df, groep = GROEP, jaar_kolom = TREND_JAAR) {
