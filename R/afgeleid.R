@@ -159,3 +159,20 @@ selectie_overzicht <- function(df_alle, groep = GROEP) {
   }
   list(jaar = per(TREND_JAAR), centrum = per(CENTRUM_KOLOM))
 }
+
+# Concomitante ingrepen naast de boogoperatie: CABG, klepchirurgie, ingreep aan de
+# aorta descendens en overige cardiochirurgie. Ja als minstens één ja is;
+# daarnaast het aantal concomitante ingrepen (0, 1, 2, >=3).
+CONCOMITANT_KOLOMMEN <- c("CABG", "klepchir_clean", "descendens_ingreep", "cardiochir_overig")
+maak_concomitant <- function(df) {
+  k <- intersect(CONCOMITANT_KOLOMMEN, names(df))
+  if (!length(k)) return(df)
+  m <- sapply(k, function(v) ifelse(is.na(df[[v]]), NA, as.character(df[[v]]) == "ja"))
+  m <- matrix(m, nrow = nrow(df))
+  aantal <- rowSums(m, na.rm = TRUE)
+  bekend <- rowSums(!is.na(m)) == ncol(m) | aantal > 0
+  df$concomitante_ingreep <- factor(ifelse(!bekend, NA, ifelse(aantal > 0, "ja", "nee")), levels = c("nee", "ja"))
+  df$aantal_concomitant <- factor(ifelse(!bekend, NA, ifelse(aantal >= 3, ">=3", as.character(aantal))),
+                                  levels = c("0", "1", "2", ">=3"))
+  df
+}

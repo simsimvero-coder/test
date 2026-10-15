@@ -77,7 +77,7 @@ if (ALLEEN_INCLUSIECOHORT) {
   df <- df[inbegrepen, , drop = FALSE]
 }
 indeling <- maak_acuut_electief(df)
-df <- maak_event_free(maak_perfusie(maak_descendens(maak_lvef_categorie(indeling$data))))
+df <- maak_event_free(maak_concomitant(maak_perfusie(maak_descendens(maak_lvef_categorie(indeling$data)))))
 ontbr <- ontbrekende_waarden(df)
 
 cat("   Indeling acuut / electief aneurysma:\n")
