@@ -160,19 +160,36 @@ selectie_overzicht <- function(df_alle, groep = GROEP) {
   list(jaar = per(TREND_JAAR), centrum = per(CENTRUM_KOLOM))
 }
 
-# Concomitante ingrepen naast de boogoperatie: CABG, klepchirurgie, ingreep aan de
-# aorta descendens en overige cardiochirurgie. Ja als minstens één ja is;
-# daarnaast het aantal concomitante ingrepen (0, 1, 2, >=3).
-CONCOMITANT_KOLOMMEN <- c("CABG", "klepchir_clean", "descendens_ingreep", "cardiochir_overig")
+# Concomitante ingrepen naast de boogoperatie zelf: elke ingreep aan de
+# ascendens/aortawortel, elke klepingreep, CABG, ingreep aan de aorta descendens
+# en overige cardiochirurgie. Per ingreep een ja/nee-variabele, plus:
+#   concomitante_ingreep        = minstens één van deze ingrepen
+#   concomitant_excl_ascendens  = idem, zonder ascendens/wortel (die hoort vaak bij
+#                                 een standaard boogvervanging)
+#   aantal_concomitant          = aantal ingrepen (0, 1, 2, >=3)
 maak_concomitant <- function(df) {
-  k <- intersect(CONCOMITANT_KOLOMMEN, names(df))
-  if (!length(k)) return(df)
-  m <- sapply(k, function(v) ifelse(is.na(df[[v]]), NA, as.character(df[[v]]) == "ja"))
-  m <- matrix(m, nrow = nrow(df))
-  aantal <- rowSums(m, na.rm = TRUE)
-  bekend <- rowSums(!is.na(m)) == ncol(m) | aantal > 0
-  df$concomitante_ingreep <- factor(ifelse(!bekend, NA, ifelse(aantal > 0, "ja", "nee")), levels = c("nee", "ja"))
-  df$aantal_concomitant <- factor(ifelse(!bekend, NA, ifelse(aantal >= 3, ">=3", as.character(aantal))),
+  code <- function(x) suppressWarnings(as.numeric(sub("^\\s*(-?[0-9.]+).*$", "\\1", as.character(x))))
+  janee <- function(x) factor(ifelse(is.na(x), NA, ifelse(x, "ja", "nee")), levels = c("nee", "ja"))
+  is_ja <- function(v) if (v %in% names(df)) ifelse(is.na(df[[v]]), NA, as.character(df[[v]]) == "ja") else rep(NA, nrow(df))
+  if ("aorta_asc" %in% names(df)) {
+    asc <- code(df$aorta_asc)
+    df$ingreep_wortel <- janee(ifelse(is.na(asc), NA, asc %in% c(10, 20)))       # geisoleerd of incl. wortel
+    df$ingreep_ascendens <- janee(ifelse(is.na(asc), NA, asc %in% c(20, 30, 90))) # ascendens (incl./excl. wortel)
+  }
+  onderdelen <- list(
+    ascendens_wortel = if ("aorta_asc" %in% names(df)) { a <- code(df$aorta_asc); ifelse(is.na(a), NA, a > 0) } else rep(NA, nrow(df)),
+    klep = is_ja("klepchir_clean"), cabg = is_ja("CABG"),
+    descendens = is_ja("descendens_ingreep"), overig = is_ja("cardiochir_overig"))
+  telling <- function(m) {
+    m <- matrix(unlist(m), nrow = nrow(df))
+    n <- rowSums(m, na.rm = TRUE); bekend <- rowSums(!is.na(m)) == ncol(m) | n > 0
+    list(n = ifelse(bekend, n, NA))
+  }
+  alle <- telling(onderdelen)$n
+  zonder <- telling(onderdelen[-1])$n
+  df$concomitante_ingreep <- janee(ifelse(is.na(alle), NA, alle > 0))
+  df$concomitant_excl_ascendens <- janee(ifelse(is.na(zonder), NA, zonder > 0))
+  df$aantal_concomitant <- factor(ifelse(is.na(alle), NA, ifelse(alle >= 3, ">=3", as.character(alle))),
                                   levels = c("0", "1", "2", ">=3"))
   df
 }

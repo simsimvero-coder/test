@@ -139,7 +139,8 @@ TABELLEN <- list(
     "cardiochir_eerder", "endocarditis", "urgentie", "EuroscoreII", "centrum", "jaar"
   ),
   "Tabel 2 - Operatiekenmerken" = c(
-    "chir_benadering", "concomitante_ingreep", "aantal_concomitant", "CABG", "klepchir_clean", "aklepchir", "mklepchir", "pklepchir",
+    "chir_benadering", "concomitante_ingreep", "concomitant_excl_ascendens", "aantal_concomitant",
+    "ingreep_wortel", "ingreep_ascendens", "CABG", "klepchir_clean", "aklepchir", "mklepchir", "pklepchir",
     "tklepchir", "aortachir", "aotachir_benadering", "aorta_asc", "aorta_asc_path",
     "aortaboog_path", "aorta_desc", "aorta_desc_path", "descendens_ingreep",
     "cardiochir_overig",
