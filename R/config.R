@@ -239,6 +239,8 @@ CENTRUM_KOLOM <- "centrum"
 DELIER_VANAF_JAAR <- 2022
 # Aantal bootstraptrekkingen voor de mediatieanalyse (nierfalen). Meer = trager.
 MEDIATIE_BOOTSTRAP <- 200
+# Bootstraptrekkingen voor de gestandaardiseerde mortaliteit per jaar (R/trendverschil.R).
+TRENDVERSCHIL_BOOTSTRAP <- 200
 
 # ── Klinische uitkomsten en variatie tussen centra (R/uitkomsten.R) ─────────
 # Samengestelde uitkomst "major complicaties": ja als minstens één van deze ja is

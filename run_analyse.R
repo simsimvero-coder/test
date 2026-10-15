@@ -43,6 +43,7 @@ source("R/perfusie.R", encoding = "UTF-8")
 source("R/uitkomsten.R", encoding = "UTF-8")
 source("R/benchmark.R", encoding = "UTF-8")
 source("R/arrest_uitkomst.R", encoding = "UTF-8")
+source("R/trendverschil.R", encoding = "UTF-8")
 
 args <- commandArgs(trailingOnly = TRUE)
 gezocht <- if (length(args)) args[1] else DATA_BESTAND
@@ -128,6 +129,9 @@ au <- arrest_uitkomsten(df, GROEP)
 cat("   Mediatieanalyse nierfalen (bootstrap) - kan enkele minuten duren\n"); flush.console()
 med <- mediatie_nierfalen(df, GROEP)
 cva_tab <- tabel_cva(df, GROEP)
+cat("   Trendverschil acuut vs electief en gestandaardiseerde mortaliteit (bootstrap)\n"); flush.console()
+tv_int <- mortaliteit_interactie(df, GROEP)
+tv_std <- mortaliteit_gestandaardiseerd(df, GROEP)
 
 # Gevoeligheidsanalyse: dezelfde patiëntgebonden modellen, gecorrigeerd voor EuroSCORE II
 sens_es <- NULL
@@ -143,6 +147,7 @@ if (length(GEVOELIGHEID_EUROSCORE_COVARIATEN)) {
   sens_es <- met_covariaten(GEVOELIGHEID_EUROSCORE_COVARIATEN, list(
     "Uitkomst - trends" = uitkomst_trends(df_es, GROEP),
     "Trend - toetsen" = trendanalyse(df_es, GROEP)$toetsen,
+    "Trendverschil acuut-electief" = mortaliteit_interactie(df_es, GROEP),
     "Overleving - Cox per groep" = overleving_cox_trend(df_es, GROEP)))
   sens_es <- c(list("Toelichting" = data.frame(toelichting = c(
     paste0("Gevoeligheidsanalyse: in de kolommen 'gecorrigeerd' is gecorrigeerd voor ",
@@ -165,7 +170,9 @@ excel <- c(
        "Periode - totaal" = per[["Totaal"]],
        "Periode uitkomstmodellen" = per_mod, "Temp - modellen" = pa$modellen, "Perfusieduur - trends" = pd, "Temp - per centrum" = pa$centra,
        "Temp - mediaan centrum-jaar" = pa$per_centrum_jaar,
-       "Uitkomst - trends" = ut, "Centra - orgaanbescherming" = cv$per_centrum,
+       "Uitkomst - trends" = ut,
+       "Trendverschil acuut-electief" = tv_int, "Mortaliteit gestand. per jaar" = tv_std$per_jaar,
+       "Mortaliteit absolute trend" = tv_std$absoluut, "Centra - orgaanbescherming" = cv$per_centrum,
        "Centra - bereik" = cv$bereik, "Centra - ICC" = cv$icc,
        "Temp zonder vs met arrest" = cv$zonder_met, "Opnameduur" = los,
        "Relatieve overleving" = rs, "SMR" = smr, "Benchmark - funnel" = bm, "Arrest - uitkomsten" = au, "Arrest - mediatie nierfalen" = med,
