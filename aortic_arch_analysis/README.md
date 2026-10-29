@@ -10,7 +10,7 @@ The analysis was developed independently. It is based only on the extract's vari
 | `statistical_methods_report.md` | Why each method was chosen, the assumptions and checks, and how to interpret the results. |
 | `results/analysis_report.md` | Generated on each run: every key number, read from the fitted models. |
 
-> **Status.** The pipeline has been executed end to end on **synthetic** test data only (`tests/`). It has not yet been run on the patient data. Nothing in this repository is a study result.
+> **Status.** The pipeline has not yet been run on the patient data. Nothing in this repository is a study result.
 
 ## Folder structure
 
@@ -28,17 +28,15 @@ aortic_arch_analysis/
 ├── 08_sensitivity_analyses.R  prespecified sensitivity analyses
 ├── 09_tables_figures.R        Tables 1-3, figures, supplement workbook, consistency checks, report
 ├── run_all.R                  runs 01-09 in fresh R sessions
-├── data/raw/                  put the patient extract here (never committed; read-only)
 ├── data/external/             CBS 37360ned (life tables) and 03759ned (population): public, CC BY 4.0
 ├── data/derived/              intermediate files (never committed)
-├── results/                   all output (never committed)
-└── tests/                     synthetic data generator and test runner (code testing only)
+└── results/                   all output (never committed)
 ```
 
 ## How to run
 
 1. **R ≥ 4.3** with the packages `data.table`, `ggplot2`, `lme4`, `survival`, `mice`, `ordinal`, `clubSandwich`, `MASS`, `patchwork`, `scales`, `writexl`, `readxl` and `haven`. On Ubuntu they are available as `r-cran-*` packages; elsewhere, use `install.packages()`. Exact versions are written to `results/session_info.txt`.
-2. Put the extract in `data/raw/`. The default file name is `arch_data.csv`; csv/txt (with `;` or `,`), xlsx, sav, dta and rds are all accepted. You can change the path in `R/00_config.R` or set the environment variable `ARCH_RAW_DATA=/path/to/file`.
+2. The data file is read directly from your desktop: **`AORTABOOG_NL_schoon v3(1).xlsx`** (first sheet). The code looks in `Desktop` and `Bureaublad`, including a desktop redirected to OneDrive. The file is only read, never changed or copied. If the file name, sheet or location changes, edit `RAW_FILE_NAME` / `RAW_FILE_SHEET` at the top of `R/00_config.R`, or set the full path in the environment variable `ARCH_RAW_DATA`.
 3. From this folder, run `Rscript run_all.R`.
 4. **Review `results/01_validation/validation_report.md` first.** By default the pipeline stops if a coded variable contains values that are not in the NHR handbook (`strict_coding = TRUE`). This is deliberate: it is better to stop than to guess what an undocumented code means.
 
@@ -52,10 +50,6 @@ aortic_arch_analysis/
 | `ARCH_GLMM_FALLBACK` | `bobyqa` | last-resort refit for GLMM convergence warnings (`none` = faster; warnings are still reported) |
 
 **Runtime.** With m = 20 on a 4-core machine, expect several hours, mostly in `04_clinical_outcomes.R`.
-
-### Testing on synthetic data
-
-`bash tests/run_synthetic_test.sh` generates a fake extract with identical columns and codings, then runs the whole pipeline into `tests/synthetic_results/`. Use it to check that the code runs in a new environment. Its numbers are meaningless.
 
 ## Main outputs (`results/`)
 

@@ -2,7 +2,7 @@
 
 This report explains the analyses implemented in scripts `01`–`09`: why each method was chosen, which assumptions are checked and how, and how the results should be interpreted. It accompanies `statistical_analysis_plan.md` (what is analysed) and `results/analysis_report.md` (the numbers, generated automatically by `09_tables_figures.R`).
 
-> **Status.** The pipeline has been executed end to end on a **synthetic test file** with the same structure and codings as the real NHR extract (see §12). It has **not** been run on the patient data, which were not available in the development environment. No clinical result is reported or implied here. The "robust versus uncertain" assessment in §11 is therefore a set of prespecified criteria to apply once the real results exist, not a verdict.
+> **Status.** The pipeline has **not** yet been run on the patient data, which were not available in the development environment (see §12). No clinical result is reported or implied here. The "robust versus uncertain" assessment in §11 is therefore a set of prespecified criteria to apply once the real results exist, not a verdict.
 
 ---
 
@@ -240,9 +240,9 @@ A finding is **uncertain** if it fails any of these: in particular, if it depend
 ## 12. Execution and verification
 
 * **Development environment**: R 4.3.3 on Linux with Ubuntu-packaged CRAN packages. Versions are written to `results/session_info.txt` on every run.
-* **Test run**: `tests/run_synthetic_test.sh` generates a **synthetic** extract (5,303 rows: 5,003 included, 300 excluded, 15 centres, 2013–2024) with all 60 columns and NHR codings. It deliberately includes −1 codes, out-of-range values, duplicates, structurally missing post-2022 variables and a Dutch-format CSV (`;` separator, `,` decimal). All nine scripts were executed on it.
+* **Development testing**: during development, the scripts were debugged on a generated test file with the same 60 columns and NHR codings. That file and its generator have since been removed; the pipeline now reads only the real extract (`AORTABOOG_NL_schoon v3(1).xlsx` on the desktop). All nine scripts were executed on the test file.
   * The checks built into the code passed: FTR identities, time-scale verification, and consistency between tables, figures and models.
-  * The models recovered the effects programmed into the synthetic data, for example a temperature trend of about +0.45 °C per year and a centre SD for 30-day mortality of 0.30 that lies within the estimated profile CI.
+  * The models recovered the effects programmed into the test file, for example a temperature trend of about +0.45 °C per year and a centre SD for 30-day mortality of 0.30 that lies within the estimated profile CI.
   * These outputs exist only to verify the code and are **not** study results.
 * **Runtime**: with m = 20 imputations, script 04 is the slowest step. Expect it to take a few hours on a 4-core machine with the default `bobyqa` fallback, and less with `ARCH_GLMM_FALLBACK=none` (at the cost of possibly retaining fits with residual gradient warnings, which are reported).
 * **What remains to be done on the real data**:

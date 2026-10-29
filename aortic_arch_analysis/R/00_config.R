@@ -5,10 +5,33 @@
 # Paths can be overridden with environment variables (used by the test run).
 # =============================================================================
 
+# ---- location of the patient-level file --------------------------------------
+# The extract is read directly from the desktop (read-only; never copied or
+# modified). Windows: R's "~" points to Documents, so the user profile is used,
+# and desktops redirected to OneDrive ("OneDrive - <organisation>") are searched too.
+RAW_FILE_NAME  <- "AORTABOOG_NL_schoon v3(1).xlsx"
+RAW_FILE_SHEET <- 1   # sheet number or name in the Excel file
+
+find_desktop_file <- function(file_name) {
+  home <- if (.Platform$OS.type == "windows") Sys.getenv("USERPROFILE") else path.expand("~")
+  roots <- c(home, Sys.getenv("OneDrive"), Sys.getenv("OneDriveCommercial"),
+             list.files(home, pattern = "^OneDrive", full.names = TRUE))
+  roots <- unique(roots[nzchar(roots)])
+  candidates <- unlist(lapply(roots, function(r) file.path(r, c("Desktop", "Bureaublad"), file_name)))
+  hit <- candidates[file.exists(candidates)]
+  if (length(hit)) return(normalizePath(hit[1], winslash = "/"))
+  # not found: return the first candidate so the error message shows where we looked
+  out <- candidates[1]
+  attr(out, "searched") <- candidates
+  out
+}
+
 CONFIG <- list(
   # ---- input ----------------------------------------------------------------
-  # Patient-level extract (csv / txt / xlsx / sav / dta / rds). Read-only.
-  raw_data_path   = Sys.getenv("ARCH_RAW_DATA", "data/raw/arch_data.csv"),
+  # Patient-level extract on the desktop (see above). Can be overridden with
+  # the environment variable ARCH_RAW_DATA. Read-only.
+  raw_data_path   = { p <- Sys.getenv("ARCH_RAW_DATA"); if (nzchar(p)) p else find_desktop_file(RAW_FILE_NAME) },
+  raw_data_sheet  = RAW_FILE_SHEET,
   # CBS StatLine 37360ned (life tables) as downloaded (folder with Observations.csv)
   cbs_lifetable_dir = Sys.getenv("ARCH_CBS_DIR", "data/external/cbs_37360ned"),
   # CBS StatLine 03759ned (population on 1 January and average population), as

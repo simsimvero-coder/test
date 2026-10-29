@@ -71,10 +71,13 @@ PAL <- c("#2a6ebb", "#d1495b", "#3d9970", "#edae49", "#6f4e9c", "#7f7f7f")
 
 # ---- reading -----------------------------------------------------------------
 
-read_raw <- function(path) {
+read_raw <- function(path, sheet = CONFIG$raw_data_sheet) {
   if (!file.exists(path)) {
-    stop("Raw data file not found: '", path, "'. Set CONFIG$raw_data_path in R/00_config.R ",
-         "or the ARCH_RAW_DATA environment variable.")
+    searched <- attr(path, "searched")
+    stop("Data file not found. Looked for:\n  ",
+         paste(if (is.null(searched)) path else searched, collapse = "\n  "),
+         "\nCheck the file name (RAW_FILE_NAME in R/00_config.R) or set the full path ",
+         "with the environment variable ARCH_RAW_DATA.")
   }
   ext <- tolower(tools::file_ext(path))
   dt <- switch(ext,
@@ -84,7 +87,14 @@ read_raw <- function(path) {
       fread(path, sep = if (semi) ";" else "auto", dec = if (semi) "," else ".",
             na.strings = c("", "NA", "NULL", "."), encoding = "UTF-8")
     },
-    xlsx = , xls = as.data.table(readxl::read_excel(path, guess_max = 1e5)),
+    xlsx = , xls = {
+      if (!is.null(sheet) && is.numeric(sheet)) {
+        sh <- readxl::excel_sheets(path)
+        if (length(sh) > 1) message("Excel file has sheets: ", paste(sh, collapse = ", "),
+                                    " - reading sheet ", sheet, " ('", sh[sheet], "')")
+      }
+      as.data.table(readxl::read_excel(path, sheet = sheet, guess_max = 1e6, na = c("", "NA")))
+    },
     sav = as.data.table(haven::zap_labels(haven::read_sav(path))),
     dta = as.data.table(haven::zap_labels(haven::read_dta(path))),
     rds = as.data.table(readRDS(path)),

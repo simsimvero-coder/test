@@ -283,8 +283,6 @@ report <- c(
   "# Analytical report (auto-generated)", "",
   sprintf("Generated %s. Input: `%s`. Every number below is read from the fitted analyses; no values were typed by hand.",
           format(Sys.time()), basename(CONFIG$raw_data_path)), "",
-  if (grepl("synthetic", CONFIG$raw_data_path, ignore.case = TRUE))
-    "> **SYNTHETIC TEST DATA - these numbers are not study results.**" else "",
   "", "## Cohort", "",
   sprintf("* Records in extract: %d; analysis cohort: %d patients from %d centres (%d-%d).",
           flow[step == "Records in extract", n], nrow(cohort), uniqueN(cohort$centrum),
