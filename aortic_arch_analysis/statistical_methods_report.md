@@ -31,7 +31,7 @@ The **primary endpoint is the composite of paper 1**: in-hospital death, stroke,
 
 **30-day all-cause mortality** is a key secondary endpoint. It complements the composite because the vital status is verified against the BRP and it includes deaths after discharge or transfer, which in-hospital death misses (NHR in-hospital mortality excludes patients transferred to another hospital, and transfer practice differs by centre and over time).
 
-* Stroke in the composite (paper 1 definition): stroke with or without residual deficit; the same definition applies to major complication and FTR. Because `CVA_zonder_restletsel` includes TIA, the composite with stroke with residual deficit only is a sensitivity analysis.
+* Stroke in the composite (paper 1 definition): stroke with or without residual deficit. Major complication and FTR use stroke with residual deficit only (paper 1). Because `CVA_zonder_restletsel` includes TIA, the composite with stroke with residual deficit only is a sensitivity analysis.
 * 1-year mortality (binary) is analysed for operations up to 2023 only. For operations in 2024, many survivors do not yet have one year of follow-up, so they would be excluded while early deaths would be included, which biases the 2024 estimate upwards. Kaplan–Meier estimates of 1-year mortality, which handle censoring, are reported for all years.
 
 ---
@@ -105,7 +105,7 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
 
 ## 4. Failure to rescue (FTR)
 
-* **Definition (main analysis, paper 1).** FTR = in-hospital death among patients with ≥ 1 major complication, where major complication = stroke, renal failure or GI complication. **Additional analyses**: 30-day death as numerator, and a broader complication definition that adds reintubation and major vascular complication (an extended set adding ventilation > 24 h and stroke without deficit is in the sensitivity analyses).
+* **Definition (main analysis, paper 1).** FTR = in-hospital death among patients with ≥ 1 major complication, where major complication = stroke with residual deficit, renal failure or GI complication. **Additional analyses**: 30-day death as numerator, and a broader complication definition that adds reintubation and major vascular complication (an extended set adding ventilation > 24 h and stroke without deficit is in the sensitivity analyses).
 * **Verified identities.** The denominator equals the number with the composite = 1. The numerator is no larger than all 30-day deaths. Deaths without a recorded complication are counted, because they are outside FTR by definition. The decomposition *mortality = P(C)·FTR + (1 − P(C))·mortality without C* holds exactly each year. The script stops if any of these identities fails.
 * **The conditioning problem.** FTR conditions on a post-operative event that is itself influenced by year (better prevention or more complete recording) and by patient risk. Changes in FTR can therefore reflect changes in *who* has complications rather than better rescue. Three measures address this:
   1. The FTR model adjusts for preoperative confounders and the number of complications.

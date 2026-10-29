@@ -98,7 +98,7 @@
 | Secondary | Prolonged ventilation (> 24 h) | `beademing` |
 | Secondary | Reintubation for respiratory insufficiency | `resp_insuff` |
 | Secondary | ICU readmission | `heropname_IC` |
-| Secondary | Major complication (paper 1) | Any of: stroke (as in the primary composite), `nierfalen`, `gastroint_compl` ∈ {1, 10, 90}. |
+| Secondary | Major complication (paper 1) | Any of: stroke with residual deficit (`CVA_restletsel`), `nierfalen`, `gastroint_compl` ∈ {1, 10, 90}. |
 | Supplementary | Major complication, broader definition | Adds `resp_insuff` (reintubation) and `vasc_compl_opname` = 10 (major vascular). |
 | Secondary | Hospital length of stay | `opnameduur` (days) |
 | Secondary | Failure to rescue (paper 1) | In-hospital death among patients with ≥ 1 major complication (paper 1 definition). Additional: 30-day death; broader complication definition. |
@@ -181,7 +181,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 ### 5.4 Failure to rescue (Q8)
 
-* **Main analysis (paper 1 definitions)**: denominator = patients with ≥ 1 major complication (stroke, renal failure, GI complication); numerator = in-hospital deaths among them. **Additional analyses**: 30-day death as numerator, and the broader complication definition (adding reintubation and major vascular complication).
+* **Main analysis (paper 1 definitions)**: denominator = patients with ≥ 1 major complication (stroke with residual deficit, renal failure, GI complication); numerator = in-hospital deaths among them. **Additional analyses**: 30-day death as numerator, and the broader complication definition (adding reintubation and major vascular complication).
 * Before analysis, the code verifies that the denominator equals the number of patients with the composite = 1 and that the numerator is no larger than the 30-day deaths.
 * Model: a mixed logistic model within the complicated patients, with year plus the M1 covariates plus the number of distinct complications, and a centre random intercept.
 * **Conditioning problem**: complication status is affected by year and by risk factors, so FTR trends can be distorted by changes in who develops (or is recorded as having) complications. To address this, an annual decomposition is reported: overall mortality = P(complication) × FTR + P(no complication) × mortality without complication. Unconditional trends in complications and mortality are also reported. Patients who die intraoperatively or very early have little opportunity for a complication to be recorded, which is a limitation that is reported.
@@ -225,7 +225,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 ### 5.9 Multiplicity
 
 * Primary endpoint: a two-sided α of 0.05, with no adjustment.
-* **Stroke in the composite (paper 1 definition).** Stroke with or without residual deficit (`CVA_restletsel` or `CVA_zonder_restletsel`); the same definition is used for major complication and FTR. Because `CVA_zonder_restletsel` also includes TIA, the composite with stroke with residual deficit only is run as a sensitivity analysis. The choice is one setting (`composite_stroke`) in `R/00_config.R`.
+* **Stroke in the composite (paper 1 definition).** Stroke with or without residual deficit (`CVA_restletsel` or `CVA_zonder_restletsel`); major complication and FTR use stroke with residual deficit only (paper 1). Because `CVA_zonder_restletsel` also includes TIA, the composite with stroke with residual deficit only is run as a sensitivity analysis. The choice is one setting (`composite_stroke`) in `R/00_config.R`.
 * The year trends of the secondary binary early outcomes (Q4, including 30-day mortality) are adjusted with **Holm's method** (family-wise error), shown alongside unadjusted values.
 * Exploratory analyses (subgroups, interactions, outcomes from mid-2022 onward) use **Benjamini–Hochberg** (false discovery rate) and are labelled hypothesis-generating.
 * Estimates and CIs are interpreted ahead of significance.

@@ -31,7 +31,8 @@ OUT <- data.table(
             sprintf("1-year mortality (operations %d-%d)", min(yrs), CONFIG$d1y_last_year),
             "Stroke with permanent deficit", "Stroke/TIA without deficit", "Renal failure",
             "GI complication", "Ventilation > 24 h", "Reintubation (respiratory insufficiency)", "ICU readmission",
-            sprintf("Major complication (%s, renal failure, GI)", stroke_lab),
+            sprintf("Major complication (%s, renal failure, GI)",
+                    if (CONFIG$major_stroke == "any") "any stroke" else "stroke with deficit"),
             "Major complication, broader definition (+ reintubation, major vascular)",
             "ECMO during admission", "Postoperative myocardial infarction", "Delirium"),
   role  = c("primary", rep("secondary", 11), "supplementary", rep("exploratory", 3)))

@@ -256,8 +256,10 @@ dv[, stroke_alt  := if (CONFIG$composite_stroke == "any") stroke_def else stroke
 dv[, comp_primary := composite(c("dzh", "stroke_comp", "renal", "gi"))]
 dv[, comp_primary_altstroke := composite(c("dzh", "stroke_alt", "renal", "gi"))]
 
-# MAJOR COMPLICATION (paper 1, main analysis and FTR denominator): stroke, GI, renal failure
-MAJOR_COMPONENTS <- c("stroke_comp", "renal", "gi")
+# MAJOR COMPLICATION (paper 1, main analysis and FTR denominator): stroke with residual
+# deficit (CONFIG$major_stroke), renal failure, GI complication
+dv[, stroke_major := if (CONFIG$major_stroke == "any") stroke_any else stroke_def]
+MAJOR_COMPONENTS <- c("stroke_major", "renal", "gi")
 dv[, major_compl := composite(MAJOR_COMPONENTS)]
 dv[, n_compl := rowSums(as.matrix(.SD) == 1, na.rm = TRUE), .SDcols = MAJOR_COMPONENTS]
 # Supplementary definitions: broader set (adds reintubation and major vascular complication),

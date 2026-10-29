@@ -68,10 +68,13 @@ CONFIG <- list(
   keep_unknown_approach = FALSE,
 
   # ---- outcome definitions (paper 1 definitions are the main analysis) --------
-  # Stroke counted in the primary composite and in 'major complication':
+  # Stroke counted in the primary composite (paper 1: with or without deficit):
   # "deficit" = CVA_restletsel only; "any" = CVA_restletsel or CVA_zonder_restletsel
   # (the latter includes TIA). The other choice is run as a sensitivity analysis.
   composite_stroke = "any",
+  # Stroke counted in 'major complication' (and hence the FTR denominator).
+  # Paper 1: stroke with residual deficit only.
+  major_stroke = "deficit",
   # 1-year mortality (binary) is analysed for operation years up to this year only,
   # so that every included year has complete potential 1-year follow-up.
   d1y_last_year = 2023,

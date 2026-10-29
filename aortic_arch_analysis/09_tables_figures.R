@@ -254,7 +254,7 @@ fd[, variable := factor(variable, c("p_complication", "ftr", "mort_no_compl", "m
                         c("Major complication", "Failure to rescue", "Mortality without complication", "In-hospital mortality"))]
 pf <- ggplot(fd, aes(year, 100 * value)) + geom_line(colour = PAL[1]) + geom_point(colour = PAL[1], size = 1.2) +
   facet_wrap(~variable, scales = "free_y", ncol = 4) + scale_x_continuous(breaks = c(2013, 2018, 2024)) +
-  labs(x = NULL, y = "%", title = "Decomposition of in-hospital mortality (crude; major complication = stroke, renal failure, GI)") + theme_pub()
+  labs(x = NULL, y = "%", title = "Decomposition of in-hospital mortality (crude; major complication = stroke with deficit, renal failure, GI)") + theme_pub()
 save_fig(pf, SUB, "FigureS2_ftr_decomposition", 10, 3.5)
 cs <- copy(surv$cond)[, s_lab := factor(round(survived_days), c(0, 30, 365, 730, 1826),
                                        c("0 d", "30 d", "1 y", "2 y", "5 y"))]
