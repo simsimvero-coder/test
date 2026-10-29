@@ -1,0 +1,122 @@
+Identifier;Title;Description;Modified;ReleaseDate;ModificationDate;Language;TemporalCoverage;Authority;Catalog;Publisher;ContactPoint;Version;VersionNotes;VersionReason;Frequency;Status;ObservationCount;ObservationsModified;DatasetType;GraphTypes;License;Source;Summary;LongDescription
+37360ned;"Levensverwachting; geslacht, leeftijd (per jaar en periode van vijf jaren)";"Deze tabel bevat de periode-overlevingstafels (per periode van 1 jaar en 5 jaren) naar geslacht en leeftijd voor de bevolking van Nederland.
+
+Uit de tabel kan worden afgelezen hoeveel jongens of meisjes uit een groep van 100 duizend pasgeborenen de leeftijd van 0, 1, 2 enz. jaar op 31 december van het jaar van waarneming zullen bereiken. Tevens kan worden afgelezen hoe oud deze kinderen gemiddeld zullen worden. 
+
+De volgende uitsplitsingen zijn mogelijk:
+- Sterftekans naar geslacht en leeftijd;
+- Levenden (tafelbevolking) naar geslacht en leeftijd;
+- Overledenen (tafelbevolking) naar geslacht en leeftijd;
+- Levensverwachting naar geslacht en leeftijd.
+
+Gegevens beschikbaar vanaf:
+- perioden van één jaar: vanaf 1950
+- perioden van vijf jaren: vanaf 1861 tot 1866.
+
+Status van de cijfers:
+Alle in de tabel opgenomen cijfers zijn definitief.
+
+Wijzigingen per 22 juni 2026:
+Definitieve cijfers over 2025 en de vijfjaarsperiode 2021 tot 2026 zijn toegevoegd.
+
+Wanneer komen er nieuwe cijfers?
+In het tweede kwartaal van 2026 worden de cijfers over 2025 gepubliceerd. 
+
+";2026-06-22T00:00:00+02:00;2026-06-22T00:00:00+02:00;2026-06-22T00:00:00+02:00;nl;1861 - 2025;https://standaarden.overheid.nl/owms/terms/Centraal_Bureau_voor_de_Statistiek;CBS;https://standaarden.overheid.nl/owms/terms/Centraal_Bureau_voor_de_Statistiek;infoservice@cbs.nl;202606220000;;Actualisering;Per jaar;Regulier;123600;2026-06-22T00:00:00+02:00;Numeric;Table,Bar;https://creativecommons.org/licenses/by/4.0/;CBS.;"Sterftequotiënt, levenden, overledenen, aantal te verwachten levensjaren
+naar geslacht en leeftijd (per jaar en periode van vijf jaren)";"INHOUDSOPGAVE
+
+1. Toelichting
+2. Definities en verklaring van symbolen
+3. Koppelingen naar relevante tabellen en artikelen
+4. Bronnen en methoden
+5. Meer informatie 
+
+1. TOELICHTING
+
+Deze tabel bevat de periode-overlevingstafels (per periode van 1 jaar en 5 jaren) naar geslacht en leeftijd voor de bevolking van Nederland.
+
+Uit de tabel kan worden afgelezen hoeveel jongens of meisjes uit een groep van 100 duizend pasgeborenen de leeftijd van 0, 1, 2 enz. jaar op 31 december van het jaar van waarneming zullen bereiken. Tevens kan worden afgelezen hoe oud deze kinderen gemiddeld zullen worden. 
+
+De volgende uitsplitsingen zijn mogelijk:
+- Sterftekans naar geslacht en leeftijd;
+- Levenden (tafelbevolking) naar geslacht en leeftijd;
+- Overledenen (tafelbevolking) naar geslacht en leeftijd;
+- Levensverwachting naar geslacht en leeftijd.
+
+Gegevens beschikbaar vanaf:
+- perioden van één jaar: vanaf 1950
+- perioden van vijf jaren: vanaf 1861 tot 1866.
+
+Status van de cijfers:
+Alle in de tabel opgenomen cijfers zijn definitief.
+
+Wijzigingen per 22 juni 2026:
+Definitieve cijfers over 2025 en de vijfjaarsperiode 2021 tot 2026 zijn toegevoegd.
+
+Wanneer komen er nieuwe cijfers?
+In het tweede kwartaal van 2026 worden de cijfers over 2025 gepubliceerd. 
+
+2. DEFINITIES EN VERKLARING VAN SYMBOLEN
+
+Definities:
+
+Bevolking
+De inwoners van Nederland.
+In de bevolkingsaantallen zijn uitsluitend personen begrepen die zijn opgenomen in het bevolkingsregister van een Nederlandse gemeente. In principe wordt iedereen die voor onbepaalde tijd in Nederland woont, opgenomen in het bevolkingsregister van de woongemeente. Personen die tot de bevolking van Nederland behoren, maar voor wie geen vaste woonplaats valt aan te wijzen, zijn opgenomen in het bevolkingsregister van de gemeente 's-Gravenhage. In de bevolkingsregisters zijn niet opgenomen de in Nederland wonende personen waarvoor uitzonderingsregels gelden met betrekking tot opneming in de bevolkingsregisters (bijvoorbeeld diplomaten en NAVO militairen) en personen die niet legaal in Nederland verblijven.
+
+Leeftijd op 31 december
+Het aantal gehele jaren dat op 31 december van het jaar van waarneming is verstreken sinds de geboortedatum van de persoon. 
+Te berekenen als jaar van waarneming min geboortejaar.
+
+Levenden (tafelbevolking)
+Personen, uit de fictieve tafelbevolking, die een bepaalde leeftijd wel bereiken. Het aantal levenden in deze publicatie heeft betrekking op een tafelbevolking en komt dus niet overeen met het werkelijke aantal levenden in de geselecteerde periode.
+
+Levensverwachting
+Het aantal jaren dat iemand van een geselecteerde leeftijd naar verwachting nog te leven heeft onder de veronderstelling dat de sterftekansen waarop de tafel is gebaseerd in de toekomst niet zullen veranderen.
+
+Overledenen (tafelbevolking)
+Personen, uit de fictieve tafelbevolking, die overlijden vóór het bereiken van de volgende leeftijd. Het aantal overledenen in deze publicatie heeft betrekking op een tafelbevolking en komt dus niet overeen met het werkelijke aantal overledenen in de geselecteerde periode.
+
+Periode-overlevingstafel
+Tabel die aangeeft hoeveel van 100 duizend pasgeborenen de leeftijd van een 0, 1, 2 jaar enzovoort, zullen bereiken op basis van de sterfteverhoudingen die gedurende een bepaalde periode daadwerkelijk zijn waargenomen.
+
+Sterftekans
+De kans op overlijden vóór het bereiken van de volgende leeftijd.
+De kans op overlijden is berekend als het waargenomen aantal overledenen in de geselecteerde periode per 100 duizend van de gemiddelde (werkelijke) bevolking met gelijke leeftijd en gelijk geslacht. 
+
+Tafelbevolking
+Fictief cohort van doorgaans 100 duizend mannen of vrouwen dat op iedere leeftijd is blootgesteld aan de geslachts- en leeftijdsspecifieke sterftekansen zoals waargenomen in de geselecteerde periode.
+Een fictief cohort bestaat uit niet werkelijk bestaande personen van wie wordt gesteld dat ze allemaal in eenzelfde periode zijn geboren.
+
+Verklaring van symbolen:
+
+niets (blanco)	: het cijfer kan op logische gronden niet voorkomen
+. 		: het cijfer is onbekend, onvoldoende betrouwbaar of geheim
+*		: voorlopige cijfers
+**		: nader voorlopige cijfers
+
+3. KOPPELINGEN NAAR RELEVANTE TABELLEN EN ARTIKELEN
+
+Relevante tabel:
+<a href='https://opendata.cbs.nl/statline/#/CBS/nl/dataset/37979ned'>Overledenen; kerncijfers</a>
+
+Relevante artikelen:
+<a href='https://www.cbs.nl/nl-nl/achtergrond/2017/14/de-levensverwachting-meet-de-sterfte'>De levensverwachting meet de sterfte</a>
+<a href='https://www.cbs.nl/nl-nl/longread/statistische-trends/2025/trends-in-sterfte-en-doodsoorzaken-2014-2024'>Trends in sterfte en doodsoorzaken, 2014-2024</a>
+<a href='https://www.cbs.nl/nl-nl/nieuws/2025/45/prognose-levensverwachting-65-jarigen-21-jaar-in-2031'>Prognose levensverwachting 65-jarigen: 21 jaar in 2031</a>
+<a href='https://www.cbs.nl/nl-nl/achtergrond/2013/07/regionale-verschillen-in-sterfte-verklaard'>Regionale verschillen in sterfte verklaard</a>
+
+Algemene informatie over de bevolking is te vinden op de themapagina <a href='https://www.cbs.nl/nl-nl/maatschappij/bevolking'>Bevolking</a>.
+
+4. BRONNEN EN METHODEN
+
+De onderzoeksmethode van deze tabel is te vinden in de korte onderzoeksbeschrijving <a href='https://www.cbs.nl/nl-nl/onze-diensten/methoden/onderzoeksomschrijvingen/korte-onderzoeksbeschrijvingen/bevolkingsstatistiek'>Bevolkingsstatistiek</a>.
+
+De gegevens in de tabel zijn vanaf 2014 samengesteld met behulp van het <a href='https://www.cbs.nl/nl-nl/onze-diensten/methoden/onderzoeksomschrijvingen/korte-onderzoeksbeschrijvingen/stelsel-van-sociaal-statistische-bestanden--ssb--'>Stelsel van Sociaal-statistische Bestanden (SSB)</a>.
+
+5. MEER INFORMATIE
+
+<a href='https://www.cbs.nl/nl-nl/over-ons/contact/infoservice'>Infoservice</a>
+
+Copyright (c) Centraal Bureau voor de Statistiek, Den Haag/Heerlen 
+Verveelvoudiging is toegestaan, mits het CBS als bron wordt vermeld."

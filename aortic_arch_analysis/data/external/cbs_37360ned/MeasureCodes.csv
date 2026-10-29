@@ -1,0 +1,28 @@
+Identifier;MeasureGroupId;Index;Title;Description;DataType;Unit;Decimals;PresentationType
+M005112;;3;Sterftekans;"Sterftekans 
+De kans op overlijden vóór het bereiken van de volgende leeftijd. De kans op overlijden is berekend als het waargenomen aantal overledenen in de geselecteerde periode per 100 duizend van de gemiddelde (werkelijke) bevolking met gelijke leeftijd en gelijk geslacht.
+";Float;kans;5;
+M001183;;4;Levenden (tafelbevolking) ;"Levenden (tafelbevolking) 
+Personen, uit de fictieve tafelbevolking, die een bepaalde leeftijd wel zullen bereiken. Het aantal levenden in deze publicatie heeft betrekking op een tafelbevolking en komt dus niet overeen met het werkelijke aantal levenden in de geselecteerde periode.
+
+Tafelbevolking:
+Fictief cohort van doorgaans 100 duizend mannen of vrouwen dat op iedere leeftijd is blootgesteld aan de geslachts- en leeftijdsspecifieke sterftekansen zoals waargenomen in de geselecteerde periode.
+
+Fictief cohort: 
+Niet werkelijk bestaande personen van wie wordt gesteld dat ze allemaal in eenzelfde periode zijn geboren.
+
+";Long;aantal;0;
+M003615;;5;Overledenen (tafelbevolking) ;"Overledenen (tafelbevolking) 
+Personen, uit de fictieve tafelbevolking, die overlijden vóór het bereiken van de volgende leeftijd. Het aantal overledenen in deze publicatie heeft betrekking op een tafelbevolking en komt dus niet overeen met het werkelijke aantal overledenen in de geselecteerde periode.
+
+Tafelbevolking:
+Fictief cohort van doorgaans 100 duizend mannen of vrouwen dat op iedere leeftijd is blootgesteld aan de geslachts- en leeftijdsspecifieke sterftekansen zoals waargenomen in de geselecteerde periode.
+
+Fictief cohort: 
+Niet werkelijk bestaande personen van wie wordt gesteld dat ze allemaal in eenzelfde periode zijn geboren.
+";Long;aantal;0;
+M003570;;6;Levensverwachting;"Levensverwachting
+Het aantal jaren dat iemand van een geselecteerde leeftijd naar verwachting nog te leven heeft onder de veronderstelling dat de sterftekansen waarop de tafel is gebaseerd in de toekomst niet zullen veranderen.
+
+
+";Float;jaar ;2;
