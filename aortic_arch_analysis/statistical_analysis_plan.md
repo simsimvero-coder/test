@@ -209,7 +209,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 * Missingness is described by variable, year and centre.
 * **Multiple imputation by chained equations** (`mice`, m = 20). Predictive mean matching for continuous variables, logistic or polytomous regression for categorical variables. Predictors are all analysis covariates, year, centre (fixed effects, appropriate for 15 clusters), the outcomes (30-day death, in-hospital death, the major complication composite, and the event indicator with the Nelson–Aalen cumulative hazard for survival). **Outcomes are not imputed.** Patients with a missing outcome are excluded from that outcome's analysis, and their number is reported.
 * Pooling uses Rubin's rules (implemented in code), and the pooled variance components come from the average across imputations.
-* Primary adjusted analyses use the imputed data. Sensitivity analyses: complete-case analysis, and δ-adjusted imputation (missing-not-at-random) for the continuous covariate with the most missing values.
+* **All adjusted analyses are run twice**: with multiple imputation (prespecified primary) and as a complete-case analysis (per model, patients with every model variable observed). Both sets are reported in full, and the key estimates are placed side by side (script 10). Additional sensitivity analysis: δ-adjusted imputation (missing not at random) for the continuous covariate with the most missing values.
 
 ### 5.9 Multiplicity
 
@@ -227,7 +227,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 ### 5.11 Sensitivity analyses (prespecified)
 
-1. Complete-case versus multiple imputation.
+1. Complete-case versus multiple imputation (every adjusted analysis, see §5.8).
 2. Adjustment sets M0, M1, M2 and M3.
 3. Clustering: random intercept, random intercept + slope for year, and a centre fixed-effects GLM with CR2/Satterthwaite inference.
 4. Excluding 2024, and excluding salvage operations.

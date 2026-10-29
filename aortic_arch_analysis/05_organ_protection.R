@@ -9,10 +9,11 @@
 source("R/00_config.R"); source("R/functions.R")
 suppressPackageStartupMessages(library(ordinal))
 start_log("05_organ_protection")
+log_msg("Missing-data method: ", method_label())
 SUB <- "05_organ_protection"
 
 cohort <- load_derived("cohort.rds")
-imps   <- load_derived("imputed.rds")
+imps   <- analysis_datasets()   # imputed data sets or observed cohort (complete case)
 specs  <- load_derived("specs.rds")
 CASEMIX <- c("age", "female", "urg3", "path3", "desc_inv", "hybrid_fet")
 
@@ -69,6 +70,7 @@ vc_table <- function(fit) {
 }
 fe_cr2 <- function(y, d, adjust, family = NULL) {
   f <- as.formula(paste(y, "~", paste(c("year_c", rhs_terms(adjust), "centrum"), collapse = " + ")))
+  d <- complete_for(list(d), f)[[1]]
   fit <- if (is.null(family)) lm(f, data = d) else glm(f, family = family, data = d)
   ct <- clubSandwich::coef_test(fit, vcov = "CR2", cluster = d$centrum, test = "Satterthwaite")
   r <- ct[ct$Coef == "year_c", ]
@@ -90,6 +92,7 @@ for (cs in cont_specs) {
     dl <- lapply(base_list <- lapply(imps, base), cs$sub)
     f_int <- mk_formula(cs$y, adjust, "(1 | centrum)")
     f_slp <- mk_formula(cs$y, adjust, "(1 + year_c | centrum)")
+    dl <- complete_for(dl, f_slp)
     p_slp <- fit_pooled(f_slp, dl, family = NULL)
     est <- p_slp$pooled[term == "year_c"]
     if (cs$log) est[, `:=`(estimate = exp(estimate), lower = exp(lower), upper = exp(upper))]
@@ -120,6 +123,7 @@ for (adjust in c(FALSE, TRUE)) {
   dl <- lapply(imps, function(d) base(d)[!is.na(circ_arrest_b)])
   f_int <- mk_formula("circ_arrest_b", adjust, "(1 | centrum)")
   f_slp <- mk_formula("circ_arrest_b", adjust, "(1 + year_c | centrum)")
+  dl <- complete_for(dl, f_slp)
   p_int <- fit_pooled(f_int, dl)
   p_slp <- fit_pooled(f_slp, dl)
   for (nm in c("random intercept", "random intercept + slope")) {
@@ -147,7 +151,8 @@ for (adjust in c(FALSE, TRUE)) {
   log_msg("hypothermia ordinal, adjusted = ", adjust)
   dl <- lapply(imps, function(d) base(d)[!is.na(hypo4)][, hypo4 := droplevels(hypo4)])
   f <- as.formula(paste("hypo4 ~", paste(c("year_c", rhs_terms(adjust), "(1 | centrum)"), collapse = " + ")))
-  fits <- lapply(dl, function(d) clmm(f, data = d, link = "logit", nAGQ = 1))
+  dl <- complete_for(dl, f)
+  fits <- par_lapply(dl, function(d) clmm(f, data = d, link = "logit", nAGQ = 1))
   est <- lapply(fits, function(m) coef(m)[!names(coef(m)) %in% names(m$alpha)])
   vc  <- lapply(fits, function(m) { v <- vcov(m); nm <- names(coef(m))[!names(coef(m)) %in% names(m$alpha)]; v[nm, nm] })
   pooled <- exp_table(rubin_pool(est, vc), "year_c")
@@ -165,6 +170,7 @@ for (adjust in c(FALSE, TRUE)) {
 }
 # Sensitivity for PO: binary deep hypothermia (<=20 C) with mixed logistic model
 dl <- lapply(imps, function(d) base(d)[!is.na(hypo4)][, deep := as.integer(hypo4 == "Deep (<=20)")])
+dl <- complete_for(dl, mk_formula("deep", TRUE, "(1 | centrum)"))
 pd <- exp_table(fit_pooled(mk_formula("deep", TRUE, "(1 | centrum)"), dl)$pooled, "year_c")
 ord_res[[length(ord_res) + 1]] <- data.table(outcome = "Deep hypothermia <=20 C (OR per year, binary sensitivity)",
                                              adjusted = TRUE, n = nrow(dl[[1]]), estimate = pd$ratio,
@@ -182,5 +188,5 @@ write_out(rbindlist(cents), SUB, "centre_effects_arrest")
 saveRDS(list(t2 = t2, annual = annual, hypo_year = hypo_year, centre_year = centre_year,
              practice = practice_tab, ordinal = rbindlist(ord_res, fill = TRUE),
              slopes = rbindlist(slopes), fe = rbindlist(fe), lrt = rbindlist(lrts, fill = TRUE)),
-        derived_path("organ.rds"))
+        derived_method("organ.rds"))
 log_msg("Done.")

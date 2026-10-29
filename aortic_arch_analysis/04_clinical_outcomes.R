@@ -9,10 +9,11 @@
 
 source("R/00_config.R"); source("R/functions.R")
 start_log("04_clinical_outcomes")
+log_msg("Missing-data method: ", method_label())
 SUB <- "04_outcomes"
 
 cohort <- load_derived("cohort.rds")
-imps   <- load_derived("imputed.rds")
+imps   <- analysis_datasets()   # imputed data sets or observed cohort (complete case)
 specs  <- load_derived("specs.rds")
 dv     <- load_derived("validated.rds")
 STRUCT <- attr(dv, "structural_missing")
@@ -61,16 +62,18 @@ model_rows <- list(); diag_rows <- list(); gcomp_rows <- list(); urg_rows <- lis
 centre_rows <- list(); fits_keep <- list()
 
 analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = FALSE) {
-  dl <- lapply(imps, function(d) d[year >= first_year & !is.na(get(v))])
-  y <- dl[[1]][[v]]
+  dl_all <- lapply(imps, function(d) d[year >= first_year & !is.na(get(v))])
   covars <- COVARS_M1
   f1 <- build_formula(v, covars, specs)
+  dl <- complete_for(dl_all, f1)          # complete-case: rows with all model variables
+  y <- dl[[1]][[v]]
   npar <- n_fixed_par(f1, dl[[1]])
   ev_pp <- epv(y, npar)
   reduced <- ev_pp < 10
   if (reduced) {
     covars <- c("age", "female", "urg3", "path3")
     f1 <- build_formula(v, covars, specs)
+    dl <- complete_for(dl_all, f1); y <- dl[[1]][[v]]
     ev_pp <- epv(y, n_fixed_par(f1, dl[[1]]))
     log_msg(v, ": EPV < 10 -> reduced model (EPV now ", round(ev_pp, 1), ")")
   }
@@ -82,7 +85,8 @@ analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = F
   m1 <- fit_pooled(f1, dl)
   tab <- exp_table(m1$pooled)
   tab[, `:=`(outcome = v, label = label, model = if (reduced) "M1 reduced" else "M1",
-             n = length(y), events = sum(y == 1), epv = ev_pp)]
+             n = length(y), events = sum(y == 1), epv = ev_pp,
+             n_with_outcome = nrow(dl_all[[1]]), missing_method = CONFIG$missing_method)]
   res <- list(model = tab,
               diag = cbind(outcome = v, model = "M1", m1$diag, epv = ev_pp, reduced = reduced),
               re_sd = m1$re_sd, fits = m1$fits, data = dl, formula = f1, covars = covars)
@@ -256,10 +260,14 @@ stopifnot(all(abs(decomp$check_identity) < 1e-10))
 write_out(decomp, SUB, "ftr_decomposition_by_year")
 ftr_models <- list()
 for (num in c("d30", "dzh")) {
-  dl <- lapply(imps, function(d) d[major_compl == 1 & !is.na(get(num))])
+  dl0 <- lapply(imps, function(d) d[major_compl == 1 & !is.na(get(num))])
   f <- build_formula(num, c(COVARS_M1, "n_compl"), specs)
+  dl <- complete_for(dl0, f)
   npar <- n_fixed_par(f, dl[[1]]); ev <- epv(dl[[1]][[num]], npar)
-  if (ev < 10) f <- build_formula(num, c("age", "female", "urg3", "path3", "n_compl"), specs)
+  if (ev < 10) {
+    f <- build_formula(num, c("age", "female", "urg3", "path3", "n_compl"), specs)
+    dl <- complete_for(dl0, f)
+  }
   fp <- fit_pooled(f, dl)
   ftr_models[[num]] <- exp_table(fp$pooled)[, `:=`(numerator = num, n = nrow(dl[[1]]),
                                                    events = sum(dl[[1]][[num]] == 1), epv = ev,
@@ -273,5 +281,5 @@ saveRDS(list(OUT = OUT, crude = crude, models = models, year = yr, gcomp = gcomp
              funnel = rbindlist(centre_rows[grepl("_fun", names(centre_rows))]),
              urgency = rbindlist(lapply(urg_rows, `[[`, "or")),
              los = rbind(los_tab, los_cox, fill = TRUE), ftr = rbindlist(ftr_models), ftr_decomp = decomp),
-        derived_path("outcomes.rds"))
+        derived_method("outcomes.rds"))
 log_msg("Done.")

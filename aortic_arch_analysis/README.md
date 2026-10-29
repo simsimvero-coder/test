@@ -8,7 +8,8 @@ The analysis was developed independently. It is based only on the extract's vari
 |---|---|
 | `statistical_analysis_plan.md` | Questions, endpoints, models, covariates, missing data, multiplicity, sensitivity analyses. Written before analysis. |
 | `statistical_methods_report.md` | Why each method was chosen, the assumptions and checks, and how to interpret the results. |
-| `results/analysis_report.md` | Generated on each run: every key number, read from the fitted models. |
+| `results/imputation/analysis_report.md`, `results/complete_case/analysis_report.md` | Generated on each run: every key number, read from the fitted models, for each missing-data method. |
+| `results/comparison_missing_data/` | Key estimates from both methods side by side. |
 
 > **Status.** The pipeline has not yet been run on the patient data. Nothing in this repository is a study result.
 
@@ -27,7 +28,8 @@ aortic_arch_analysis/
 ├── 07_population_survival.R   expected survival, Ederer II, Pohar-Perme, SMR, excess hazard
 ├── 08_sensitivity_analyses.R  prespecified sensitivity analyses
 ├── 09_tables_figures.R        Tables 1-3, figures, supplement workbook, consistency checks, report
-├── run_all.R                  runs 01-09 in fresh R sessions
+├── 10_compare_missing_data_methods.R   multiple imputation vs complete case, side by side
+├── run_all.R                  runs everything in fresh R sessions (04-09 once per missing-data method)
 ├── data/external/             CBS 37360ned (life tables) and 03759ned (population): public, CC BY 4.0
 ├── data/derived/              intermediate files (never committed)
 └── results/                   all output (never committed)
@@ -51,16 +53,22 @@ aortic_arch_analysis/
 
 **Runtime.** With m = 20 on a 4-core machine, expect several hours, mostly in `04_clinical_outcomes.R`.
 
+## Missing data: two analyses
+
+All adjusted analyses (scripts 04, 05, 06, 08, 09) are run twice: with **multiple imputation** (prespecified primary) and as a **complete-case analysis**. Descriptive results (01–03) and population-referenced survival (07) do not depend on this and are produced once. To run one method only, set `ARCH_MISSING=imputation` or `ARCH_MISSING=complete_case` and run the individual scripts.
+
 ## Main outputs (`results/`)
 
-* `publication/`:
+* `imputation/publication/` and `complete_case/publication/`:
   * Table 1 (baseline characteristics by urgency), Table 2 (organ protection), Table 3 (early outcomes);
   * Figures 1–8: volume, case mix, adjusted trends, organ protection, centre variation, Kaplan–Meier curves, landmark curves, relative survival;
   * supplementary figures S1–S4;
   * `Tables_and_Supplement.xlsx`;
   * `consistency_checks_tables_figures_models.csv`.
-* `01_validation/` … `08_sensitivity/`: every model, diagnostic and intermediate table as CSV.
-* `analysis_report.md`, `session_info.txt`, `logs/`.
+* `01_validation/`, `02_descriptives/`, `03_volume/`, `07_population/`: shared results, as CSV.
+* `imputation/` and `complete_case/`: each holds `04_outcomes/`, `05_organ_protection/`, `06_survival/`, `08_sensitivity/`, `publication/` and `analysis_report.md`.
+* `comparison_missing_data/`: `MI_vs_CC_comparison.xlsx`, `MI_vs_CC_summary.md`, forest plot.
+* `session_info.txt`, `logs/`.
 
 All tables and figures are produced from the fitted analyses. None contain values entered by hand.
 

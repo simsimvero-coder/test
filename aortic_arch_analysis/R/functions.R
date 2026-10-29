@@ -15,6 +15,8 @@ suppressPackageStartupMessages({
 .LOG_FILE <- NULL
 
 start_log <- function(script_name) {
+  if (substr(script_name, 1, 2) %in% c("04", "05", "06", "08", "09"))
+    script_name <- paste0(script_name, "_", CONFIG$missing_method)
   d <- out_dir("logs")
   .LOG_FILE <<- file.path(d, paste0(script_name, ".log"))
   cat(sprintf("[%s] start %s\n", format(Sys.time()), script_name), file = .LOG_FILE)
@@ -28,8 +30,15 @@ log_msg <- function(...) {
   if (!is.null(.LOG_FILE)) cat(msg, "\n", file = .LOG_FILE, append = TRUE)
 }
 
+# Outputs of the adjusted analyses go to results/<missing_method>/<sub>;
+# descriptive and population outputs (01, 02, 03, 07) are shared.
+METHOD_SUBS <- c("04_outcomes", "05_organ_protection", "06_survival", "08_sensitivity", "publication")
+MISSING_METHODS <- c("imputation", "complete_case")
+res_path <- function(sub, method = CONFIG$missing_method) {
+  if (sub %in% METHOD_SUBS) file.path(CONFIG$results_dir, method, sub) else file.path(CONFIG$results_dir, sub)
+}
 out_dir <- function(sub) {
-  d <- file.path(CONFIG$results_dir, sub)
+  d <- res_path(sub)
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
   d
 }
@@ -51,6 +60,34 @@ save_fig <- function(p, sub, name, width = CONFIG$fig_width, height = CONFIG$fig
 derived_path <- function(name) {
   dir.create(CONFIG$derived_dir, recursive = TRUE, showWarnings = FALSE)
   file.path(CONFIG$derived_dir, name)
+}
+
+# Derived objects of the adjusted analyses carry the method in their file name
+derived_method <- function(name, method = CONFIG$missing_method) {
+  derived_path(sub("\\.rds$", paste0("_", method, ".rds"), name))
+}
+
+# Data sets analysed: the m imputed data sets, or the observed cohort once
+# (rows with missing model variables are then dropped model by model).
+analysis_datasets <- function() {
+  if (!CONFIG$missing_method %in% MISSING_METHODS) stop("Unknown missing_method: ", CONFIG$missing_method)
+  if (CONFIG$missing_method == "imputation") return(load_derived("imputed.rds"))
+  list(rederive(load_derived("cohort.rds")))
+}
+
+# Keep rows with all variables of a model formula observed (no-op after imputation,
+# apart from missing outcomes)
+complete_for <- function(datasets, formula) {
+  vars <- setdiff(all.vars(formula), ".")
+  lapply(datasets, function(d) {
+    v <- intersect(vars, names(d))
+    d[complete.cases(d[, .SD, .SDcols = v])]
+  })
+}
+
+method_label <- function(method = CONFIG$missing_method) {
+  c(imputation = sprintf("multiple imputation (m = %d)", CONFIG$n_imputations),
+    complete_case = "complete-case analysis")[[method]]
 }
 
 load_derived <- function(name) {
@@ -309,6 +346,7 @@ rubin_pool <- function(est_list, vcov_list) {
 
 # Fit the same mixed model on a list of data sets and pool the fixed effects
 fit_pooled <- function(formula, datasets, family = binomial()) {
+  datasets <- complete_for(datasets, formula)
   fits <- par_lapply(datasets, function(d) fit_mixed(formula, d, family))
   ok <- vapply(fits, function(f) !is.null(f$fit), logical(1))
   if (!any(ok)) stop("All fits failed for: ", deparse(formula)[1])
@@ -326,6 +364,7 @@ fit_pooled <- function(formula, datasets, family = binomial()) {
     n_convergence_warning = sum(vapply(fits[ok], function(f) !f$ok, logical(1))),
     n_singular = sum(vapply(fits[ok], function(f) isTRUE(f$singular), logical(1))),
     n_vcov_from_RX = n_vcov_fallback,
+    n_events = if (!is.null(family)) sum(getME(fits[ok][[1]]$fit, "y") == 1) else NA_integer_,
     nobs = nobs(fits[ok][[1]]$fit),
     warnings = paste(unique(unlist(lapply(fits, `[[`, "warnings"))), collapse = " | "))
   list(pooled = pooled, fits = fits[ok], re_sd = mean(re_sd), diag = diag)

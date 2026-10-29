@@ -176,8 +176,11 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
   * **Outcome values are never analysed as imputed** ("impute, then delete"). Patients with a missing outcome are excluded from that outcome's model, and their number is reported.
 * **Pooling**: Rubin's rules with Barnard–Rubin-type degrees of freedom and the fraction of missing information, all implemented in code. Multivariate tests use D1.
 * **Diagnostics**: trace plots, observed versus imputed densities, and mice's logged events.
-* **Sensitivity**:
-  * Complete-case analysis. It is unbiased if missingness depends only on covariates and not on the outcome.
+* **Two complete analyses.** Every adjusted analysis (scripts 04, 05, 06, 08 and 09) is run once with multiple imputation (primary) and once as a complete-case analysis, into `results/imputation/` and `results/complete_case/`. Script 10 places the key estimates side by side (`results/comparison_missing_data/`).
+  * The complete-case analysis is unbiased if missingness depends only on the covariates and not on the outcome; it is less efficient and can be biased if missingness is related to the outcome or to calendar time.
+  * Agreement between the two strengthens a finding; a material difference indicates that conclusions depend on how missing data are handled, and must be discussed.
+  * Under complete-case analysis, n and events are taken from each fitted model (they differ between models with different covariates).
+* **Further sensitivity**:
   * **δ-adjusted imputation (missing not at random).** The imputed values of the continuous covariate with the most missing values (eGFR or LVEF) are shifted by ±10 units, and the primary model is refitted. This shows how far the year effect depends on the MAR assumption.
 
 ---

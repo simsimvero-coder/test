@@ -57,6 +57,10 @@ CONFIG <- list(
   strict_coding = TRUE,            # stop if a coded variable holds values outside the handbook
 
   # ---- missing data ---------------------------------------------------------
+  # Adjusted analyses (scripts 04, 05, 06, 08, 09) are run once per method;
+  # run_all.R runs both. "imputation" = multiple imputation (mice);
+  # "complete_case" = per model, patients with all model variables observed.
+  missing_method = Sys.getenv("ARCH_MISSING", "imputation"),
   n_imputations = as.integer(Sys.getenv("ARCH_M", "20")),
   mnar_delta    = 10,              # delta (units of the variable) for MNAR sensitivity
 

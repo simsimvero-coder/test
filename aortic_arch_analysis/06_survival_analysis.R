@@ -8,10 +8,11 @@
 
 source("R/00_config.R"); source("R/functions.R")
 start_log("06_survival_analysis")
+log_msg("Missing-data method: ", method_label())
 SUB <- "06_survival"
 
 cohort <- load_derived("cohort.rds")
-imps   <- load_derived("imputed.rds")
+imps   <- analysis_datasets()   # imputed data sets or observed cohort (complete case)
 specs  <- load_derived("specs.rds")
 
 prep_surv <- function(d) {
@@ -116,8 +117,9 @@ for (i in seq_len(nt)) plot(zph[i], resid = FALSE, main = rownames(zph$table)[i]
 grDevices::dev.off()
 # Functional form of age: martingale residuals from a model without age
 f_noage <- as.formula(paste("Surv(t_years, status) ~", cox_rhs(setdiff(COVARS_M1, "age")), "+ strata(centrum)"))
-mres <- residuals(coxph(f_noage, data = imps_s[[1]]), type = "martingale")
-p_mart <- ggplot(data.table(age = imps_s[[1]]$age, r = mres), aes(age, r)) +
+d_mart <- complete_for(imps_s[1], f_noage)[[1]][!is.na(age)]
+mres <- residuals(coxph(f_noage, data = d_mart), type = "martingale")
+p_mart <- ggplot(data.table(age = d_mart$age, r = mres), aes(age, r)) +
   geom_point(alpha = .1, size = .5) + geom_smooth(method = "loess", se = TRUE, colour = PAL[2]) +
   labs(x = "Age (years)", y = "Martingale residual", title = "Functional form of age (model without age)") + theme_pub()
 save_fig(p_mart, SUB, "cox_martingale_age")
@@ -185,5 +187,5 @@ write_out(cond, SUB, "conditional_survival")
 
 saveRDS(list(curves = curves, risks = risks, km = km_tab, km1 = km1, cox = cox_all, pw = cox_pw,
              lm_curves = lm_curves, lm_risks = lapply(lm_fits, risk_table), cox_lm = cox_lm,
-             cond = cond, rmst = rmst, fu = fu), derived_path("survival.rds"))
+             cond = cond, rmst = rmst, fu = fu), derived_method("survival.rds"))
 log_msg("Done.")

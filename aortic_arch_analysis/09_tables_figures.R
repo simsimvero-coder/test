@@ -11,16 +11,17 @@ suppressPackageStartupMessages(library(patchwork))
 start_log("09_tables_figures")
 SUB <- "publication"
 RES <- CONFIG$results_dir
-rd <- function(sub, name) fread(file.path(RES, sub, paste0(name, ".csv")))
-has <- function(sub, name) file.exists(file.path(RES, sub, paste0(name, ".csv")))
+rd <- function(sub, name) fread(file.path(res_path(sub), paste0(name, ".csv")))
+has <- function(sub, name) file.exists(file.path(res_path(sub), paste0(name, ".csv")))
+log_msg("Missing-data method: ", method_label())
 
 cohort  <- load_derived("cohort.rds")
-outc    <- load_derived("outcomes.rds")
-organ   <- load_derived("organ.rds")
-surv    <- load_derived("survival.rds")
+outc    <- readRDS(derived_method("outcomes.rds"))
+organ   <- readRDS(derived_method("organ.rds"))
+surv    <- readRDS(derived_method("survival.rds"))
 vol     <- load_derived("volume.rds")
 popf    <- derived_path("population.rds"); pop <- if (file.exists(popf)) readRDS(popf) else NULL
-sensf   <- derived_path("sensitivity.rds"); sens <- if (file.exists(sensf)) readRDS(sensf) else NULL
+sensf   <- derived_method("sensitivity.rds"); sens <- if (file.exists(sensf)) readRDS(sensf) else NULL
 checks  <- list()
 chk <- function(what, ok, detail = "") checks[[length(checks) + 1]] <<- data.table(check = what, passed = isTRUE(ok), detail = detail)
 
@@ -59,8 +60,13 @@ write_out(t3, SUB, "Table3_early_outcomes")
 ev_tab <- cr[group_type == "overall", .(outcome, events)]
 ev_mod <- unique(outc$models[term == "year_c", .(outcome, model_events = events)])
 evc <- merge(ev_tab, ev_mod, by = "outcome")
-chk("Table 3 event counts equal events in fitted models", all(evc$events == evc$model_events),
-    paste(evc[events != model_events, outcome], collapse = ","))
+if (CONFIG$missing_method == "imputation") {
+  chk("Table 3 event counts equal events in fitted models", all(evc$events == evc$model_events),
+      paste(evc[events != model_events, outcome], collapse = ","))
+} else {
+  chk("Complete-case models use no more events than Table 3", all(evc$model_events <= evc$events),
+      paste(sprintf("%s: %d of %d events in model", evc$outcome, evc$model_events, evc$events), collapse = "; "))
+}
 chk("Table 3 30-day deaths equal cohort count",
     ev_tab[outcome == "d30", events] == sum(cohort$d30 == 1, na.rm = TRUE))
 
@@ -280,7 +286,8 @@ conv <- if (has("04_outcomes", "model_convergence_diagnostics")) rd("04_outcomes
 pr <- organ$practice
 tmp <- pr[outcome == "Minimum temperature (C)" & population == "CPB" & adjusted == TRUE]
 report <- c(
-  "# Analytical report (auto-generated)", "",
+  sprintf("# Analytical report (auto-generated): %s", method_label()), "",
+  sprintf("Adjusted analyses use **%s**. Descriptive results (cohort, Table 1, volume) and population-referenced survival do not depend on this choice.", method_label()), "",
   sprintf("Generated %s. Input: `%s`. Every number below is read from the fitted analyses; no values were typed by hand.",
           format(Sys.time()), basename(CONFIG$raw_data_path)), "",
   "", "## Cohort", "",
@@ -295,8 +302,10 @@ report <- c(
           vr$series, vr$model, g(vr$irr_per_year, 3), paste0(g(vr$irr_lower, 3), "-", g(vr$irr_upper, 3)),
           vr$annual_pct_change, fmt_p(vr$p_nonlinear)),
   "", "## Primary endpoint: 30-day mortality", "",
-  sprintf("* Events: %d of %d (%.1f%%).", d30$events, d30$n, 100 * d30$events / d30$n),
-  sprintf("* Adjusted OR per calendar year (M1, multiple imputation, centre random intercept): %s (95%% CI %s-%s), p = %s; test for non-linearity p = %s.",
+  with(outc$crude[group_type == "overall" & outcome == "d30"],
+       sprintf("* Events (all patients with known 30-day status): %d of %d (%.1f%%).", events, n, pct)),
+  sprintf("* Adjusted OR per calendar year (M1, %s, centre random intercept; %d patients, %d events in model): %s (95%% CI %s-%s), p = %s; test for non-linearity p = %s.",
+          method_label(), d30$n, d30$events,
           g(d30$or_per_year, 3), g(d30$lower, 3), g(d30$upper, 3), fmt_p(d30$p), fmt_p(d30$p_nonlinear)),
   "", "## Secondary early outcomes (OR per year; Holm-adjusted p)", "",
   sprintf("* %s: %s (%s-%s); p = %s; Holm p = %s%s", yr[role == "secondary"]$label,
@@ -323,6 +332,6 @@ report <- c(
                               conv$outcome, conv$model, conv$n_fits, conv$n_failed, conv$n_convergence_warning, conv$n_singular) else "",
   "", "## Consistency checks", "",
   sprintf("* [%s] %s %s", ifelse(cks$passed, "x", " "), cks$check, ifelse(nzchar(cks$detail), paste0("(", cks$detail, ")"), "")))
-writeLines(report, file.path(RES, "analysis_report.md"))
+writeLines(report, file.path(RES, CONFIG$missing_method, "analysis_report.md"))
 write_session_info()
 log_msg("Done.")
