@@ -2,7 +2,7 @@
 # 04_clinical_outcomes.R
 # Early outcomes: risk-adjusted temporal trends (mixed-effects logistic models
 # with a centre random intercept, pooled over imputations), non-linearity,
-# standardised risks by year, acute vs elective, centre variation, length of
+# standardised risks by year, acute vs non-acute, centre variation, length of
 # stay, and failure to rescue.
 # Output: results/04_outcomes/*, data/derived/outcomes.rds
 # =============================================================================
@@ -41,7 +41,7 @@ crude <- rbindlist(lapply(seq_len(nrow(OUT)), function(i) {
   v <- OUT$var[i]; d <- cohort[year >= OUT$first_year[i] & !is.na(get(v))]
   grp <- function(by) d[, .(events = sum(get(v) == 1), n = .N), by = by]
   rbind(cbind(group_type = "overall", group = "All", d[, .(events = sum(get(v) == 1), n = .N)]),
-        grp("urgency2")[!is.na(urgency2), .(group_type = "urgency", group = as.character(urgency2), events, n)],
+        grp("urgency2")[!is.na(urgency2), .(group_type = "acute status", group = as.character(urgency2), events, n)],
         grp("era")[, .(group_type = "era", group = as.character(era), events, n)],
         grp("year")[, .(group_type = "year", group = as.character(year), events, n)],
         fill = TRUE)[, `:=`(outcome = v, label = OUT$label[i], pct = 100 * events / n,
@@ -134,33 +134,33 @@ yr <- merge(yr, nlin, by = "outcome", all.x = TRUE)
 setorder(yr, role, outcome)
 write_out(yr, SUB, "year_trend_summary")
 
-# ---- 3. Acute vs elective --------------------------------------------------------------------
-# OR non-elective vs elective, with and without pathology (pathology lies upstream
-# of urgency); year x urgency interaction; stratified year trends.
+# ---- 3. Acute vs non-acute (study definition) --------------------------------------------------------------------
+# OR acute vs non-acute, without pathology (primary: pathology is part of the
+# definition) and with pathology; year x acute interaction; stratified year trends.
 KEY <- intersect(c("d30", "dzh", "major_compl", "stroke_def", "renal"), names(fits_keep))
 covars_nourg <- setdiff(COVARS_M1, "urg3")
 for (v in KEY) {
   dl <- fits_keep[[v]]$data
-  f_a <- build_formula(v, c(setdiff(covars_nourg, "path3"), "nonelective"), specs)
-  f_b <- build_formula(v, c(covars_nourg, "nonelective"), specs)
-  f_i <- build_formula(v, c(covars_nourg, "nonelective", "year_c:nonelective"), specs)
-  pa <- exp_table(fit_pooled(f_a, dl)$pooled, "nonelective")[, adjustment := "without pathology"]
-  pb <- exp_table(fit_pooled(f_b, dl)$pooled, "nonelective")[, adjustment := "with pathology"]
+  f_a <- build_formula(v, c(setdiff(covars_nourg, "path3"), "acute"), specs)
+  f_b <- build_formula(v, c(covars_nourg, "acute"), specs)
+  f_i <- build_formula(v, c(covars_nourg, "acute", "year_c:acute"), specs)
+  pa <- exp_table(fit_pooled(f_a, dl)$pooled, "acute")[, adjustment := "without pathology"]
+  pb <- exp_table(fit_pooled(f_b, dl)$pooled, "acute")[, adjustment := "with pathology"]
   p_int <- fit_pooled(f_i, dl)$pooled
   strat <- rbindlist(lapply(c(0, 1), function(g) {
-    dg <- lapply(dl, function(d) d[nonelective == g])
+    dg <- lapply(dl, function(d) d[acute == g])
     ff <- build_formula(v, setdiff(covars_nourg, if (g == 0) "path3" else character(0)), specs)
     if (sum(dg[[1]][[v]] == 1) < 20) return(NULL)
-    exp_table(fit_pooled(ff, dg)$pooled, "year_c")[, stratum := if (g == 1) "Non-elective" else "Elective"]
+    exp_table(fit_pooled(ff, dg)$pooled, "year_c")[, stratum := if (g == 1) "Acute" else "Non-acute"]
   }))
   urg_rows[[v]] <- list(
     or = rbind(pa, pb)[, outcome := v],
-    interaction = p_int[term == "year_c:nonelective"][, outcome := v],
+    interaction = p_int[term == "year_c:acute"][, outcome := v],
     strata = strat[, outcome := v])
 }
-write_out(rbindlist(lapply(urg_rows, `[[`, "or")), SUB, "acute_vs_elective_or")
+write_out(rbindlist(lapply(urg_rows, `[[`, "or")), SUB, "acute_vs_nonacute_or")
 write_out(rbindlist(lapply(urg_rows, `[[`, "interaction"))[, `:=`(ratio_of_or = exp(estimate), p_bh = bh(p))],
-          SUB, "acute_vs_elective_year_interaction")
+          SUB, "acute_vs_nonacute_year_interaction")
 write_out(rbindlist(lapply(urg_rows, `[[`, "strata")), SUB, "year_trend_by_urgency_stratum")
 
 # ---- 4. Centre variation ----------------------------------------------------------------------

@@ -92,9 +92,11 @@ On the test data, refits changed the log-odds coefficients by less than 0.005, w
 * Primary model: binned residuals against fitted probabilities (Figure S4), the C statistic (conditional and fixed-effects only) and the calibration slope. These describe how well the case-mix adjustment works. They are not a prediction model.
 * Length of stay: residual and random-effect Q–Q plots.
 
-### 3.7 Acute versus elective
+### 3.7 Acute versus non-acute
 
-Urgency is not a treatment, so the comparison is **prognostic**. ORs are shown with and without adjustment for pathology. Pathology lies upstream of urgency: acute dissection makes surgery non-elective. The non-elective OR adjusted for pathology therefore answers a different question (urgency within the same pathology) and is expected to be much smaller. Year × urgency interactions and stratified trends are exploratory (BH-adjusted).
+The groups follow the study definition: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who cannot be classified are reported and excluded from these comparisons; the classification uses observed data only and is not imputed.
+
+Acute status is not a treatment, so the comparison is **prognostic**. The primary OR is not adjusted for pathology, because acute dissection is part of the definition. The OR additionally adjusted for pathology answers a narrower question (emergency/salvage urgency within the same pathology) and is expected to be much smaller. Year × acute interactions and stratified trends are exploratory (BH-adjusted).
 
 ### 3.8 Length of stay
 
@@ -121,7 +123,7 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
 * Annual counts come from 12 data points. **Poisson regression** with an offset for the CBS average population gives incidence rate ratios (the annual percentage change).
 * **Overdispersion** is checked with the Pearson χ²/df statistic and a boundary-corrected likelihood ratio test of the negative binomial against Poisson. The negative binomial model is used if that test is significant. Because the test has little power with 12 points, a **dispersion-scaled (quasi-Poisson-type) CI** is always reported as well.
 * **Non-linearity**: a natural spline with 2 df compared with a linear term (likelihood ratio test and AIC). More flexible models are not identifiable with 12 points.
-* Acute and elective volumes are modelled separately, and a year × urgency interaction tests whether their trends differ.
+* Acute and non-acute volumes are modelled separately, and a year × group interaction tests whether their trends differ.
 * Sensitivity: excluding 2024 (registration lag) and 2020–2021 (COVID-19).
 * The population figures are from CBS StatLine 03759ned (average population).
 
@@ -149,7 +151,7 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
   2. **RMST differences** at 5 and 10 years. These are assumption-free summaries in years of life gained or lost within the horizon. They are calculated only if both groups are followed up to that horizon.
 * **30-day landmark**: patients alive at day 30, with follow-up restarted at day 30. This removes the immortal-time and early-hazard components.
 * **Conditional survival**: Kaplan–Meier among patients alive at s (0 days, 30 days, 1, 2 and 5 years), estimating survival over a further 1 and 5 years.
-* **Selection effects (essential for interpretation).** Patients alive at a landmark are a selected subset. Non-elective patients who survive 30 days have passed a strong selection filter (depletion of susceptibles). A landmark HR near 1 does not mean urgency is harmless; it means that, among survivors, later risk is similar. Neither landmark HRs nor conditional survival are causal effects. Survival by era is limited by shorter follow-up for recent operations, so era comparisons use fixed horizons (1-year mortality) and landmarks rather than the full curves.
+* **Selection effects (essential for interpretation).** Patients alive at a landmark are a selected subset. Acute patients who survive 30 days have passed a strong selection filter (depletion of susceptibles). A landmark HR near 1 does not mean urgency is harmless; it means that, among survivors, later risk is similar. Neither landmark HRs nor conditional survival are causal effects. Survival by era is limited by shorter follow-up for recent operations, so era comparisons use fixed horizons (1-year mortality) and landmarks rather than the full curves.
 
 ---
 
@@ -196,7 +198,7 @@ Each sensitivity analysis targets a specific threat:
 | Misspecified centre structure, or few clusters | Random slope; fixed effects with CR2 |
 | Incomplete registration in the latest year | Excluding 2024 |
 | Extreme-risk outliers | Excluding salvage operations |
-| Definition of "acute" | Emergency/salvage versus non-elective |
+| Definition of "acute" | Emergency/salvage only; non-elective (`urgentie` 20/30/40) |
 | Unknown cleaning rules | Raw versus `*_clean` variables |
 | FTR definition | Extended complication set; in-hospital numerator |
 | Non-proportional hazards | Piecewise Cox, RMST, landmark |

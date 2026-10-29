@@ -106,13 +106,14 @@ cohort_ca <- copy(cohort); cohort_ca[circ_arrest_b != 1, ca_min := NA]
 t1 <- t1_rows(cohort_ca[!is.na(urgency2)], "urgency2")
 t1[, smd := round(smd, 3)]
 write_out(t1, SUB, "table1_baseline_by_urgency")
-log_msg("Table 1 written (", sum(is.na(cohort$urgency2)), " patients with missing urgency not in urgency columns)")
+log_msg("Table 1 written (", sum(is.na(cohort$urgency2)), " patients not classifiable as acute/non-acute: overall column only)")
+write_out(cohort[, .N, by = acute_class][order(acute_class)], SUB, "acute_classification_counts")
 
 # Table 1 by era (supplementary)
 era_tab <- rbindlist(lapply(levels(cohort$era), function(e) {
   d <- cohort_ca[era == e]
   data.table(era = e, n = nrow(d), age = fmt_mean(d$age), female = fmt_npct(d$female),
-             egfr = fmt_med(d$egfr), nonelective = fmt_npct(d$nonelective),
+             egfr = fmt_med(d$egfr), acute = fmt_npct(d$acute),
              acute_dissection = fmt_npct(d$acute_dissection), prior_cs = fmt_npct(d$prior_cs),
              euroscore2 = fmt_med(d$euroscore2), hybrid_fet = fmt_npct(d$hybrid_fet),
              desc_inv = fmt_npct(d$desc_inv), conc_cabg = fmt_npct(d$conc_cabg),
@@ -123,7 +124,7 @@ write_out(era_tab, SUB, "characteristics_by_era")
 # ---- 3. Change in characteristics over time ----------------------------------------------
 trend_vars <- list(
   bin = c(female = "Female sex", prior_cs = "Previous cardiac surgery",
-          endocarditis_b = "Active endocarditis", nonelective = "Non-elective",
+          endocarditis_b = "Active endocarditis", acute = "Acute (study definition)",
           emerg_salv = "Emergency/salvage", acute_dissection = "Acute aortic dissection",
           conc_cabg = "Concomitant CABG", conc_valve = "Concomitant valve surgery",
           root_inv = "Aortic root involved", desc_inv = "Descending aorta involved",
@@ -156,7 +157,7 @@ write_out(trends, SUB, "characteristics_trend_per_year")
 # Annual proportions / medians for figures (used in 09)
 annual <- cohort[, .(n = .N,
                      age_mean = mean(age, na.rm = TRUE), female = mean(female, na.rm = TRUE),
-                     nonelective = mean(nonelective, na.rm = TRUE),
+                     acute = mean(acute, na.rm = TRUE),
                      acute_dissection = mean(acute_dissection, na.rm = TRUE),
                      prior_cs = mean(prior_cs, na.rm = TRUE),
                      euroscore2_median = median(euroscore2, na.rm = TRUE),

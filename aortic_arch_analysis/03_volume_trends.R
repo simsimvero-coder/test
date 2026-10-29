@@ -1,7 +1,7 @@
 # =============================================================================
 # 03_volume_trends.R
 # Annual national procedure counts and population-adjusted rates; Poisson vs
-# negative binomial regression; non-linearity; acute vs elective; centre volume.
+# negative binomial regression; non-linearity; acute vs non-acute; centre volume.
 # Output: results/03_volume/*
 # =============================================================================
 
@@ -33,14 +33,14 @@ if (is.null(pop)) {
 
 # ---- annual counts ---------------------------------------------------------------------
 yrs <- CONFIG$study_years
-cnt <- CJ(year = yrs, type = c("All", "Non-elective", "Elective"))
+cnt <- CJ(year = yrs, type = c("All", "Acute", "Non-acute"))
 cnt[, n := mapply(function(y, t) {
   d <- cohort[year == y]
-  if (t == "All") nrow(d) else if (t == "Non-elective") sum(d$nonelective == 1, na.rm = TRUE)
-  else sum(d$nonelective == 0, na.rm = TRUE)
+  if (t == "All") nrow(d) else if (t == "Acute") sum(d$acute == 1, na.rm = TRUE)
+  else sum(d$acute == 0, na.rm = TRUE)
 }, year, type)]
-n_unknown_urg <- cohort[is.na(nonelective), .N, by = year]
-write_out(n_unknown_urg, SUB, "counts_unknown_urgency")
+n_unknown_urg <- cohort[is.na(acute), .N, by = year]   # not classifiable as acute/non-acute
+write_out(n_unknown_urg, SUB, "counts_not_classifiable")
 if (!is.null(pop)) {
   cnt <- merge(cnt, pop[, .(year, pop_avg)], by = "year", all.x = TRUE)
   if (anyNA(cnt$pop_avg)) log_msg("WARNING: population missing for some years: ",
@@ -90,21 +90,21 @@ fit_counts <- function(d, label) {
   list(res = res, fitted = fitted, model = m_lin)
 }
 
-series_fits <- lapply(c("All", "Non-elective", "Elective"), function(t) fit_counts(cnt[type == t], t))
+series_fits <- lapply(c("All", "Acute", "Non-acute"), function(t) fit_counts(cnt[type == t], t))
 vol_res <- rbindlist(lapply(series_fits, `[[`, "res"))
 vol_fit <- rbindlist(lapply(series_fits, `[[`, "fitted"))
 
 # Sensitivity: excluding 2024 (registration lag) and excluding 2020-2021 (COVID-19)
 sens <- rbindlist(list(
-  rbindlist(lapply(c("All", "Non-elective", "Elective"), function(t)
+  rbindlist(lapply(c("All", "Acute", "Non-acute"), function(t)
     fit_counts(cnt[type == t & year != 2024], t)$res))[, analysis := "excluding 2024"],
-  rbindlist(lapply(c("All", "Non-elective", "Elective"), function(t)
+  rbindlist(lapply(c("All", "Acute", "Non-acute"), function(t)
     fit_counts(cnt[type == t & !year %in% 2020:2021], t)$res))[, analysis := "excluding 2020-2021"]))
 vol_res[, analysis := "primary"]
 write_out(rbind(vol_res, sens), SUB, "volume_trend_models")
 write_out(vol_fit, SUB, "volume_fitted_values")
 
-# Does the trend differ between acute and elective? (year x urgency interaction)
+# Does the trend differ between acute and non-acute? (year x group interaction)
 d2 <- cnt[type != "All"]
 off <- if (!is.null(pop)) " + offset(log(pop_avg / 1e6))" else ""
 use_nb <- any(vol_res[series != "All", model == "negative binomial"])
@@ -112,10 +112,10 @@ mfun <- function(f) if (use_nb) suppressWarnings(MASS::glm.nb(f, data = d2)) els
 m0 <- mfun(as.formula(paste("n ~ year_c + type", off)))
 m1 <- mfun(as.formula(paste("n ~ year_c * type", off)))
 lr <- 2 * (as.numeric(logLik(m1)) - as.numeric(logLik(m0)))
-b_int <- coef(m1)["year_c:typeNon-elective"]; se_int <- sqrt(vcov(m1)["year_c:typeNon-elective", "year_c:typeNon-elective"])
-write_out(data.table(test = "year x urgency interaction", lr_statistic = lr,
+b_int <- coef(m1)["year_c:typeNon-acute"]; se_int <- sqrt(vcov(m1)["year_c:typeNon-acute", "year_c:typeNon-acute"])
+write_out(data.table(test = "year x acute/non-acute interaction", lr_statistic = lr,
                      p = pchisq(lr, 1, lower.tail = FALSE),
-                     ratio_of_irr_nonelective_vs_elective = exp(b_int),
+                     ratio_of_irr_nonacute_vs_acute = exp(b_int),
                      lower = exp(b_int - 1.96 * se_int), upper = exp(b_int + 1.96 * se_int),
                      model = if (use_nb) "negative binomial" else "Poisson"),
           SUB, "volume_interaction_urgency")

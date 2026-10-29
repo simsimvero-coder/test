@@ -156,8 +156,7 @@ dv[, `:=`(
   emerg_salv  = as.integer(urgentie %in% c(30, 40))
 )]
 dv[is.na(urgentie), `:=`(nonelective = NA_integer_, emerg_salv = NA_integer_)]
-dv[, urgency2 := factor(ifelse(nonelective == 1, "Non-elective", "Elective"),
-                        c("Elective", "Non-elective"))]
+# (urgency2 = acute vs non-acute group; defined below, after pathology)
 dv[, lvef_cat := cut(lvef, c(0, 20, 30, 50, 100), c("<=20%", "21-30%", "31-50%", ">50%"))]
 dv[, lvef_cat := relevel(lvef_cat, ">50%")]
 
@@ -176,6 +175,24 @@ dv[, path3 := factor(fcase(path5 == "Acute dissection", "Acute dissection",
                            path5 %in% c("Infection", "Other", "None recorded"), "Other"),
                      c("Aneurysm/chronic dissection", "Acute dissection", "Other"))]
 dv[, acute_dissection := as.integer(path3 == "Acute dissection")]
+
+# Acute vs non-acute (study definition, specified by the investigators):
+#   Acute:       urgentie 30 (spoed) or 40 (redding), OR acute dissection (code 20)
+#                in aorta_asc_path, aortaboog_path or aorta_desc_path.
+#   Non-acute:   urgentie 10 (electief) or 20 (urgent) without an acute
+#                classification, OR aneurysm (code 10) in any segment without an
+#                acute classification, also when urgency is unknown.
+#   Not classifiable: no acute dissection or aneurysm code AND no usable urgency code.
+# Conflicts: acute dissection -> always acute (also with urgentie 10/20);
+#            urgentie 30/40 -> always acute (also with aneurysm code 10).
+# NB: urgentie 20 (urgent) belongs to the NON-acute group.
+dv[, `:=`(seg_ad = seg_any(20) %in% TRUE, seg_aneur10 = seg_any(10) %in% TRUE)]
+dv[, acute := fcase(urgentie %in% c(30, 40) | seg_ad, 1L,
+                    urgentie %in% c(10, 20) | seg_aneur10, 0L,
+                    default = NA_integer_)]
+dv[, acute_class := factor(fcase(acute == 1, "Acute", acute == 0, "Non-acute", default = "Not classifiable"),
+                           c("Non-acute", "Acute", "Not classifiable"))]
+dv[, urgency2 := factor(fcase(acute == 1, "Acute", acute == 0, "Non-acute"), c("Non-acute", "Acute"))]
 
 # Operative characteristics
 dv[, `:=`(
@@ -267,6 +284,11 @@ consistency <- rbindlist(list(
   cc("temperature recorded > 34 C with circulatory arrest", dv$circ_arrest_b == 1 & dv$temp_min > 34)
 ))
 write_out(consistency, SUB, "consistency_checks")
+
+# Acute classification: how each group arises (documents the conflict rules)
+write_out(dv[, .N, by = .(acute_class, urgentie, acute_dissection_any_segment = seg_ad,
+                          aneurysm10_any_segment = seg_aneur10)][order(acute_class, urgentie)],
+          SUB, "acute_classification_detail")
 
 # Raw vs clean versions
 clean_pairs <- list(c("klepchir", "klepchir_clean"), c("aortachir", "aortachir_clean"),

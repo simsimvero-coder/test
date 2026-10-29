@@ -54,7 +54,7 @@
 | A3 | **Inclusion and exclusion criteria** were applied upstream (`incl_cohort`, `excl_reden`, `s1_via_bewijs`). The extract has no arch-procedure field (`aortaboog`), so arch involvement cannot be checked directly. | `incl_cohort` defines the cohort. All exclusion reasons are tabulated (flow diagram). The `aortaboog_path` distribution among included patients is reported as a plausibility check. |
 | A4 | **`*_clean` versions** of `klepchir`, `aortachir` and `circ_arrest`; the cleaning rules are unknown. | The cleaned versions are used for the primary analysis, raw versus cleaned values are cross-tabulated, and the raw versions are used in a sensitivity analysis. |
 | A5 | **`pathologie_groep` and `klasse`** are derived variables whose definitions are unknown. `klasse` may encode arch extent (hemiarch or total arch), but this is unverified. | A pathology group is derived independently from the segment pathology codes (§4.3) and cross-tabulated against `pathologie_groep`. `klasse` is described only and is not used in any model. |
-| A6 | **The definition of "acute"** is not in the handbook. | Primary: non-elective (`urgentie` 20/30/40) versus elective (10). Sensitivity: emergency or salvage (30/40) versus the rest. Urgency is also reported in four levels. |
+| A6 | **The definition of "acute"** is not in the handbook. | Study definition provided by the investigators (§4.3). Alternatives in sensitivity analyses: emergency/salvage only (`urgentie` 30/40), and non-elective (`urgentie` 20/30/40). Urgency is also reported in four levels. |
 | A7 | **Changes to the handbook over time.** Version 22.2.0 (operations from 1 July 2022) added `ECMO_opname`, `postop_MI` (replacing "perioperative MI", which had a different definition) and `delier`, and split the pathology codes (chronic dissection 30 and infection 40 were added; "other" moved from 90 to 91). | Each variable's missingness is computed by year. Variables that are structurally missing in earlier years are analysed only for the years in which they were recorded, and **are not tested for trends across the definitional break**. Aneurysm and chronic dissection are combined to keep pathology comparable over time. |
 | A8 | **`circ_arrest_duur`** is defined as "minutes of DHCA", while `circ_arrest` explicitly includes arrest with antegrade cerebral perfusion. It is unclear whether the duration includes periods of cerebral perfusion. | Duration is reported only among patients with arrest, and the definitional uncertainty is noted. |
 | A9 | **`eGFR`**: the estimating formula is unknown. `kreatinine` is the last preoperative creatinine in µmol/L (missing by design when the patient is on dialysis). | `eGFR` is used as provided. The extract has no dialysis indicator, so patients on dialysis cannot be identified. |
@@ -73,7 +73,7 @@
 * Q2. National volume: the trend in annual procedure counts and population-adjusted rates, overall and by urgency.
 * Q3. Case mix and operative complexity: how patient characteristics and concomitant procedures changed over time.
 * Q4. Temporal trends in in-hospital and 1-year mortality and in the major postoperative complications.
-* Q5. Differences in early outcomes and survival between non-elective and elective surgery.
+* Q5. Differences in early outcomes and survival between acute and non-acute surgery (study definition, §4.3).
 * Q6. Organ protection: temporal trends in minimum temperature, depth of hypothermia, and the use and duration of circulatory arrest, together with between-centre and within-centre variation.
 * Q7. Between-centre variation in risk-adjusted outcomes.
 * Q8. Failure to rescue (FTR) and its trend over time.
@@ -122,7 +122,8 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 * **Pathology** (from `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`, by precedence): acute dissection (20 in any segment) > chronic dissection or aneurysm (30, 10) > infection (40) > other (90/91). Acute aortic dissection is a strong determinant of risk and practice.
 * **Calendar year**: `jaar` centred at 2018. Era: 2013–2016, 2017–2020, 2021–2024 (for description only).
-* **Urgency**: four levels, plus the non-elective/elective binary.
+* **Urgency**: four levels (adjustment variable).
+* **Acute versus non-acute (study definition)**: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who are not classifiable are counted and reported, and are excluded from acute-versus-non-acute comparisons. The classification is based on observed data and is not imputed.
 * **Operative complexity**: concomitant CABG, any valve surgery, aortic root involvement (`aorta_asc` ∈ {10, 20}), descending aorta involvement (`aorta_desc` > 0), hybrid open + endovascular repair (`aotachir_benadering` = 30, frozen elephant trunk), and other cardiac surgery.
 * **LVEF categories** (EuroSCORE II): > 50, 31–50, 21–30, ≤ 20%.
 
@@ -132,13 +133,13 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 ### 5.1 Descriptives (Q3)
 
-* Table 1 by urgency: n (%), mean (SD) or median [IQR], and the number missing. Groups are compared with **standardised mean differences** (no hypothesis tests in Table 1).
+* Table 1 by acute status (study definition): n (%), mean (SD) or median [IQR], and the number missing. Groups are compared with **standardised mean differences** (no hypothesis tests in Table 1).
 * Change in characteristics over time: the per-year change from simple regression on calendar year (logistic for binary variables, giving an OR per year; linear for continuous variables, giving the mean change per year), with cluster-robust CR2 standard errors (by centre) and Satterthwaite degrees of freedom. These are descriptive.
 * Missing data: the percentage missing for each variable by year and by centre (heatmaps).
 
 ### 5.2 National volume (Q2)
 
-* Annual counts overall, non-elective and elective. Rates per million inhabitants use CBS population figures supplied in `data/external/population_nl.csv` (CBS servers are not reachable from the analysis environment).
+* Annual counts overall, acute and non-acute. Rates per million inhabitants use CBS population figures supplied in `data/external/population_nl.csv` (CBS servers are not reachable from the analysis environment).
 * Poisson GLM: count ~ year + offset(log population). Overdispersion is assessed with the Pearson χ²/df statistic and a likelihood ratio test of the negative binomial against the Poisson model (boundary-corrected p-value). The negative binomial model is used if overdispersion is present.
 * Non-linearity: linear trend versus a natural spline with 2 df (with only 12 data points, more flexible models are not justified), compared by likelihood ratio test and AIC.
 * The result is reported as the incidence rate ratio (IRR) per year, that is, the annual percentage change. Whether the trend differs by urgency is tested with a year × urgency interaction.
@@ -162,7 +163,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 **Sparse events.** Events per model parameter (EPV) are computed. If EPV < 10, a reduced model (year, age, sex, urgency, pathology) is used and flagged.
 
-**Acute versus elective (Q5).** The adjusted OR for non-elective versus elective (excluding pathology, which lies upstream of urgency, in one version and including it in another). An urgency × year interaction tests whether the trends differ, and stratified models are also fitted.
+**Acute versus non-acute (Q5).** The adjusted OR for acute versus non-acute (primary: adjusted for age, sex, eGFR, LVEF, previous cardiac surgery and endocarditis, without pathology because pathology is part of the definition; secondary: also adjusted for pathology). An acute × year interaction tests whether the trends differ, and stratified models are also fitted.
 
 **Centre variation (Q7).** The random intercept SD with a profile-likelihood 95% CI, the latent-scale ICC (σ²/(σ² + π²/3)) and the median odds ratio. Caterpillar plots of the centre conditional modes, and funnel plots of the observed/expected ratio against the expected number of events, where the expected count comes from M1 fixed effects without the centre effect. Centres are **anonymised (A–O)** in every output.
 
@@ -193,7 +194,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 * **Early versus late**: early death (≤ 30 days) and late death (> 30 days).
 * **30-day landmark** (prespecified): patients alive at day 30, with time reset to day 30. Kaplan–Meier curves and Cox models are fitted as above.
 * **Conditional survival**: Kaplan–Meier among patients alive at s = 30 days, 1, 2 and 5 years, estimating the probability of surviving a further 1 and 5 years.
-* **Selection effects**: patients alive at a landmark are a selected subgroup. Depletion of high-risk patients (especially after non-elective surgery) means that landmark HRs and conditional survival describe survivors and do not estimate a causal effect of urgency or year. Survival by operation year is also affected by shorter follow-up for recent years, so era comparisons use fixed horizons (1-year survival) and landmark analyses.
+* **Selection effects**: patients alive at a landmark are a selected subgroup. Depletion of high-risk patients (especially after acute surgery) means that landmark HRs and conditional survival describe survivors and do not estimate a causal effect of urgency or year. Survival by operation year is also affected by shorter follow-up for recent years, so era comparisons use fixed horizons (1-year survival) and landmark analyses.
 
 ### 5.7 Population-referenced survival (Q10)
 
@@ -231,7 +232,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 2. Adjustment sets M0, M1, M2 and M3.
 3. Clustering: random intercept, random intercept + slope for year, and a centre fixed-effects GLM with CR2/Satterthwaite inference.
 4. Excluding 2024, and excluding salvage operations.
-5. Acute defined as emergency/salvage only.
+5. Alternative definitions of acute: emergency/salvage only; non-elective (`urgentie` 20/30/40).
 6. Raw instead of `*_clean` versions of `klepchir`, `aortachir` and `circ_arrest`.
 7. The major complication composite extended to include prolonged ventilation and stroke without a deficit (FTR sensitivity).
 8. In-hospital death as the FTR numerator.

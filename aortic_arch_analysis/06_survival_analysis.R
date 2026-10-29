@@ -93,11 +93,11 @@ pool_cox <- function(formula, dl, label) {
 }
 f_main <- as.formula(paste("Surv(t_years, status) ~", cox_rhs(COVARS_M1), "+ strata(centrum)"))
 cox_main <- pool_cox(f_main, imps_s, "Cox stratified by centre (primary)")
-covars_ne <- c(setdiff(COVARS_M1, c("urg3", "path3")), "nonelective")
+covars_ne <- c(setdiff(COVARS_M1, c("urg3", "path3")), "acute")
 cox_ne_a <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(covars_ne), "+ strata(centrum)")),
-                     imps_s, "non-elective vs elective, without pathology")
+                     imps_s, "acute vs non-acute, without pathology")
 cox_ne_b <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(c(covars_ne, "path3")), "+ strata(centrum)")),
-                     imps_s, "non-elective vs elective, with pathology")
+                     imps_s, "acute vs non-acute, with pathology")
 # Sensitivity: gamma frailty; robust cluster SE
 cox_frail <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(COVARS_M1), "+ frailty(centrum)")),
                       imps_s, "Cox with gamma frailty for centre")
@@ -132,7 +132,7 @@ pw <- lapply(imps_s, function(d) {
   as.data.table(s)
 })
 f_pw <- as.formula(paste("Surv(tstart, t_years, status) ~",
-                         paste(c("nonelective:interval", "acute_dissection:interval", "year_c:interval",
+                         paste(c("acute:interval", "acute_dissection:interval", "year_c:interval",
                                  covar_terms(c("age", "female", "egfr", "lvef_cat", "prior_cs", "endocarditis_b"), specs)),
                                collapse = " + "), "+ strata(centrum)"))
 cox_pw <- pool_cox(f_pw, pw, "piecewise Cox (0-30 d, 30 d-1 y, >1 y)")
@@ -145,11 +145,11 @@ rmst <- rbindlist(lapply(CONFIG$rmst_tau_years, function(tau) {
   if (any(max_fu$m < tau)) return(data.table(tau_years = tau, note = "tau exceeds follow-up in a group"))
   r <- rmst_by(sf, tau)
   dif <- r$rmst[2] - r$rmst[1]; se <- sqrt(sum(r$se^2))
-  data.table(tau_years = tau, rmst_elective = r$rmst[1], rmst_nonelective = r$rmst[2],
+  data.table(tau_years = tau, rmst_nonacute = r$rmst[1], rmst_acute = r$rmst[2],
              difference = dif, lower = dif - 1.96 * se, upper = dif + 1.96 * se,
              p = 2 * pnorm(-abs(dif / se)))
 }), fill = TRUE)
-write_out(rmst, SUB, "rmst_by_urgency")
+write_out(rmst, SUB, "rmst_by_acute_status")
 
 # ---- 7. 30-day landmark ----------------------------------------------------------------------
 LM <- CONFIG$landmark_days
@@ -165,7 +165,7 @@ write_out(lm_tab, SUB, "landmark30_km_estimates")
 imps_lm <- lapply(imps_s, lm_prep)
 cox_lm <- rbind(
   pool_cox(as.formula(paste("Surv(t_lm, status) ~", cox_rhs(COVARS_M1), "+ strata(centrum)")), imps_lm, "landmark 30 d: primary covariates"),
-  pool_cox(as.formula(paste("Surv(t_lm, status) ~", cox_rhs(covars_ne), "+ strata(centrum)")), imps_lm, "landmark 30 d: non-elective vs elective"))
+  pool_cox(as.formula(paste("Surv(t_lm, status) ~", cox_rhs(covars_ne), "+ strata(centrum)")), imps_lm, "landmark 30 d: acute vs non-acute"))
 write_out(cox_lm, SUB, "landmark30_cox")
 zph_lm <- cox.zph(coxph(as.formula(paste("Surv(t_lm, status) ~", cox_rhs(COVARS_M1), "+ strata(centrum)")), data = imps_lm[[1]]), terms = TRUE)
 write_out(data.table(term = rownames(zph_lm$table), zph_lm$table), SUB, "landmark30_ph_test")

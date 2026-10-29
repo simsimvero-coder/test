@@ -74,12 +74,14 @@ for (v in c("d30", "dzh", "major_compl")) {
   add("Excluding salvage operations", v, pooled_or(f1, lapply(dl, function(d) d[urg4 != "Salvage"])),
       n = sum(dl[[1]]$urg4 != "Salvage"), events = sum(dl[[1]][urg4 != "Salvage"][[v]] == 1))
   # 5. acute = emergency/salvage (comparison term)
+  f_ac <- build_formula(v, c(setdiff(COVARS_M1, c("urg3", "path3")), "acute"), specs)
+  add("Acute (study definition): OR acute vs non-acute", v, pooled_or(f_ac, dl), term = "acute", n = n, events = ev)
   f_es <- build_formula(v, c(setdiff(COVARS_M1, "urg3"), "emerg_salv"), specs)
   r_es <- pooled_or(f_es, dl)
-  add("Acute defined as emergency/salvage: year effect", v, r_es, n = n, events = ev)
-  add("Acute defined as emergency/salvage: OR emergency/salvage vs rest", v, r_es, term = "emerg_salv", n = n, events = ev)
+  add("Alternative: emergency/salvage only: year effect", v, r_es, n = n, events = ev)
+  add("Alternative: emergency/salvage only (ignoring pathology): OR vs rest", v, r_es, term = "emerg_salv", n = n, events = ev)
   f_ne <- build_formula(v, c(setdiff(COVARS_M1, "urg3"), "nonelective"), specs)
-  add("Acute defined as non-elective: OR non-elective vs elective", v, pooled_or(f_ne, dl), term = "nonelective", n = n, events = ev)
+  add("Alternative: non-elective (urgentie 20/30/40): OR vs elective", v, pooled_or(f_ne, dl), term = "nonelective", n = n, events = ev)
   # 6. raw instead of cleaned valve variable (operative model M2)
   if (all(c("klepchir") %in% names(cohort))) {
     dl_raw <- lapply(dl, function(d) copy(d)[, conc_valve := klepchir])

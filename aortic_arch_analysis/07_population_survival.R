@@ -115,14 +115,14 @@ smr_int <- function(dd, label) rbindlist(lapply(intervals, function(iv) {
 }))
 d[, row := .I]
 smr_overall <- rbind(smr_group(d, "All"),
-                     rbindlist(lapply(levels(d$urgency2), function(g) smr_group(d[urgency2 == g], paste("Urgency:", g)))),
+                     rbindlist(lapply(levels(d$urgency2), function(g) smr_group(d[urgency2 == g], paste("Group:", g)))),
                      rbindlist(lapply(c(0, 1), function(f) smr_group(d[female == f], ifelse(f == 1, "Women", "Men")))),
                      rbindlist(lapply(levels(d$age_grp), function(g) smr_group(d[age_grp == g], paste("Age", g)))),
                      rbindlist(lapply(levels(d$era), function(g) smr_group(d[era == g], paste("Era", g)))),
                      rbindlist(lapply(levels(d$path3), function(g) smr_group(d[path3 == g], paste("Pathology:", g)))))
 write_out(smr_overall, SUB, "smr_overall_and_by_group")
 smr_by_int <- rbind(smr_int(d, "All"),
-                    rbindlist(lapply(levels(d$urgency2), function(g) smr_int(d[urgency2 == g], paste("Urgency:", g)))),
+                    rbindlist(lapply(levels(d$urgency2), function(g) smr_int(d[urgency2 == g], paste("Group:", g)))),
                     rbindlist(lapply(levels(d$age_grp), function(g) smr_int(d[age_grp == g], paste("Age", g)))))
 write_out(smr_by_int, SUB, "smr_and_excess_by_followup_interval")
 

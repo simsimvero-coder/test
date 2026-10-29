@@ -21,7 +21,7 @@ aortic_arch_analysis/
 ├── R/functions.R              shared functions (model fitting, pooling, splines, survival tools)
 ├── 01_data_validation.R       structure, codings, ranges, duplicates, consistency, derived variables
 ├── 02_cohort_descriptives.R   flow diagram, Table 1, case-mix trends, missing data, multiple imputation
-├── 03_volume_trends.R         annual counts and rates, Poisson/negative binomial, acute vs elective
+├── 03_volume_trends.R         annual counts and rates, Poisson/negative binomial, acute vs non-acute
 ├── 04_clinical_outcomes.R     risk-adjusted trends, standardised risks, centre variation, LOS, failure to rescue
 ├── 05_organ_protection.R      temperature, hypothermia, circulatory arrest; within/between-centre trends
 ├── 06_survival_analysis.R     Kaplan-Meier, Cox, PH checks, piecewise HRs, RMST, landmark, conditional survival
@@ -60,7 +60,7 @@ All adjusted analyses (scripts 04, 05, 06, 08, 09) are run twice: with **multipl
 ## Main outputs (`results/`)
 
 * `imputation/publication/` and `complete_case/publication/`:
-  * Table 1 (baseline characteristics by urgency), Table 2 (organ protection), Table 3 (early outcomes);
+  * Table 1 (baseline characteristics, acute vs non-acute), Table 2 (organ protection), Table 3 (early outcomes);
   * Figures 1–8: volume, case mix, adjusted trends, organ protection, centre variation, Kaplan–Meier curves, landmark curves, relative survival;
   * supplementary figures S1–S4;
   * `Tables_and_Supplement.xlsx`;

@@ -39,8 +39,8 @@ desc_by <- function(d, by) {
         cpb_min_median = fmt_med(ecc_min), aox_min_median = fmt_med(aox_min)), by = by]
 }
 t2 <- rbind(cbind(stratum = "All", desc_by(coh, "era")),
-            cbind(stratum = "Elective", desc_by(coh[urgency2 == "Elective"], "era")),
-            cbind(stratum = "Non-elective", desc_by(coh[urgency2 == "Non-elective"], "era")),
+            cbind(stratum = "Non-acute", desc_by(coh[urgency2 == "Non-acute"], "era")),
+            cbind(stratum = "Acute", desc_by(coh[urgency2 == "Acute"], "era")),
             cbind(stratum = "All", era = "Total", desc_by(coh, NULL)), fill = TRUE)
 write_out(t2, SUB, "table2_organ_protection_by_era")
 write_out(coh[, .N, by = .(year, hypo5)][order(year, hypo5)], SUB, "hypothermia_consensus_5level_by_year")

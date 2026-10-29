@@ -28,10 +28,10 @@ chk <- function(what, ok, detail = "") checks[[length(checks) + 1]] <<- data.tab
 # =============================== TABLES ==========================================================
 # Table 1
 t1 <- rd("02_descriptives", "table1_baseline_by_urgency")
-setnames(t1, c("characteristic", "Overall", "Elective", "Non-elective", "missing", "smd"),
-         c("Characteristic", "Overall", "Elective", "Non-elective", "Missing (n)", "SMD"), skip_absent = TRUE)
+setnames(t1, c("characteristic", "Overall", "Non-acute", "Acute", "missing", "smd"),
+         c("Characteristic", "Overall", "Non-acute", "Acute", "Missing (n)", "SMD"), skip_absent = TRUE)
 write_out(t1, SUB, "Table1_baseline_characteristics")
-chk("Table 1 N (overall) + missing urgency = cohort size",
+chk("Table 1 N (overall) + not classifiable = cohort size",
     as.integer(t1$Overall[1]) + sum(is.na(cohort$urgency2)) == nrow(cohort),
     sprintf("%s + %d vs %d", t1$Overall[1], sum(is.na(cohort$urgency2)), nrow(cohort)))
 
@@ -44,17 +44,17 @@ chk("Table 2 total N = patients with CPB (or CPB unknown)",
 # Table 3: crude rates by urgency and era, adjusted year trend and urgency OR
 cr <- outc$crude
 fmt_rate <- function(e, n) sprintf("%d/%d (%.1f%%)", e, n, 100 * e / n)
-t3 <- cr[group_type %in% c("overall", "urgency", "era"),
+t3 <- cr[group_type %in% c("overall", "acute status", "era"),
          .(cell = fmt_rate(events, n)), by = .(outcome, label, group)]
 t3 <- dcast(t3, outcome + label ~ group, value.var = "cell")
 yr <- outc$year[, .(outcome, adj_or_year = fmt_ci(or_per_year, lower, upper, 3), p_year = fmt_p(p),
                     p_holm = fmt_p(p_holm), p_nonlinear = fmt_p(p_nonlinear), model)]
-ur <- outc$urgency[adjustment == "with pathology",
-                   .(outcome, adj_or_nonelective = fmt_ci(ratio, ratio_lower, ratio_upper, 2))]
+ur <- outc$urgency[adjustment == "without pathology",
+                   .(outcome, adj_or_acute = fmt_ci(ratio, ratio_lower, ratio_upper, 2))]
 t3 <- merge(merge(t3, yr, by = "outcome", all.x = TRUE), ur, by = "outcome", all.x = TRUE)
 t3 <- t3[match(outc$OUT$var, outcome)][!is.na(outcome)]
-setcolorder(t3, intersect(c("label", "All", "Elective", "Non-elective", CONFIG$era_labels, "adj_or_year",
-                            "p_year", "p_holm", "p_nonlinear", "adj_or_nonelective", "model", "outcome"), names(t3)))
+setcolorder(t3, intersect(c("label", "All", "Non-acute", "Acute", CONFIG$era_labels, "adj_or_year",
+                            "p_year", "p_holm", "p_nonlinear", "adj_or_acute", "model", "outcome"), names(t3)))
 write_out(t3, SUB, "Table3_early_outcomes")
 # consistency: events in Table 3 equal events used in models (M1, imputation-independent outcome)
 ev_tab <- cr[group_type == "overall", .(outcome, events)]
@@ -80,8 +80,8 @@ add_supp("S4_volume_models", "03_volume", "volume_trend_models")
 add_supp("S5_volume_interaction", "03_volume", "volume_interaction_urgency")
 add_supp("S6_outcome_models_all_terms", "04_outcomes", "adjusted_models_M1_all_terms")
 add_supp("S7_year_trend_summary", "04_outcomes", "year_trend_summary")
-add_supp("S8_acute_vs_elective", "04_outcomes", "acute_vs_elective_or")
-add_supp("S9_urgency_interaction", "04_outcomes", "acute_vs_elective_year_interaction")
+add_supp("S8_acute_vs_nonacute", "04_outcomes", "acute_vs_nonacute_or")
+add_supp("S9_acute_interaction", "04_outcomes", "acute_vs_nonacute_year_interaction")
 add_supp("S10_centre_variation", "04_outcomes", "centre_variation")
 add_supp("S11_los", "04_outcomes", "length_of_stay_models")
 add_supp("S12_ftr_check", "04_outcomes", "ftr_numerator_denominator_check")
@@ -95,7 +95,7 @@ add_supp("S19_km", "06_survival", "km_survival_estimates")
 add_supp("S20_cox", "06_survival", "cox_models")
 add_supp("S21_ph_test", "06_survival", "cox_ph_test_schoenfeld")
 add_supp("S22_piecewise", "06_survival", "cox_piecewise_hazard_ratios")
-add_supp("S23_rmst", "06_survival", "rmst_by_urgency")
+add_supp("S23_rmst", "06_survival", "rmst_by_acute_status")
 add_supp("S24_landmark_cox", "06_survival", "landmark30_cox")
 add_supp("S25_conditional", "06_survival", "conditional_survival")
 add_supp("S26_smr", "07_population", "smr_overall_and_by_group")
@@ -119,8 +119,8 @@ if (vol$has_pop) {
   p1b <- ggplot(cnt, aes(year, rate_per_million, colour = type)) + geom_point() +
     geom_line(data = fv, aes(year, fit, colour = series), inherit.aes = FALSE) +
     geom_ribbon(data = fv, aes(year, ymin = lower, ymax = upper, fill = series), inherit.aes = FALSE, alpha = .12) +
-    scale_colour_manual(values = PAL[c(6, 2, 1)], breaks = c("All", "Non-elective", "Elective"), name = NULL) +
-    scale_fill_manual(values = PAL[c(6, 2, 1)], breaks = c("All", "Non-elective", "Elective"), guide = "none") +
+    scale_colour_manual(values = PAL[c(6, 2, 1)], breaks = c("All", "Acute", "Non-acute"), name = NULL) +
+    scale_fill_manual(values = PAL[c(6, 2, 1)], breaks = c("All", "Acute", "Non-acute"), guide = "none") +
     scale_x_continuous(breaks = CONFIG$study_years) +
     labs(x = NULL, y = "Per million inhabitants", title = "B. Population-adjusted rate (fitted trend, 95% CI)") + theme_pub()
   save_fig(p1a / p1b, SUB, "Figure1_volume", 8, 8)
@@ -129,9 +129,9 @@ chk("Figure 1 counts sum to cohort size (all years)", sum(cnt[type == "All", n])
 
 # Figure 2: case-mix over time
 an <- rd("02_descriptives", "characteristics_by_year")
-anl <- melt(an, id.vars = "year", measure.vars = c("nonelective", "acute_dissection", "prior_cs", "hybrid_fet",
+anl <- melt(an, id.vars = "year", measure.vars = c("acute", "acute_dissection", "prior_cs", "hybrid_fet",
                                                    "desc_inv", "conc_valve", "conc_cabg", "female"))
-lab2 <- c(nonelective = "Non-elective", acute_dissection = "Acute dissection", prior_cs = "Previous cardiac surgery",
+lab2 <- c(acute = "Acute (study definition)", acute_dissection = "Acute dissection", prior_cs = "Previous cardiac surgery",
           hybrid_fet = "Open + endovascular (FET)", desc_inv = "Descending aorta involved",
           conc_valve = "Concomitant valve surgery", conc_cabg = "Concomitant CABG", female = "Female")
 anl[, label := factor(lab2[as.character(variable)], lab2)]
@@ -207,29 +207,29 @@ km_plot <- function(cd, rk, title, cols = PAL) {
   p / rt + plot_layout(heights = c(4, 1))
 }
 save_fig(km_plot(surv$curves$overall, surv$risks$overall, "Overall survival"), SUB, "Figure6a_KM_overall", 7, 6)
-save_fig(km_plot(surv$curves$urgency, surv$risks$urgency, "Survival by urgency"), SUB, "Figure6b_KM_urgency", 7, 6)
+save_fig(km_plot(surv$curves$urgency, surv$risks$urgency, "Survival: acute vs non-acute"), SUB, "Figure6b_KM_acute_status", 7, 6)
 save_fig(km_plot(surv$curves$pathology, surv$risks$pathology, "Survival by aortic pathology"), SUB, "Figure6c_KM_pathology", 7, 6)
 save_fig(km_plot(surv$lm_curves$urgency, surv$lm_risks$urgency, "Survival among 30-day survivors (landmark at 30 days)"),
-         SUB, "Figure7_landmark_urgency", 7, 6)
+         SUB, "Figure7_landmark_acute_status", 7, 6)
 chk("KM number at risk at time 0 equals survival population",
     surv$risks$overall[years == 0, n_risk] == nrow(cohort[!is.na(time_d) & !is.na(status)]))
 
 # Figure 8: relative survival
 if (!is.null(pop)) {
-  rs <- pop$rs[group %in% c("All", "Elective", "Non-elective")]
+  rs <- pop$rs[group %in% c("All", "Non-acute", "Acute")]
   rsl <- rbind(rs[, .(group, years = end, value = observed, type = "Observed")],
                rs[, .(group, years = end, value = expected, type = "Expected (general population)")],
                rs[, .(group, years = end, value = relative, type = "Relative (Ederer II)")])
   p8a <- ggplot(rsl, aes(years, value, colour = type)) + geom_line() + facet_wrap(~group) +
     scale_y_continuous(labels = scales::percent) + scale_colour_manual(values = PAL[c(1, 6, 2)], name = NULL) +
     labs(x = "Years after surgery", y = NULL, title = "A. Observed, expected and relative survival") + theme_pub()
-  pp <- pop$pp[group %in% c("All", "Elective", "Non-elective")]
+  pp <- pop$pp[group %in% c("All", "Non-acute", "Acute")]
   p8b <- ggplot(pp, aes(years, net_survival, colour = group, fill = group)) +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = .12, colour = NA) + geom_line() +
     scale_colour_manual(values = PAL[c(6, 1, 2)], name = NULL) + scale_fill_manual(values = PAL[c(6, 1, 2)], guide = "none") +
     scale_y_continuous(labels = scales::percent) +
     labs(x = "Years after surgery", y = "Net survival", title = "B. Net survival (Pohar-Perme, sensitivity)") + theme_pub()
-  si <- pop$smr_int[group %in% c("All", "Urgency: Elective", "Urgency: Non-elective")]
+  si <- pop$smr_int[group %in% c("All", "Group: Non-acute", "Group: Acute")]
   si[, interval := factor(interval, c("0-30 days", "30 days-1 year", "1-5 years", ">5 years"))]
   p8c <- ggplot(si, aes(interval, smr, colour = group)) + geom_hline(yintercept = 1, linetype = 2) +
     geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(.5), size = .3) + scale_y_log10() +
@@ -294,8 +294,8 @@ report <- c(
   sprintf("* Records in extract: %d; analysis cohort: %d patients from %d centres (%d-%d).",
           flow[step == "Records in extract", n], nrow(cohort), uniqueN(cohort$centrum),
           min(cohort$year), max(cohort$year)),
-  sprintf("* Non-elective: %d (%.1f%%); acute aortic dissection: %d (%.1f%%).",
-          sum(cohort$nonelective == 1, na.rm = TRUE), 100 * mean(cohort$nonelective, na.rm = TRUE),
+  sprintf("* Acute (study definition): %d (%.1f%% of classifiable); not classifiable: %d; acute aortic dissection: %d (%.1f%%).",
+          sum(cohort$acute == 1, na.rm = TRUE), 100 * mean(cohort$acute, na.rm = TRUE), sum(is.na(cohort$acute)),
           sum(cohort$acute_dissection == 1, na.rm = TRUE), 100 * mean(cohort$acute_dissection, na.rm = TRUE)),
   "", "## Volume", "",
   sprintf("* %s: %s model; IRR per year %s (%s), i.e. %+.1f%% per year; non-linearity p = %s.",
