@@ -15,7 +15,7 @@ SUB <- "05_organ_protection"
 cohort <- load_derived("cohort.rds")
 imps   <- analysis_datasets()   # imputed data sets or observed cohort (complete case)
 specs  <- load_derived("specs.rds")
-CASEMIX <- c("age", "female", "urg3", "path3", "desc_inv", "hybrid_fet")
+CASEMIX <- COVARS_M1   # adjustment: age, sex, EuroSCORE II, previous cardiac surgery
 
 # Population: patients operated with cardiopulmonary bypass
 base <- function(d) d[ecc_any == 1 | is.na(ecc_any)]
@@ -97,8 +97,17 @@ for (cs in cont_specs) {
     est <- p_slp$pooled[term == "year_c"]
     if (cs$log) est[, `:=`(estimate = exp(estimate), lower = exp(lower), upper = exp(upper))]
     practice[[key]] <- cbind(outcome = cs$label, population = cs$pop, adjusted = adjust,
-                             model = "random intercept + slope", n = nrow(dl[[1]]),
+                             model = "random intercept + slope", period = "all years", n = nrow(dl[[1]]),
                              est[, .(estimate, lower, upper, p)], p_slp$diag[, .(n_convergence_warning, n_singular)])
+    # Sensitivity: from CONFIG$trend_sens_start onwards
+    dls <- lapply(dl, function(d) d[year >= CONFIG$trend_sens_start])
+    p_s <- fit_pooled(f_slp, dls, family = NULL)
+    es <- p_s$pooled[term == "year_c"]
+    if (cs$log) es[, `:=`(estimate = exp(estimate), lower = exp(lower), upper = exp(upper))]
+    practice[[paste(key, "from")]] <- cbind(outcome = cs$label, population = cs$pop, adjusted = adjust,
+                             model = "random intercept + slope", period = paste("from", CONFIG$trend_sens_start),
+                             n = nrow(dls[[1]]), es[, .(estimate, lower, upper, p)],
+                             p_s$diag[, .(n_convergence_warning, n_singular)])
     # variance components, slope LRT, centre slopes and FE model (imputation 1)
     m_slp <- p_slp$fits[[1]]$fit
     m_int <- fit_mixed(f_int, dl[[1]])$fit
@@ -130,10 +139,17 @@ for (adjust in c(FALSE, TRUE)) {
     pp <- if (nm == "random intercept") p_int else p_slp
     e <- exp_table(pp$pooled, "year_c")
     practice[[paste(key, nm)]] <- data.table(outcome = "Circulatory arrest use (OR per year)", population = "CPB",
-                                             adjusted = adjust, model = nm, n = nrow(dl[[1]]),
+                                             adjusted = adjust, model = nm, period = "all years", n = nrow(dl[[1]]),
                                              estimate = e$ratio, lower = e$ratio_lower, upper = e$ratio_upper,
                                              p = e$p, pp$diag[, .(n_convergence_warning, n_singular)])
   }
+  dls <- lapply(dl, function(d) d[year >= CONFIG$trend_sens_start])
+  ps <- fit_pooled(f_slp, dls); es <- exp_table(ps$pooled, "year_c")
+  practice[[paste(key, "from")]] <- data.table(outcome = "Circulatory arrest use (OR per year)", population = "CPB",
+                                               adjusted = adjust, model = "random intercept + slope",
+                                               period = paste("from", CONFIG$trend_sens_start), n = nrow(dls[[1]]),
+                                               estimate = es$ratio, lower = es$ratio_lower, upper = es$ratio_upper,
+                                               p = es$p, ps$diag[, .(n_convergence_warning, n_singular)])
   m_int <- p_int$fits[[1]]$fit; m_slp <- p_slp$fits[[1]]$fit
   vcs[[key]] <- cbind(analysis = key, vc_table(m_slp))
   s <- attr(VarCorr(m_int)$centrum, "stddev")
@@ -156,9 +172,19 @@ for (adjust in c(FALSE, TRUE)) {
   est <- lapply(fits, function(m) coef(m)[!names(coef(m)) %in% names(m$alpha)])
   vc  <- lapply(fits, function(m) { v <- vcov(m); nm <- names(coef(m))[!names(coef(m)) %in% names(m$alpha)]; v[nm, nm] })
   pooled <- exp_table(rubin_pool(est, vc), "year_c")
+  if (adjust) {
+    dls <- lapply(dl, function(d) d[year >= CONFIG$trend_sens_start][, hypo4 := droplevels(hypo4)])
+    fs <- par_lapply(dls, function(d) clmm(f, data = d, link = "logit", nAGQ = 1))
+    es <- exp_table(rubin_pool(lapply(fs, function(m) coef(m)[!names(coef(m)) %in% names(m$alpha)]),
+                               lapply(fs, function(m) { v <- vcov(m); nm <- names(coef(m))[!names(coef(m)) %in% names(m$alpha)]; v[nm, nm] })), "year_c")
+    ord_res[[length(ord_res) + 1]] <- data.table(
+      outcome = "Hypothermia category (cumulative OR per year; >1 = shift to warmer)", adjusted = TRUE,
+      period = paste("from", CONFIG$trend_sens_start), n = nrow(dls[[1]]),
+      estimate = es$ratio, lower = es$ratio_lower, upper = es$ratio_upper, p = es$p)
+  }
   ord_res[[length(ord_res) + 1]] <- data.table(
     outcome = "Hypothermia category (cumulative OR per year; >1 = shift to warmer)",
-    adjusted = adjust, n = nrow(dl[[1]]), estimate = pooled$ratio, lower = pooled$ratio_lower,
+    adjusted = adjust, period = "all years", n = nrow(dl[[1]]), estimate = pooled$ratio, lower = pooled$ratio_lower,
     upper = pooled$ratio_upper, p = pooled$p,
     centre_sd = mean(vapply(fits, function(m) sqrt(as.numeric(VarCorr(m)$centrum)), numeric(1))))
   # proportional-odds check on the fixed-effects clm (imputation 1)
@@ -173,7 +199,7 @@ dl <- lapply(imps, function(d) base(d)[!is.na(hypo4)][, deep := as.integer(hypo4
 dl <- complete_for(dl, mk_formula("deep", TRUE, "(1 | centrum)"))
 pd <- exp_table(fit_pooled(mk_formula("deep", TRUE, "(1 | centrum)"), dl)$pooled, "year_c")
 ord_res[[length(ord_res) + 1]] <- data.table(outcome = "Deep hypothermia <=20 C (OR per year, binary sensitivity)",
-                                             adjusted = TRUE, n = nrow(dl[[1]]), estimate = pd$ratio,
+                                             adjusted = TRUE, period = "all years", n = nrow(dl[[1]]), estimate = pd$ratio,
                                              lower = pd$ratio_lower, upper = pd$ratio_upper, p = pd$p)
 
 practice_tab <- rbindlist(practice, fill = TRUE)

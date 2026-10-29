@@ -38,6 +38,8 @@ if (!CONFIG$keep_unknown_approach)
 step <- drop_step(step, step$p_chronic %in% TRUE, "chronic dissection (code 30) in any aortic segment")
 step <- drop_step(step, step$p_infect %in% TRUE, "infection (code 40) in any aortic segment")
 flow <- rbind(flow, data.table(step = "Open or hybrid arch surgery with ECC", n = nrow(step)))
+# Records that cannot be classified as acute or non-acute (study definition) are excluded
+step <- drop_step(step, is.na(step$acute), "not classifiable as acute or non-acute")
 write_out(step[, .N, by = .(aotachir_benadering, ECC, chir_benadering)][order(-N)], SUB, "selected_cohort_approach_ecc")
 n_dup <- step[drop_duplicate == TRUE, .N]
 step <- step[drop_duplicate == FALSE]
@@ -148,8 +150,8 @@ trend_vars <- list(
           sternotomy = "Full sternotomy"),
   cont = c(age = "Age (years)", bmi = "BMI", egfr = "eGFR", lvef = "LVEF (%)",
            euroscore2 = "EuroSCORE II (%)"))
-trend_one <- function(v, type) {
-  d <- cohort[!is.na(get(v))]
+trend_one <- function(v, type, from = min(CONFIG$study_years)) {
+  d <- cohort[!is.na(get(v)) & year >= from]
   if (nrow(d) < 30 || uniqueN(d[[v]]) < 2) return(NULL)
   f <- as.formula(paste(v, "~ year_c"))
   fit <- if (type == "bin") glm(f, binomial, data = d) else lm(f, data = d)
@@ -169,6 +171,11 @@ trends <- rbind(rbindlist(lapply(names(trend_vars$bin), trend_one, type = "bin")
                 rbindlist(lapply(names(trend_vars$cont), trend_one, type = "cont")))
 trends[, p_holm := holm(p)]
 write_out(trends, SUB, "characteristics_trend_per_year")
+# Sensitivity: trends from CONFIG$trend_sens_start onwards
+trends_s <- rbind(rbindlist(lapply(names(trend_vars$bin), trend_one, type = "bin", from = CONFIG$trend_sens_start)),
+                  rbindlist(lapply(names(trend_vars$cont), trend_one, type = "cont", from = CONFIG$trend_sens_start)))
+trends_s[, p_holm := holm(p)]
+write_out(trends_s, SUB, paste0("characteristics_trend_per_year_from", CONFIG$trend_sens_start))
 
 # Annual proportions / medians for figures (used in 09)
 annual <- cohort[, .(n = .N,

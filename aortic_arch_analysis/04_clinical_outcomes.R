@@ -69,7 +69,7 @@ write_out(sparse[, .(n_centres = .N, centres_zero_events = sum(events == 0),
           SUB, "sparse_events_by_centre")
 
 # ---- 2. Risk-adjusted models ---------------------------------------------------------------
-model_rows <- list(); diag_rows <- list(); gcomp_rows <- list(); urg_rows <- list()
+model_rows <- list(); diag_rows <- list(); gcomp_rows <- list(); urg_rows <- list(); from_rows <- list()
 centre_rows <- list(); fits_keep <- list()
 
 analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = FALSE, last_year = max(yrs)) {
@@ -82,7 +82,7 @@ analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = F
   ev_pp <- epv(y, npar)
   reduced <- ev_pp < 10
   if (reduced) {
-    covars <- c("age", "female", "urg3", "path3")
+    covars <- COVARS_REDUCED
     f1 <- build_formula(v, covars, specs)
     dl <- complete_for(dl_all, f1); y <- dl[[1]][[v]]
     ev_pp <- epv(y, n_fixed_par(f1, dl[[1]]))
@@ -102,6 +102,17 @@ analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = F
               diag = cbind(outcome = v, model = "M1", m1$diag, epv = ev_pp, reduced = reduced),
               re_sd = m1$re_sd, fits = m1$fits, data = dl, formula = f1, covars = covars)
   if (!test_trend) return(res)
+
+  # Sensitivity: year trend from CONFIG$trend_sens_start onwards (same model)
+  if (first_year < CONFIG$trend_sens_start) {
+    dls <- lapply(dl, function(d) d[year >= CONFIG$trend_sens_start])
+    ys <- dls[[1]][[v]]
+    if (sum(ys == 1) >= 10) {
+      ms15 <- fit_pooled(f1, dls)
+      res$from <- exp_table(ms15$pooled, "year_c")[, `:=`(outcome = v, label = label,
+        from_year = CONFIG$trend_sens_start, n = length(ys), events = sum(ys == 1))]
+    }
+  }
 
   # Non-linear calendar-year effect (restricted cubic spline, 4 fixed knots)
   fs <- build_formula(v, covars, specs, year_term = YEAR_SPLINE)
@@ -127,6 +138,7 @@ for (i in seq_len(nrow(OUT))) {
   if (!is.null(r$diag)) diag_rows[[v]] <- r$diag
   if (!is.null(r$gcomp)) gcomp_rows[[v]] <- merge(r$gcomp, r$nonlinear[, .(outcome, p_nonlinear = p)], by = "outcome")
   if (!is.null(r$fits)) fits_keep[[v]] <- r[c("fits", "data", "formula", "covars", "re_sd")]
+  if (!is.null(r$from)) from_rows[[v]] <- r$from
 }
 models <- rbindlist(model_rows, fill = TRUE)
 write_out(models, SUB, "adjusted_models_M1_all_terms")
@@ -144,23 +156,31 @@ nlin <- unique(gcomp[, .(outcome, p_nonlinear)])
 yr <- merge(yr, nlin, by = "outcome", all.x = TRUE)
 setorder(yr, role, outcome)
 write_out(yr, SUB, "year_trend_summary")
+yr_from <- rbindlist(from_rows, fill = TRUE)
+if (nrow(yr_from)) {
+  yr_from <- merge(yr_from, OUT[, .(outcome = var, role)], by = "outcome")
+  yr_from[, p_holm := NA_real_]; yr_from[role == "secondary", p_holm := holm(p)]
+  write_out(yr_from[, .(outcome, label, role, from_year, n, events, or_per_year = ratio,
+                        lower = ratio_lower, upper = ratio_upper, p, p_holm)],
+            SUB, paste0("year_trend_summary_from", CONFIG$trend_sens_start))
+}
 
 # ---- 3. Acute vs non-acute (study definition) --------------------------------------------------------------------
 # OR acute vs non-acute, without pathology (primary: pathology is part of the
 # definition) and with pathology; year x acute interaction; stratified year trends.
 KEY <- intersect(c("comp_primary", "d30", "dzh", "major_compl", "stroke_def", "renal"), names(fits_keep))
-covars_nourg <- setdiff(COVARS_M1, "urg3")
+covars_nourg <- COVARS_M1
 for (v in KEY) {
   dl <- fits_keep[[v]]$data
-  f_a <- build_formula(v, c(setdiff(covars_nourg, "path3"), "acute"), specs)
-  f_b <- build_formula(v, c(covars_nourg, "acute"), specs)
+  f_a <- build_formula(v, c(covars_nourg, "acute"), specs)
+  f_b <- build_formula(v, c(covars_nourg, "path3", "acute"), specs)
   f_i <- build_formula(v, c(covars_nourg, "acute", "year_c:acute"), specs)
   pa <- exp_table(fit_pooled(f_a, dl)$pooled, "acute")[, adjustment := "without pathology"]
   pb <- exp_table(fit_pooled(f_b, dl)$pooled, "acute")[, adjustment := "with pathology"]
   p_int <- fit_pooled(f_i, dl)$pooled
   strat <- rbindlist(lapply(c(0, 1), function(g) {
     dg <- lapply(dl, function(d) d[acute == g])
-    ff <- build_formula(v, setdiff(covars_nourg, if (g == 0) "path3" else character(0)), specs)
+    ff <- build_formula(v, covars_nourg, specs)
     if (sum(dg[[1]][[v]] == 1) < 20) return(NULL)
     exp_table(fit_pooled(ff, dg)$pooled, "year_c")[, stratum := if (g == 1) "Acute" else "Non-acute"]
   }))
@@ -224,6 +244,8 @@ if ("comp_primary" %in% names(fits_keep)) {
 los_dl <- lapply(imps, function(d) d[dzh == 0 & !is.na(los)][, log_los := log(pmax(los, 0.5))])
 f_los <- build_formula("log_los", COVARS_M1, specs)
 los_fit <- fit_pooled(f_los, los_dl, family = NULL)
+los_from <- exp_table(fit_pooled(f_los, lapply(los_dl, function(d) d[year >= CONFIG$trend_sens_start]), family = NULL)$pooled, "year_c")[
+  , `:=`(outcome = paste0("LOS (discharged alive), from ", CONFIG$trend_sens_start), interpretation = "ratio of geometric means")]
 los_tab <- exp_table(los_fit$pooled)[, `:=`(outcome = "LOS (discharged alive)",
                                             interpretation = "ratio of geometric means")]
 # Sensitivity: cause-specific Cox model for discharge alive (in-hospital death censored)
@@ -236,7 +258,7 @@ cox_est <- lapply(imps, function(d) {
 })
 los_cox <- exp_table(rubin_pool(lapply(cox_est, `[[`, 1), lapply(cox_est, `[[`, 2)), "year_c")
 los_cox[, `:=`(outcome = "Discharge alive (cause-specific HR; >1 = shorter stay)")]
-write_out(rbind(los_tab, los_cox, fill = TRUE), SUB, "length_of_stay_models")
+write_out(rbind(los_tab, los_from, los_cox, fill = TRUE), SUB, "length_of_stay_models")
 write_out(cohort[dzh == 0 & !is.na(los), .(n = .N, median = median(los), q1 = quantile(los, .25),
                                             q3 = quantile(los, .75)), by = year][order(year)],
           SUB, "length_of_stay_by_year")
@@ -287,14 +309,23 @@ for (k in seq_len(nrow(ftr_defs))) {
   dl <- complete_for(dl0, f)
   ev <- epv(dl[[1]][[num]], n_fixed_par(f, dl[[1]]))
   if (ev < 10) {
-    f <- build_formula(num, c("age", "female", "urg3", "path3", nv), specs)
+    f <- build_formula(num, c(COVARS_REDUCED, nv), specs)
     dl <- complete_for(dl0, f)
   }
   fp <- fit_pooled(f, dl)
   ftr_models[[k]] <- exp_table(fp$pooled)[, `:=`(definition = ftr_defs$role[k], denominator = den,
                                                  numerator = num, n = nrow(dl[[1]]),
                                                  events = sum(dl[[1]][[num]] == 1), epv = ev,
-                                                 reduced = ev < 10, centre_sd = fp$re_sd)]
+                                                 reduced = ev < 10, centre_sd = fp$re_sd,
+                                                 period = "all years")]
+  dls <- lapply(dl, function(d) d[year >= CONFIG$trend_sens_start])
+  if (sum(dls[[1]][[num]] == 1) >= 10) {
+    fps <- fit_pooled(f, dls)
+    ftr_models[[paste0(k, "_from")]] <- exp_table(fps$pooled, "year_c")[, `:=`(
+      definition = ftr_defs$role[k], denominator = den, numerator = num, n = nrow(dls[[1]]),
+      events = sum(dls[[1]][[num]] == 1), epv = NA_real_, reduced = ev < 10, centre_sd = fps$re_sd,
+      period = paste("from", CONFIG$trend_sens_start))]
+  }
 }
 write_out(rbindlist(checks), SUB, "ftr_numerator_denominator_check")
 decomp_all <- rbindlist(decomps)
@@ -302,7 +333,7 @@ write_out(decomp_all, SUB, "ftr_decomposition_by_year")
 decomp <- decomp_all[definition == ftr_defs$role[1]]
 write_out(rbindlist(ftr_models), SUB, "ftr_models")
 
-saveRDS(list(OUT = OUT, crude = crude, models = models, year = yr, gcomp = gcomp,
+saveRDS(list(OUT = OUT, crude = crude, models = models, year = yr, year_from = yr_from, gcomp = gcomp,
              centre = rbindlist(centre_rows[!grepl("_cat|_fun", names(centre_rows))]),
              caterpillar = rbindlist(centre_rows[grepl("_cat", names(centre_rows))]),
              funnel = rbindlist(centre_rows[grepl("_fun", names(centre_rows))]),

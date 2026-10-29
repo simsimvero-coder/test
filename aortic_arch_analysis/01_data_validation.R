@@ -157,6 +157,8 @@ dv[, `:=`(
 )]
 dv[is.na(urgentie), `:=`(nonelective = NA_integer_, emerg_salv = NA_integer_)]
 # (urgency2 = acute vs non-acute group; defined below, after pathology)
+# EuroSCORE II on the logit scale (adjustment variable; EuroSCORE II is a predicted probability in %)
+dv[, logit_es2 := qlogis(pmin(pmax(euroscore2 / 100, 1e-4), 1 - 1e-4))]
 dv[, lvef_cat := cut(lvef, c(0, 20, 30, 50, 100), c("<=20%", "21-30%", "31-50%", ">50%"))]
 dv[, lvef_cat := relevel(lvef_cat, ">50%")]
 

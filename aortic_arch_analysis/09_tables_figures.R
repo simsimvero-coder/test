@@ -82,6 +82,8 @@ add_supp("S4_volume_models", "03_volume", "volume_trend_models")
 add_supp("S5_volume_interaction", "03_volume", "volume_interaction_urgency")
 add_supp("S6_outcome_models_all_terms", "04_outcomes", "adjusted_models_M1_all_terms")
 add_supp("S7_year_trend_summary", "04_outcomes", "year_trend_summary")
+add_supp("S7b_year_trend_from2015", "04_outcomes", paste0("year_trend_summary_from", CONFIG$trend_sens_start))
+add_supp("S3b_casemix_trends_from2015", "02_descriptives", paste0("characteristics_trend_per_year_from", CONFIG$trend_sens_start))
 add_supp("S8_acute_vs_nonacute", "04_outcomes", "acute_vs_nonacute_or")
 add_supp("S9_acute_interaction", "04_outcomes", "acute_vs_nonacute_year_interaction")
 add_supp("S10_centre_variation", "04_outcomes", "centre_variation")
@@ -288,7 +290,8 @@ d30 <- yr[outcome == "comp_primary"]
 vr <- vol$res
 conv <- if (has("04_outcomes", "model_convergence_diagnostics")) rd("04_outcomes", "model_convergence_diagnostics") else NULL
 pr <- organ$practice
-tmp <- pr[outcome == "Minimum temperature (C)" & population == "CPB" & adjusted == TRUE]
+tmp <- pr[outcome == "Minimum temperature (C)" & population == "CPB" & adjusted == TRUE & period == "all years"]
+tmp15 <- pr[outcome == "Minimum temperature (C)" & population == "CPB" & adjusted == TRUE & period != "all years"]
 report <- c(
   sprintf("# Analytical report (auto-generated): %s", method_label()), "",
   sprintf("Adjusted analyses use **%s**. Descriptive results (cohort, Table 1, volume) and population-referenced survival do not depend on this choice.", method_label()), "",
@@ -312,6 +315,10 @@ report <- c(
   sprintf("* Adjusted OR per calendar year (M1, %s, centre random intercept; %d patients, %d events in model): %s (95%% CI %s-%s), p = %s; test for non-linearity p = %s.",
           method_label(), d30$n, d30$events,
           g(d30$or_per_year, 3), g(d30$lower, 3), g(d30$upper, 3), fmt_p(d30$p), fmt_p(d30$p_nonlinear)),
+  if (!is.null(outc$year_from) && nrow(outc$year_from[outcome == "comp_primary"]))
+    with(outc$year_from[outcome == "comp_primary"],
+         sprintf("* Sensitivity, operations from %d: OR per year %s (95%% CI %s-%s), p = %s.",
+                 from_year, g(ratio, 3), g(ratio_lower, 3), g(ratio_upper, 3), fmt_p(p))) else "",
   "", "## Secondary early outcomes (OR per year; Holm-adjusted p)", "",
   sprintf("* %s: %s (%s-%s); p = %s; Holm p = %s%s", yr[role == "secondary"]$label,
           g(yr[role == "secondary"]$or_per_year, 3), g(yr[role == "secondary"]$lower, 3), g(yr[role == "secondary"]$upper, 3),
@@ -320,8 +327,10 @@ report <- c(
   "", "## Organ protection", "",
   if (nrow(tmp)) sprintf("* Minimum temperature, adjusted change per year (random intercept + slope): %s C (%s to %s).",
                          g(tmp$estimate), g(tmp$lower), g(tmp$upper)) else "",
-  sprintf("* %s, %s: OR per year %s (%s-%s).", organ$ordinal$outcome,
-          ifelse(organ$ordinal$adjusted, "case-mix adjusted", "unadjusted"), g(organ$ordinal$estimate, 3),
+  if (nrow(tmp15)) sprintf("* Minimum temperature, %s: %s C per year (%s to %s).", tmp15$period,
+                           g(tmp15$estimate), g(tmp15$lower), g(tmp15$upper)) else "",
+  sprintf("* %s, %s, %s: OR per year %s (%s-%s).", organ$ordinal$outcome,
+          ifelse(organ$ordinal$adjusted, "adjusted", "unadjusted"), organ$ordinal$period, g(organ$ordinal$estimate, 3),
           g(organ$ordinal$lower, 3), g(organ$ordinal$upper, 3)),
   "", "## Survival", "",
   sprintf("* %s: %s", surv$fu$measure, g(surv$fu$value)),

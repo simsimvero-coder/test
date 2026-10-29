@@ -35,6 +35,15 @@ t_year <- side(yr[[1]], yr[[2]][, !"label"][, !"role"], "outcome")
 setcolorder(t_year, c("outcome", "label", "role"))
 write_out(t_year, SUB, "outcome_year_trend_MI_vs_CC")
 
+# ---- 1b. Outcome trends from CONFIG$trend_sens_start ------------------------------------------
+yf <- lapply(MISSING_METHODS, function(m) {
+  y <- ld("outcomes.rds", m)$year_from
+  if (is.null(y) || !nrow(y)) return(NULL)
+  y[term == "year_c", .(outcome, label, n, events, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)]
+})
+if (!any(vapply(yf, is.null, logical(1))))
+  write_out(side(yf[[1]], yf[[2]][, !"label"], "outcome"), SUB, paste0("outcome_year_trend_from", CONFIG$trend_sens_start, "_MI_vs_CC"))
+
 # ---- 2. Acute vs non-acute ----------------------------------------------------------------------
 ur <- lapply(MISSING_METHODS, function(m) ld("outcomes.rds", m)$urgency[
   , .(outcome, adjustment, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)])
@@ -42,16 +51,16 @@ write_out(side(ur[[1]], ur[[2]], c("outcome", "adjustment")), SUB, "acute_vs_non
 
 # ---- 3. Failure to rescue ------------------------------------------------------------------------
 ft <- lapply(MISSING_METHODS, function(m) ld("outcomes.rds", m)$ftr[term == "year_c",
-  .(definition, numerator, n, events, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)])
-write_out(side(ft[[1]], ft[[2]], c("definition", "numerator")), SUB, "ftr_year_trend_MI_vs_CC")
+  .(definition, numerator, period, n, events, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)])
+write_out(side(ft[[1]], ft[[2]], c("definition", "numerator", "period")), SUB, "ftr_year_trend_MI_vs_CC")
 
 # ---- 4. Organ protection ---------------------------------------------------------------------------
 pr <- lapply(MISSING_METHODS, function(m) {
   o <- ld("organ.rds", m)
-  rbind(o$practice[, .(outcome, population, adjusted, model, n, estimate, lower, upper, p)],
-        o$ordinal[, .(outcome, population = "CPB", adjusted, model = "ordinal / binary", n, estimate, lower, upper, p)])
+  rbind(o$practice[, .(outcome, population, adjusted, model, period, n, estimate, lower, upper, p)],
+        o$ordinal[, .(outcome, population = "CPB", adjusted, model = "ordinal / binary", period, n, estimate, lower, upper, p)])
 })
-write_out(side(pr[[1]], pr[[2]], c("outcome", "population", "adjusted", "model")), SUB, "organ_protection_MI_vs_CC")
+write_out(side(pr[[1]], pr[[2]], c("outcome", "population", "adjusted", "model", "period")), SUB, "organ_protection_MI_vs_CC")
 
 # ---- 5. Survival (Cox) -------------------------------------------------------------------------------
 cx <- lapply(MISSING_METHODS, function(m) {
@@ -88,8 +97,8 @@ save_fig(p, SUB, "year_trend_MI_vs_CC", 8, 5.5)
 # ---- 8. Workbook and short summary ---------------------------------------------------------------------
 sheets <- list(outcome_trends = t_year,
                acute_vs_nonacute = side(ur[[1]], ur[[2]], c("outcome", "adjustment")),
-               ftr = side(ft[[1]], ft[[2]], c("definition", "numerator")),
-               organ_protection = side(pr[[1]], pr[[2]], c("outcome", "population", "adjusted", "model")),
+               ftr = side(ft[[1]], ft[[2]], c("definition", "numerator", "period")),
+               organ_protection = side(pr[[1]], pr[[2]], c("outcome", "population", "adjusted", "model", "period")),
                cox = side(cx[[1]], cx[[2]], c("model", "term")))
 if (all(sf)) sheets$sensitivity <- side(se[[1]], se[[2]], c("analysis", "outcome", "term"))
 writexl::write_xlsx(sheets, file.path(out_dir(SUB), "MI_vs_CC_comparison.xlsx"))

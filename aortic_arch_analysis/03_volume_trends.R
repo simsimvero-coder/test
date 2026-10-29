@@ -99,7 +99,9 @@ sens <- rbindlist(list(
   rbindlist(lapply(c("All", "Acute", "Non-acute"), function(t)
     fit_counts(cnt[type == t & year != 2024], t)$res))[, analysis := "excluding 2024"],
   rbindlist(lapply(c("All", "Acute", "Non-acute"), function(t)
-    fit_counts(cnt[type == t & !year %in% 2020:2021], t)$res))[, analysis := "excluding 2020-2021"]))
+    fit_counts(cnt[type == t & !year %in% 2020:2021], t)$res))[, analysis := "excluding 2020-2021"],
+  rbindlist(lapply(c("All", "Acute", "Non-acute"), function(t)
+    fit_counts(cnt[type == t & year >= CONFIG$trend_sens_start], t)$res))[, analysis := paste("from", CONFIG$trend_sens_start)]))
 vol_res[, analysis := "primary"]
 write_out(rbind(vol_res, sens), SUB, "volume_trend_models")
 write_out(vol_fit, SUB, "volume_fitted_values")

@@ -48,11 +48,11 @@ With 15 centres, the centre variance is estimated imprecisely. It is therefore r
 
 **Estimand.** The adjusted odds ratio per calendar year. It describes the temporal change in outcome among patients with the same preoperative risk profile.
 
-**Confounders adjusted for** (primary model M1). These are preoperative characteristics whose distribution can change over time (referral and selection) and which affect outcome: age, sex, renal function (eGFR), LVEF, previous cardiac surgery, active endocarditis, urgency and aortic pathology. Age and eGFR enter as natural cubic splines (3 df, knots at fixed quantiles), so no linearity is assumed.
+**Adjustment (primary model M1), as specified by the investigators**: age (natural cubic spline, 3 df), sex, EuroSCORE II (logit scale) and previous cardiac surgery (redo), in every adjusted analysis. EuroSCORE II summarises preoperative risk (including renal function, LVEF, urgency, endocarditis and critical preoperative state), so a short covariate list still captures most measured case mix. Because EuroSCORE II also contains age, sex and redo, these enter partly twice; the year effect is unaffected, but the individual coefficients should not be interpreted. Sensitivity analyses: age, sex and redo without EuroSCORE II; and the broader set of the earlier plan (age, sex, eGFR, LVEF, redo, endocarditis, urgency, pathology). EuroSCORE II includes an urgency weight, so the acute-versus-non-acute odds ratio adjusted for it is conservative.
 
 **Mediators not adjusted for.** Operative strategy (concomitant procedures, frozen elephant trunk, cerebral protection and temperature) is a channel through which outcomes may change over time. Adjusting for these would remove part of the change of interest. They are added in sensitivity model M2, which estimates the change *not* explained by measured operative strategy. The difference between M1 and M2 is descriptive and is not a formal mediation analysis.
 
-**EuroSCORE II** is a composite of variables already in M1. Including both would double-adjust, so it is used alone in model M3.
+**EuroSCORE II alone** (without the other three variables) is sensitivity model M3.
 
 **The year effect is a description, not a causal effect.** Calendar time has no single intervention. The estimate summarises everything that changed over time: surgical technique, perioperative care, patient selection, coding and registration completeness.
 
@@ -93,7 +93,7 @@ On the test data, refits changed the log-odds coefficients by less than 0.005, w
 
 ### 3.7 Acute versus non-acute
 
-The groups follow the study definition: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who cannot be classified are reported and excluded from these comparisons; the classification uses observed data only and is not imputed.
+The groups follow the study definition: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who cannot be classified are excluded from the analysis cohort (flow diagram); the classification uses observed data only and is not imputed.
 
 Acute status is not a treatment, so the comparison is **prognostic**. The primary OR is not adjusted for pathology, because acute dissection is part of the definition. The OR additionally adjusted for pathology answers a narrower question (emergency/salvage urgency within the same pathology) and is expected to be much smaller. Year × acute interactions and stratified trends are exploratory (BH-adjusted).
 
@@ -182,7 +182,7 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
   * Agreement between the two strengthens a finding; a material difference indicates that conclusions depend on how missing data are handled, and must be discussed.
   * Under complete-case analysis, n and events are taken from each fitted model (they differ between models with different covariates).
 * **Further sensitivity**:
-  * **δ-adjusted imputation (missing not at random).** The imputed values of the continuous covariate with the most missing values (eGFR or LVEF) are shifted by ±10 units, and the primary model is refitted. This shows how far the year effect depends on the MAR assumption.
+  * **δ-adjusted imputation (missing not at random).** The imputed values of EuroSCORE II (the continuous adjustment variable most likely to be missing) are shifted by ±2 percentage points, and the primary model is refitted. This shows how far the year effect depends on the MAR assumption.
 
 ---
 
@@ -196,6 +196,7 @@ Each sensitivity analysis targets a specific threat:
 | Confounding versus mediation | M0, M2, M3 |
 | Misspecified centre structure, or few clusters | Random slope; fixed effects with CR2 |
 | Incomplete registration in the latest year | Excluding 2024 |
+| Dependence of trends on the early years (registration, practice before 2015) | All trends from 2015 onwards |
 | Extreme-risk outliers | Excluding salvage operations |
 | Definition of "acute" | Emergency/salvage only; non-elective (`urgentie` 20/30/40) |
 | Unknown cleaning rules | Raw versus `*_clean` variables |

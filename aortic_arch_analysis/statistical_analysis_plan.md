@@ -118,7 +118,8 @@ All rows with `incl_cohort` indicating inclusion, after which the **surgical sel
 
 * included: open or hybrid arch surgery (`aotachir_benadering` 10 = open, 30 = combined open + endovascular) **with cardiopulmonary bypass** (`ECC` 10/20/30);
 * excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50); no aortic surgery recorded (`aotachir_benadering` 0); aortic approach unknown (configurable);
-* excluded: chronic dissection (code 30) or infection (code 40) in any of `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`.
+* excluded: chronic dissection (code 30) or infection (code 40) in any of `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`;
+* excluded: records that cannot be classified as acute or non-acute (study definition, §4.3).
 
 Each excluded row is counted, by `excl_reden` for the upstream exclusions and by criterion for the surgical selection, and a flow diagram is produced as a table. No record is dropped silently: every exclusion, recode to missing and out-of-range value is logged in `results/01_validation/`.
 
@@ -133,7 +134,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 * **Pathology** (from `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`, by precedence): acute dissection (20 in any segment) > aneurysm (10) > other (90/91). Patients with chronic dissection (30) or infection (40) in any segment are excluded from the cohort (§4.1). Acute aortic dissection is a strong determinant of risk and practice.
 * **Calendar year**: `jaar` centred at 2018. Era: 2013–2016, 2017–2020, 2021–2024 (for description only).
 * **Urgency**: four levels (adjustment variable).
-* **Acute versus non-acute (study definition)**: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who are not classifiable are counted and reported, and are excluded from acute-versus-non-acute comparisons. The classification is based on observed data and is not imputed.
+* **Acute versus non-acute (study definition)**: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who are not classifiable are excluded from the analysis cohort (§4.1) and counted in the flow diagram. The classification is based on observed data and is not imputed.
 * **Operative complexity**: concomitant CABG, any valve surgery, aortic root involvement (`aorta_asc` ∈ {10, 20}), descending aorta involvement (`aorta_desc` > 0), hybrid open + endovascular repair (`aotachir_benadering` = 30, frozen elephant trunk), and other cardiac surgery.
 * **LVEF categories** (EuroSCORE II): > 50, 31–50, 21–30, ≤ 20%.
 
@@ -161,7 +162,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 **Estimand.** The adjusted odds ratio per calendar year, interpreted as the average within-cohort temporal change after accounting for changes in case mix.
 
-**Covariates (primary model M1).** These are preoperative patient characteristics that plausibly affect both the case mix referred over time and the outcomes (confounders of the year–outcome association): age (natural spline, 3 df), sex, eGFR (natural spline, 3 df), LVEF category, previous cardiac surgery, active endocarditis, urgency (elective / urgent / emergency + salvage) and pathology (acute dissection / aneurysm / other; chronic dissection and infection are excluded from the cohort).
+**Covariates (primary model M1), as specified by the investigators.** Age (natural spline, 3 df), sex, EuroSCORE II (logit-transformed predicted probability) and previous cardiac surgery (redo). The same four variables are used in every adjusted analysis (outcome trends, acute versus non-acute, failure to rescue, length of stay, organ-protection practice, Cox models). EuroSCORE II itself contains age, sex and previous cardiac surgery, so these are partly adjusted for twice; this does not bias the year effect but makes the coefficients of the individual covariates hard to interpret. A model with age, sex and redo without EuroSCORE II, and the broader covariate set of the earlier plan (age, sex, eGFR, LVEF, redo, endocarditis, urgency, pathology), are sensitivity analyses. Because EuroSCORE II contains an urgency weight, adjusting the acute-versus-non-acute comparison for it removes part of the difference between the groups.
 
 **Not adjusted for in M1.** Operative variables (concomitant procedures, hybrid repair, perfusion strategy). These are part of how practice changed over time, that is, mediators of the year effect. Adjusting for them would estimate a "controlled direct effect", which is not the question. They are added in sensitivity model M2.
 
@@ -220,7 +221,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 * Missingness is described by variable, year and centre.
 * **Multiple imputation by chained equations** (`mice`, m = 20). Predictive mean matching for continuous variables, logistic or polytomous regression for categorical variables. Predictors are all analysis covariates, year, centre (fixed effects, appropriate for 15 clusters), the outcomes (30-day death, in-hospital death, the major complication composite, and the event indicator with the Nelson–Aalen cumulative hazard for survival). **Outcomes are not imputed.** Patients with a missing outcome are excluded from that outcome's analysis, and their number is reported.
 * Pooling uses Rubin's rules (implemented in code), and the pooled variance components come from the average across imputations.
-* **All adjusted analyses are run twice**: with multiple imputation (prespecified primary) and as a complete-case analysis (per model, patients with every model variable observed). Both sets are reported in full, and the key estimates are placed side by side (script 10). Additional sensitivity analysis: δ-adjusted imputation (missing not at random) for the continuous covariate with the most missing values.
+* **All adjusted analyses are run twice**: with multiple imputation (prespecified primary) and as a complete-case analysis (per model, patients with every model variable observed). Both sets are reported in full, and the key estimates are placed side by side (script 10). Additional sensitivity analysis: δ-adjusted imputation (missing not at random): imputed EuroSCORE II shifted by ±2 percentage points.
 
 ### 5.9 Multiplicity
 
@@ -243,6 +244,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 2. Adjustment sets M0, M1, M2 and M3.
 3. Clustering: random intercept, random intercept + slope for year, and a centre fixed-effects GLM with CR2/Satterthwaite inference.
 4. Excluding 2024, and excluding salvage operations.
+4b. **All temporal trends re-estimated for operations from 2015 onwards** (case mix, volume, early outcomes, failure to rescue, length of stay, organ-protection practice, Cox year effect).
 5. Alternative definitions of acute: emergency/salvage only; non-elective (`urgentie` 20/30/40).
 6. Raw instead of `*_clean` versions of `klepchir`, `aortachir` and `circ_arrest`.
 7. The major complication composite extended to include prolonged ventilation and stroke without a deficit (FTR sensitivity).

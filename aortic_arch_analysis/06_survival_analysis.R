@@ -93,7 +93,7 @@ pool_cox <- function(formula, dl, label) {
 }
 f_main <- as.formula(paste("Surv(t_years, status) ~", cox_rhs(COVARS_M1), "+ strata(centrum)"))
 cox_main <- pool_cox(f_main, imps_s, "Cox stratified by centre (primary)")
-covars_ne <- c(setdiff(COVARS_M1, c("urg3", "path3")), "acute")
+covars_ne <- c(COVARS_M1, "acute")
 cox_ne_a <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(covars_ne), "+ strata(centrum)")),
                      imps_s, "acute vs non-acute, without pathology")
 cox_ne_b <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(c(covars_ne, "path3")), "+ strata(centrum)")),
@@ -103,7 +103,9 @@ cox_frail <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(COVARS
                       imps_s, "Cox with gamma frailty for centre")
 cox_rob <- pool_cox(as.formula(paste("Surv(t_years, status) ~", cox_rhs(COVARS_M1), "+ cluster(centrum)")),
                     imps_s, "Cox, robust SE clustered by centre")
-cox_all <- rbind(cox_main, cox_ne_a, cox_ne_b, cox_frail, cox_rob, fill = TRUE)
+cox_from <- pool_cox(f_main, lapply(imps_s, function(d) d[year >= CONFIG$trend_sens_start]),
+                     paste0("Cox stratified by centre, operations from ", CONFIG$trend_sens_start))
+cox_all <- rbind(cox_main, cox_ne_a, cox_ne_b, cox_frail, cox_rob, cox_from, fill = TRUE)
 write_out(cox_all, SUB, "cox_models")
 
 # Proportional hazards diagnostics (imputation 1)
@@ -133,7 +135,7 @@ pw <- lapply(imps_s, function(d) {
 })
 f_pw <- as.formula(paste("Surv(tstart, t_years, status) ~",
                          paste(c("acute:interval", "acute_dissection:interval", "year_c:interval",
-                                 covar_terms(c("age", "female", "egfr", "lvef_cat", "prior_cs", "endocarditis_b"), specs)),
+                                 covar_terms(COVARS_M1, specs)),
                                collapse = " + "), "+ strata(centrum)"))
 cox_pw <- pool_cox(f_pw, pw, "piecewise Cox (0-30 d, 30 d-1 y, >1 y)")
 write_out(cox_pw[grepl("interval", term)], SUB, "cox_piecewise_hazard_ratios")

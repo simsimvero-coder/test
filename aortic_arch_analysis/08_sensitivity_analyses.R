@@ -63,24 +63,30 @@ for (v in c("comp_primary", "d30", "dzh", "major_compl")) {
   # 2. adjustment sets
   add("M0: year + centre only", v, pooled_or(build_formula(v, character(0), specs), dl), n = n, events = ev)
   add("M2: M1 + operative complexity", v, pooled_or(build_formula(v, c(COVARS_M1, COVARS_OPERATIVE), specs), dl), n = n, events = ev)
-  add("M3: year + logit EuroSCORE II", v, pooled_or(build_formula(v, "logit_es2", specs), dl), n = n, events = ev)
+  add("M3: year + logit EuroSCORE II only", v, pooled_or(build_formula(v, "logit_es2", specs), dl), n = n, events = ev)
+  add("Extended adjustment (age, sex, eGFR, LVEF, redo, endocarditis, urgency, pathology)", v,
+      pooled_or(build_formula(v, COVARS_EXTENDED, specs), dl), n = n, events = ev)
+  add("Age, sex, redo without EuroSCORE II (avoids double adjustment)", v,
+      pooled_or(build_formula(v, c("age", "female", "prior_cs"), specs), dl), n = n, events = ev)
   # 3. clustering
   add("Random intercept + random slope for year", v,
       pooled_or(build_formula(v, COVARS_M1, specs, random = "(1 + year_c | centrum)"), dl), n = n, events = ev)
   add(if (CONFIG$missing_method == "imputation") "Centre fixed effects, CR2 cluster-robust (imputation 1)" else "Centre fixed effects, CR2 cluster-robust", v, fe_cr2_or(f1, dl[[1]]), n = n, events = ev)
   # 4. restrictions
+  add(paste("Operations from", CONFIG$trend_sens_start), v,
+      pooled_or(f1, lapply(dl, function(d) d[year >= CONFIG$trend_sens_start])))
   add("Excluding 2024", v, pooled_or(f1, lapply(dl, function(d) d[year != 2024])),
       n = sum(dl[[1]]$year != 2024), events = sum(dl[[1]][year != 2024][[v]] == 1))
   add("Excluding salvage operations", v, pooled_or(f1, lapply(dl, function(d) d[urg4 != "Salvage"])),
       n = sum(dl[[1]]$urg4 != "Salvage"), events = sum(dl[[1]][urg4 != "Salvage"][[v]] == 1))
   # 5. acute = emergency/salvage (comparison term)
-  f_ac <- build_formula(v, c(setdiff(COVARS_M1, c("urg3", "path3")), "acute"), specs)
+  f_ac <- build_formula(v, c(COVARS_M1, "acute"), specs)
   add("Acute (study definition): OR acute vs non-acute", v, pooled_or(f_ac, dl), term = "acute", n = n, events = ev)
-  f_es <- build_formula(v, c(setdiff(COVARS_M1, "urg3"), "emerg_salv"), specs)
+  f_es <- build_formula(v, c(COVARS_M1, "emerg_salv"), specs)
   r_es <- pooled_or(f_es, dl)
   add("Alternative: emergency/salvage only: year effect", v, r_es, n = n, events = ev)
   add("Alternative: emergency/salvage only (ignoring pathology): OR vs rest", v, r_es, term = "emerg_salv", n = n, events = ev)
-  f_ne <- build_formula(v, c(setdiff(COVARS_M1, "urg3"), "nonelective"), specs)
+  f_ne <- build_formula(v, c(COVARS_M1, "nonelective"), specs)
   add("Alternative: non-elective (urgentie 20/30/40): OR vs elective", v, pooled_or(f_ne, dl), term = "nonelective", n = n, events = ev)
   # 6. raw instead of cleaned valve variable (operative model M2)
   if (all(c("klepchir") %in% names(cohort))) {
@@ -91,7 +97,7 @@ for (v in c("comp_primary", "d30", "dzh", "major_compl")) {
 }
 
 # 7. MNAR delta adjustment for the continuous covariate with most missing values
-cand <- c("egfr", "lvef")
+cand <- CONFIG$mnar_var
 miss <- vapply(cand, function(x) sum(is.na(cohort[[x]])), integer(1))
 dvar <- names(which.max(miss))
 if (max(miss) > 0 && CONFIG$missing_method == "imputation") {   # MNAR delta applies to imputation only

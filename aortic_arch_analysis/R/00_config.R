@@ -78,6 +78,8 @@ CONFIG <- list(
   # 1-year mortality (binary) is analysed for operation years up to this year only,
   # so that every included year has complete potential 1-year follow-up.
   d1y_last_year = 2023,
+  # Sensitivity analysis: every temporal trend is re-estimated from this year on
+  trend_sens_start = 2015,
 
   # ---- missing data ---------------------------------------------------------
   # Adjusted analyses (scripts 04, 05, 06, 08, 09) are run once per method;
@@ -85,7 +87,8 @@ CONFIG <- list(
   # "complete_case" = per model, patients with all model variables observed.
   missing_method = Sys.getenv("ARCH_MISSING", "imputation"),
   n_imputations = as.integer(Sys.getenv("ARCH_M", "20")),
-  mnar_delta    = 10,              # delta (units of the variable) for MNAR sensitivity
+  mnar_var      = "euroscore2",    # covariate shifted in the MNAR sensitivity analysis
+  mnar_delta    = 2,               # shift of imputed values (EuroSCORE II, percentage points)
 
   # cores used to fit models on imputed data sets in parallel (forked; Linux/macOS)
   cores = as.integer(Sys.getenv("ARCH_CORES", max(1L, parallel::detectCores() - 1L))),
@@ -203,8 +206,15 @@ UNDOCUMENTED_VARS <- c("bronrij", "pathologie_groep", "s1_via_bewijs", "excl_red
 # Outcomes added in handbook v22.2.0 (operations from 1 July 2022)
 LATE_ADDED_VARS <- c("ECMO_opname", "postop_MI", "delier")
 
-# Covariates of the primary model (see statistical_analysis_plan.md, 5.3)
-COVARS_M1 <- c("age", "female", "egfr", "lvef_cat", "prior_cs", "endocarditis_b",
-               "urg3", "path3")
+# Covariates of the primary model, as specified by the investigators: age (spline),
+# sex, EuroSCORE II (logit) and previous cardiac surgery (redo). Used in every
+# adjusted analysis. NB: EuroSCORE II itself contains age, sex and previous
+# cardiac surgery; these are therefore adjusted for partly twice (see methods report).
+COVARS_M1 <- c("age", "female", "logit_es2", "prior_cs")
+# Reduced model when events per parameter < 10
+COVARS_REDUCED <- c("age", "female", "logit_es2")
+# Broader set of the earlier analysis plan, kept as a sensitivity analysis
+COVARS_EXTENDED <- c("age", "female", "egfr", "lvef_cat", "prior_cs", "endocarditis_b",
+                     "urg3", "path3")
 COVARS_OPERATIVE <- c("conc_cabg", "conc_valve", "root_inv", "desc_inv", "hybrid_fet",
                       "other_cardiac")
