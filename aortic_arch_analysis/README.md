@@ -19,6 +19,7 @@ The analysis was developed independently. It is based only on the extract's vari
 aortic_arch_analysis/
 ├── R/00_config.R              paths, NHR codings, ranges, analysis settings (edit here)
 ├── R/functions.R              shared functions (model fitting, pooling, splines, survival tools)
+├── 00_check_environment.R     checks R/package versions, data file, model fitting, parallel (run first)
 ├── 01_data_validation.R       structure, codings, ranges, duplicates, consistency, derived variables
 ├── 02_cohort_descriptives.R   flow diagram, Table 1, case-mix trends, missing data, multiple imputation
 ├── 03_volume_trends.R         annual counts and rates, Poisson/negative binomial, acute vs non-acute
@@ -37,9 +38,11 @@ aortic_arch_analysis/
 
 ## How to run
 
-1. **R ≥ 4.3** with the packages `data.table`, `ggplot2`, `lme4`, `survival`, `mice`, `ordinal`, `clubSandwich`, `MASS`, `patchwork`, `scales`, `writexl`, `readxl` and `haven`. On Ubuntu they are available as `r-cran-*` packages; elsewhere, use `install.packages()`. Exact versions are written to `results/session_info.txt`.
+1. **R ≥ 4.2** (tested for compatibility with R 4.2.3 on macOS; see below) with the packages `data.table`, `ggplot2`, `lme4`, `survival`, `mice`, `ordinal`, `clubSandwich`, `MASS`, `patchwork`, `scales`, `writexl`, `readxl` and `haven`. On Ubuntu they are available as `r-cran-*` packages; elsewhere, use `install.packages()`. Exact versions are written to `results/session_info.txt`.
 2. The data file is read directly from your desktop: **`AORTABOOG_NL_schoon v3(1).xlsx`** (first sheet). The code looks in `Desktop` and `Bureaublad`, including a desktop redirected to OneDrive. The file is only read, never changed or copied. If the file name, sheet or location changes, edit `RAW_FILE_NAME` / `RAW_FILE_SHEET` at the top of `R/00_config.R`, or set the full path in the environment variable `ARCH_RAW_DATA`.
-3. From this folder, run `Rscript run_all.R`.
+3. From this folder, first run `Rscript 00_check_environment.R`. It checks R and package versions, finds and reads the data file, and tests model fitting and parallel processing. Then run `Rscript run_all.R` (which repeats the check as its first step).
+
+**On a Mac (Intel, R 4.2.3):** open Terminal, `cd` to the unzipped `aortic_arch_analysis` folder and run the commands above. Install the packages once from R with `install.packages(c("data.table","ggplot2","lme4","survival","mice","ordinal","clubSandwich","MASS","patchwork","scales","writexl","readxl","haven"))`. Parallel fitting works on macOS when run with `Rscript` from Terminal. The data file is found on `~/Desktop`, including an iCloud- or OneDrive-synced desktop.
 4. **Review `results/01_validation/validation_report.md` first.** By default the pipeline stops if a coded variable contains values that are not in the NHR handbook (`strict_coding = TRUE`). This is deliberate: it is better to stop than to guess what an undocumented code means.
 
 ### Settings (environment variables or `R/00_config.R`)

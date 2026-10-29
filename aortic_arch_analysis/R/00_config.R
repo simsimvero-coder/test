@@ -15,7 +15,10 @@ RAW_FILE_SHEET <- 1   # sheet number or name in the Excel file
 find_desktop_file <- function(file_name) {
   home <- if (.Platform$OS.type == "windows") Sys.getenv("USERPROFILE") else path.expand("~")
   roots <- c(home, Sys.getenv("OneDrive"), Sys.getenv("OneDriveCommercial"),
-             list.files(home, pattern = "^OneDrive", full.names = TRUE))
+             list.files(home, pattern = "^OneDrive", full.names = TRUE),
+             # macOS: OneDrive under ~/Library/CloudStorage; iCloud-synced Desktop
+             list.files(file.path(home, "Library", "CloudStorage"), pattern = "^OneDrive", full.names = TRUE),
+             file.path(home, "Library", "Mobile Documents", "com~apple~CloudDocs"))
   roots <- unique(roots[nzchar(roots)])
   candidates <- unlist(lapply(roots, function(r) file.path(r, c("Desktop", "Bureaublad"), file_name)))
   hit <- candidates[file.exists(candidates)]
@@ -55,6 +58,23 @@ CONFIG <- list(
   use_clean_versions    = TRUE,    # klepchir_clean / aortachir_clean / circ_arrest_clean
   drop_exact_duplicates = FALSE,   # duplicates are always reported; never dropped silently
   strict_coding = TRUE,            # stop if a coded variable holds values outside the handbook
+
+  # ---- surgical cohort selection (re-applied explicitly in 02) ----------------
+  # Open or hybrid arch surgery with cardiopulmonary bypass (ECC 10/20/30);
+  # excluded: endovascular-only aortic repair (aotachir_benadering 20/21),
+  # percutaneous approach (chir_benadering 50), chronic dissection (code 30) or
+  # infection (code 40) in any aortic segment. Unknown approach is excluded
+  # unless keep_unknown_approach = TRUE (counted in the flow diagram either way).
+  keep_unknown_approach = FALSE,
+
+  # ---- outcome definitions (paper 1 definitions are the main analysis) --------
+  # Stroke counted in the primary composite and in 'major complication':
+  # "deficit" = CVA_restletsel only; "any" = CVA_restletsel or CVA_zonder_restletsel
+  # (the latter includes TIA). The other choice is run as a sensitivity analysis.
+  composite_stroke = "deficit",
+  # 1-year mortality (binary) is analysed for operation years up to this year only,
+  # so that every included year has complete potential 1-year follow-up.
+  d1y_last_year = 2023,
 
   # ---- missing data ---------------------------------------------------------
   # Adjusted analyses (scripts 04, 05, 06, 08, 09) are run once per method;

@@ -42,8 +42,8 @@ write_out(side(ur[[1]], ur[[2]], c("outcome", "adjustment")), SUB, "acute_vs_non
 
 # ---- 3. Failure to rescue ------------------------------------------------------------------------
 ft <- lapply(MISSING_METHODS, function(m) ld("outcomes.rds", m)$ftr[term == "year_c",
-  .(numerator, n, events, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)])
-write_out(side(ft[[1]], ft[[2]], "numerator"), SUB, "ftr_year_trend_MI_vs_CC")
+  .(definition, numerator, n, events, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)])
+write_out(side(ft[[1]], ft[[2]], c("definition", "numerator")), SUB, "ftr_year_trend_MI_vs_CC")
 
 # ---- 4. Organ protection ---------------------------------------------------------------------------
 pr <- lapply(MISSING_METHODS, function(m) {
@@ -88,7 +88,7 @@ save_fig(p, SUB, "year_trend_MI_vs_CC", 8, 5.5)
 # ---- 8. Workbook and short summary ---------------------------------------------------------------------
 sheets <- list(outcome_trends = t_year,
                acute_vs_nonacute = side(ur[[1]], ur[[2]], c("outcome", "adjustment")),
-               ftr = side(ft[[1]], ft[[2]], "numerator"),
+               ftr = side(ft[[1]], ft[[2]], c("definition", "numerator")),
                organ_protection = side(pr[[1]], pr[[2]], c("outcome", "population", "adjusted", "model")),
                cox = side(cx[[1]], cx[[2]], c("model", "term")))
 if (all(sf)) sheets$sensitivity <- side(se[[1]], se[[2]], c("analysis", "outcome", "term"))

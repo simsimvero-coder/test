@@ -492,7 +492,7 @@ IMP_VARS_CONT <- c("age", "bmi", "egfr", "lvef", "euroscore2")
 IMP_VARS_BIN  <- c("female", "prior_cs", "endocarditis_b", "conc_cabg", "conc_valve",
                    "root_inv", "desc_inv", "hybrid_fet", "other_cardiac")
 IMP_VARS_FAC  <- c("urg4", "path3")
-IMP_AUX       <- c("d30", "dzh", "major_compl", "status", "H")   # outcomes: predictors only
+IMP_AUX       <- c("comp_primary", "d30", "dzh", "major_compl", "status", "H")   # outcomes: predictors only
 
 # Recreate derived categories after imputation
 rederive <- function(d) {
@@ -522,7 +522,7 @@ make_imputations <- function(cohort, m = CONFIG$n_imputations, delta = 0, delta_
   dd <- as.data.frame(d[, ..vars])
   dd$centrum <- factor(dd$centrum)
   meth <- mice::make.method(dd)
-  meth[c(IMP_VARS_CONT, IMP_VARS_BIN, "H", "d30", "dzh", "major_compl", "status")] <- "pmm"
+  meth[c(IMP_VARS_CONT, IMP_VARS_BIN, "H", "comp_primary", "d30", "dzh", "major_compl", "status")] <- "pmm"
   meth[IMP_VARS_FAC] <- "polyreg"
   meth[!vapply(dd, anyNA, logical(1))] <- ""
   post <- mice::make.post(dd)

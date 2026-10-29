@@ -66,7 +66,9 @@
 
 ## 2. Research questions
 
-**Primary question (Q1).** Has risk-adjusted 30-day mortality after open aortic arch surgery changed over 2013–2024?
+**Primary question (Q1).** Has the risk-adjusted incidence of the primary composite (in-hospital death, stroke, renal failure or GI complication) after open aortic arch surgery changed over 2013–2024?
+
+*Decision on the primary endpoint.* The composite is primary for continuity with paper 1, which used the same composite as its primary endpoint. 30-day mortality is a key secondary endpoint: it is register-verified and also captures deaths after discharge or transfer.
 
 **Secondary questions.**
 
@@ -86,18 +88,20 @@
 
 | Type | Endpoint | Variable / definition |
 |---|---|---|
-| **Primary** | 30-day all-cause mortality | `overl30d`. BRP-verified, it captures deaths after discharge and after transfer, and it does not depend on per-intervention attribution rules or discharge practice. |
+| **Primary** | Composite (paper 1): in-hospital death, stroke, renal failure or GI complication | Any of `overleden_zh`, stroke (default `CVA_restletsel`; see below), `nierfalen`, `gastroint_compl` ∈ {1, 10, 90}. Missing only when no component is positive and at least one is missing. |
+| Secondary (key) | 30-day all-cause mortality | `overl30d`. BRP-verified, it captures deaths after discharge and after transfer. |
 | Secondary | In-hospital mortality | `overleden_zh` |
-| Secondary | 1-year mortality | 1 − Kaplan–Meier survival at 365 days (handles censoring). Binary `overl1j` is used only among patients with ≥ 365 days of potential follow-up or who died. |
+| Secondary | 1-year mortality | 1 − Kaplan–Meier survival at 365 days (handles censoring). The binary trend model is restricted to **operations up to 2023**, so that every included year has complete potential 1-year follow-up; including 2024 would mainly add early deaths and bias the trend. |
 | Secondary | Stroke with a permanent deficit | `CVA_restletsel` |
 | Secondary | Stroke/TIA without a deficit | `CVA_zonder_restletsel` |
 | Secondary | Renal failure | `nierfalen` |
 | Secondary | Prolonged ventilation (> 24 h) | `beademing` |
 | Secondary | Reintubation for respiratory insufficiency | `resp_insuff` |
 | Secondary | ICU readmission | `heropname_IC` |
-| Secondary | Major complication (composite) | Any of: `CVA_restletsel`, `nierfalen`, `resp_insuff`, `gastroint_compl` ∈ {1, 10, 90}, `vasc_compl_opname` = 10. Every component was recorded throughout 2013–2024. Missing only when no component is positive and at least one is missing. |
+| Secondary | Major complication (paper 1) | Any of: stroke (as in the primary composite), `nierfalen`, `gastroint_compl` ∈ {1, 10, 90}. |
+| Supplementary | Major complication, broader definition | Adds `resp_insuff` (reintubation) and `vasc_compl_opname` = 10 (major vascular). |
 | Secondary | Hospital length of stay | `opnameduur` (days) |
-| Secondary | Failure to rescue | 30-day death among patients with ≥ 1 major complication |
+| Secondary | Failure to rescue (paper 1) | In-hospital death among patients with ≥ 1 major complication (paper 1 definition). Additional: 30-day death; broader complication definition. |
 | Secondary | All-cause mortality (long term) | `overltijd_dag`, `mort_status` |
 | Exploratory | ECMO, postoperative MI, delirium | Recorded from mid-2022 only: descriptive, without trend tests |
 | Practice | Minimum temperature, hypothermia category, circulatory arrest use and duration | `min_temp`, `circ_arrest_clean`, `circ_arrest_duur` |
@@ -110,7 +114,13 @@
 
 ### 4.1 Cohort
 
-All rows with `incl_cohort` indicating inclusion. Each excluded row is counted by `excl_reden`, and a flow diagram is produced as a table. No record is dropped silently: every exclusion, recode to missing and out-of-range value is logged in `results/01_validation/`.
+All rows with `incl_cohort` indicating inclusion, after which the **surgical selection of paper 1 is re-applied explicitly** in `02_cohort_descriptives.R`:
+
+* included: open or hybrid arch surgery (`aotachir_benadering` 10 = open, 30 = combined open + endovascular) **with cardiopulmonary bypass** (`ECC` 10/20/30);
+* excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50); no aortic surgery recorded (`aotachir_benadering` 0); aortic approach unknown (configurable);
+* excluded: chronic dissection (code 30) or infection (code 40) in any of `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`.
+
+Each excluded row is counted, by `excl_reden` for the upstream exclusions and by criterion for the surgical selection, and a flow diagram is produced as a table. No record is dropped silently: every exclusion, recode to missing and out-of-range value is logged in `results/01_validation/`.
 
 ### 4.2 Cleaning rules
 
@@ -120,7 +130,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 ### 4.3 Derived variables
 
-* **Pathology** (from `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`, by precedence): acute dissection (20 in any segment) > chronic dissection or aneurysm (30, 10) > infection (40) > other (90/91). Acute aortic dissection is a strong determinant of risk and practice.
+* **Pathology** (from `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`, by precedence): acute dissection (20 in any segment) > aneurysm (10) > other (90/91). Patients with chronic dissection (30) or infection (40) in any segment are excluded from the cohort (§4.1). Acute aortic dissection is a strong determinant of risk and practice.
 * **Calendar year**: `jaar` centred at 2018. Era: 2013–2016, 2017–2020, 2021–2024 (for description only).
 * **Urgency**: four levels (adjustment variable).
 * **Acute versus non-acute (study definition)**: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who are not classifiable are counted and reported, and are excluded from acute-versus-non-acute comparisons. The classification is based on observed data and is not imputed.
@@ -151,7 +161,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 **Estimand.** The adjusted odds ratio per calendar year, interpreted as the average within-cohort temporal change after accounting for changes in case mix.
 
-**Covariates (primary model M1).** These are preoperative patient characteristics that plausibly affect both the case mix referred over time and the outcomes (confounders of the year–outcome association): age (natural spline, 3 df), sex, eGFR (natural spline, 3 df), LVEF category, previous cardiac surgery, active endocarditis, urgency (elective / urgent / emergency + salvage) and pathology (acute dissection / aneurysm–chronic dissection / other).
+**Covariates (primary model M1).** These are preoperative patient characteristics that plausibly affect both the case mix referred over time and the outcomes (confounders of the year–outcome association): age (natural spline, 3 df), sex, eGFR (natural spline, 3 df), LVEF category, previous cardiac surgery, active endocarditis, urgency (elective / urgent / emergency + salvage) and pathology (acute dissection / aneurysm / other; chronic dissection and infection are excluded from the cohort).
 
 **Not adjusted for in M1.** Operative variables (concomitant procedures, hybrid repair, perfusion strategy). These are part of how practice changed over time, that is, mediators of the year effect. Adjusting for them would estimate a "controlled direct effect", which is not the question. They are added in sensitivity model M2.
 
@@ -171,7 +181,7 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 
 ### 5.4 Failure to rescue (Q8)
 
-* **Denominator**: patients with ≥ 1 major complication (composite, §3). **Numerator**: 30-day deaths among them. Alternative: in-hospital death.
+* **Main analysis (paper 1 definitions)**: denominator = patients with ≥ 1 major complication (stroke, renal failure, GI complication); numerator = in-hospital deaths among them. **Additional analyses**: 30-day death as numerator, and the broader complication definition (adding reintubation and major vascular complication).
 * Before analysis, the code verifies that the denominator equals the number of patients with the composite = 1 and that the numerator is no larger than the 30-day deaths.
 * Model: a mixed logistic model within the complicated patients, with year plus the M1 covariates plus the number of distinct complications, and a centre random intercept.
 * **Conditioning problem**: complication status is affected by year and by risk factors, so FTR trends can be distorted by changes in who develops (or is recorded as having) complications. To address this, an annual decomposition is reported: overall mortality = P(complication) × FTR + P(no complication) × mortality without complication. Unconditional trends in complications and mortality are also reported. Patients who die intraoperatively or very early have little opportunity for a complication to be recorded, which is a limitation that is reported.
@@ -215,7 +225,8 @@ All rows with `incl_cohort` indicating inclusion. Each excluded row is counted b
 ### 5.9 Multiplicity
 
 * Primary endpoint: a two-sided α of 0.05, with no adjustment.
-* The year trends of the nine secondary binary early outcomes (Q4) are adjusted with **Holm's method** (family-wise error), shown alongside unadjusted values.
+* **Stroke in the composite.** The default is stroke with a permanent deficit (`CVA_restletsel`), because `CVA_zonder_restletsel` includes TIA. The composite with any stroke is run as a sensitivity analysis. The choice is one setting (`composite_stroke`) in `R/00_config.R`.
+* The year trends of the secondary binary early outcomes (Q4, including 30-day mortality) are adjusted with **Holm's method** (family-wise error), shown alongside unadjusted values.
 * Exploratory analyses (subgroups, interactions, outcomes from mid-2022 onward) use **Benjamini–Hochberg** (false discovery rate) and are labelled hypothesis-generating.
 * Estimates and CIs are interpreted ahead of significance.
 

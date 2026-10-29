@@ -67,6 +67,8 @@ if (CONFIG$missing_method == "imputation") {
   chk("Complete-case models use no more events than Table 3", all(evc$model_events <= evc$events),
       paste(sprintf("%s: %d of %d events in model", evc$outcome, evc$model_events, evc$events), collapse = "; "))
 }
+chk("Table 3 primary-composite events equal cohort count",
+    ev_tab[outcome == "comp_primary", events] == sum(cohort$comp_primary == 1, na.rm = TRUE))
 chk("Table 3 30-day deaths equal cohort count",
     ev_tab[outcome == "d30", events] == sum(cohort$d30 == 1, na.rm = TRUE))
 
@@ -141,7 +143,7 @@ p2 <- ggplot(anl, aes(year, 100 * value)) + geom_line(colour = PAL[1]) + geom_po
 save_fig(p2, SUB, "Figure2_casemix_trends", 9, 5)
 
 # Figure 3: adjusted (standardised) risk by year with crude points
-gc <- outc$gcomp[outcome %in% c("d30", "dzh", "stroke_def", "renal", "major_compl", "vent24")]
+gc <- outc$gcomp[outcome %in% c("comp_primary", "d30", "dzh", "stroke_def", "renal", "major_compl")]
 crude_y <- outc$crude[group_type == "year" & outcome %in% unique(gc$outcome)][, year := as.integer(group)]
 gc[, panel := factor(label, unique(label))]; crude_y[, panel := factor(label, levels(gc$panel))]
 p3 <- ggplot(gc, aes(year, 100 * risk)) +
@@ -175,10 +177,10 @@ p4d <- ggplot(sl, aes(reorder(centre_lab, slope), slope)) + geom_hline(yintercep
 save_fig((p4a | p4b) / (p4c | p4d), SUB, "Figure4_organ_protection", 11, 9)
 
 # Figure 5: centre variation in 30-day mortality
-ct <- outc$caterpillar[outcome == "d30"]; fu <- outc$funnel[outcome == "d30"]
+ct <- outc$caterpillar[outcome == "comp_primary"]; fu <- outc$funnel[outcome == "comp_primary"]
 p5a <- ggplot(ct, aes(reorder(centre_lab, effect), or)) + geom_hline(yintercept = 1, linetype = 2) +
   geom_pointrange(aes(ymin = lower, ymax = upper), colour = PAL[1], size = .3) + coord_flip() + scale_y_log10() +
-  labs(x = "Centre", y = "Centre odds ratio (conditional mode, 95% interval)", title = "A. Centre effects, 30-day mortality") + theme_pub()
+  labs(x = "Centre", y = "Centre odds ratio (conditional mode, 95% interval)", title = "A. Centre effects, primary composite") + theme_pub()
 ex <- seq(max(1, min(fu$expected) * 0.8), max(fu$expected) * 1.2, length.out = 200)
 lims <- data.table(expected = ex, lo95 = qpois(.025, ex) / ex, hi95 = qpois(.975, ex) / ex,
                    lo998 = qpois(.001, ex) / ex, hi998 = qpois(.999, ex) / ex)
@@ -188,11 +190,11 @@ p5b <- ggplot(fu, aes(expected, oe)) + geom_hline(yintercept = 1) +
   geom_line(data = lims, aes(expected, lo998), linetype = 3, colour = "grey40") +
   geom_line(data = lims, aes(expected, hi998), linetype = 3, colour = "grey40") +
   geom_point(colour = PAL[2]) + geom_text(aes(label = centre_lab), nudge_y = .06, size = 3) +
-  labs(x = "Expected deaths (case-mix model)", y = "Observed / expected",
+  labs(x = "Expected events (case-mix model)", y = "Observed / expected",
        title = "B. Funnel plot (95% and 99.8% Poisson limits)") + theme_pub()
 save_fig(p5a | p5b, SUB, "Figure5_centre_variation", 11, 5)
-chk("Funnel plot observed deaths sum to model events (30-day mortality)",
-    sum(fu$observed) == outc$year[outcome == "d30", events])
+chk("Funnel plot observed events sum to model events (primary composite)",
+    sum(fu$observed) == outc$year[outcome == "comp_primary", events])
 
 # Figures 6-7: Kaplan-Meier and landmark curves with risk tables
 km_plot <- function(cd, rk, title, cols = PAL) {
@@ -240,19 +242,19 @@ if (!is.null(pop)) {
 
 # Supplementary figures: sensitivity forest; FTR decomposition; conditional survival
 if (!is.null(sens)) {
-  s30 <- sens[outcome == "d30" & term == "year_c"]
+  s30 <- sens[outcome == "comp_primary" & term == "year_c"]
   s30[, analysis := factor(analysis, rev(unique(analysis)))]
   ps <- ggplot(s30, aes(or, analysis)) + geom_vline(xintercept = 1, linetype = 2) +
     geom_pointrange(aes(xmin = lower, xmax = upper), colour = PAL[1], size = .3) +
-    labs(x = "Odds ratio per calendar year (95% CI)", y = NULL, title = "Sensitivity analyses: 30-day mortality trend") + theme_pub()
+    labs(x = "Odds ratio per calendar year (95% CI)", y = NULL, title = "Sensitivity analyses: primary composite, trend per year") + theme_pub()
   save_fig(ps, SUB, "FigureS1_sensitivity_forest", 8, 5)
 }
 fd <- melt(outc$ftr_decomp, id.vars = "year", measure.vars = c("p_complication", "ftr", "mort_no_compl", "mortality"))
 fd[, variable := factor(variable, c("p_complication", "ftr", "mort_no_compl", "mortality"),
-                        c("Major complication", "Failure to rescue", "Mortality without complication", "30-day mortality"))]
+                        c("Major complication", "Failure to rescue", "Mortality without complication", "In-hospital mortality"))]
 pf <- ggplot(fd, aes(year, 100 * value)) + geom_line(colour = PAL[1]) + geom_point(colour = PAL[1], size = 1.2) +
   facet_wrap(~variable, scales = "free_y", ncol = 4) + scale_x_continuous(breaks = c(2013, 2018, 2024)) +
-  labs(x = NULL, y = "%", title = "Decomposition of 30-day mortality (crude)") + theme_pub()
+  labs(x = NULL, y = "%", title = "Decomposition of in-hospital mortality (crude; major complication = stroke, renal failure, GI)") + theme_pub()
 save_fig(pf, SUB, "FigureS2_ftr_decomposition", 10, 3.5)
 cs <- copy(surv$cond)[, s_lab := factor(round(survived_days), c(0, 30, 365, 730, 1826),
                                        c("0 d", "30 d", "1 y", "2 y", "5 y"))]
@@ -274,13 +276,15 @@ if (has("04_outcomes", "primary_model_binned_residuals")) {
 }
 
 # =============================== CONSISTENCY & REPORT ===========================================
+flow_tab <- rd("02_descriptives", "flow_diagram")
+chk("Flow diagram: analysis cohort equals cohort size", flow_tab[step == "Analysis cohort", n] == nrow(cohort))
 cks <- rbindlist(checks)
 write_out(cks, SUB, "consistency_checks_tables_figures_models")
 if (!all(cks$passed)) log_msg("WARNING: consistency check(s) failed: ", paste(cks[passed == FALSE, check], collapse = "; "))
 
 g <- function(x, d = 2) formatC(x, format = "f", digits = d)
 yr <- outc$year; flow <- rd("02_descriptives", "flow_diagram")
-d30 <- yr[outcome == "d30"]
+d30 <- yr[outcome == "comp_primary"]
 vr <- vol$res
 conv <- if (has("04_outcomes", "model_convergence_diagnostics")) rd("04_outcomes", "model_convergence_diagnostics") else NULL
 pr <- organ$practice
@@ -301,9 +305,10 @@ report <- c(
   sprintf("* %s: %s model; IRR per year %s (%s), i.e. %+.1f%% per year; non-linearity p = %s.",
           vr$series, vr$model, g(vr$irr_per_year, 3), paste0(g(vr$irr_lower, 3), "-", g(vr$irr_upper, 3)),
           vr$annual_pct_change, fmt_p(vr$p_nonlinear)),
-  "", "## Primary endpoint: 30-day mortality", "",
-  with(outc$crude[group_type == "overall" & outcome == "d30"],
-       sprintf("* Events (all patients with known 30-day status): %d of %d (%.1f%%).", events, n, pct)),
+  "", "## Primary endpoint (paper 1): composite of in-hospital death, stroke, renal failure, GI complication", "",
+  sprintf("* Stroke in the composite: %s.", if (CONFIG$composite_stroke == "any") "any stroke (with or without deficit, incl. TIA)" else "stroke with permanent deficit (CVA_restletsel)"),
+  with(outc$crude[group_type == "overall" & outcome == "comp_primary"],
+       sprintf("* Events (all patients with the composite known): %d of %d (%.1f%%).", events, n, pct)),
   sprintf("* Adjusted OR per calendar year (M1, %s, centre random intercept; %d patients, %d events in model): %s (95%% CI %s-%s), p = %s; test for non-linearity p = %s.",
           method_label(), d30$n, d30$events,
           g(d30$or_per_year, 3), g(d30$lower, 3), g(d30$upper, 3), fmt_p(d30$p), fmt_p(d30$p_nonlinear)),

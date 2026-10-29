@@ -15,7 +15,7 @@ required <- c("data.table", "ggplot2", "lme4", "survival", "splines", "mice", "o
 missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing)) stop("Install the missing R packages first: ", paste(missing, collapse = ", "))
 
-shared   <- c("01_data_validation.R", "02_cohort_descriptives.R", "03_volume_trends.R",
+shared   <- c("00_check_environment.R", "01_data_validation.R", "02_cohort_descriptives.R", "03_volume_trends.R",
               "07_population_survival.R")
 adjusted <- c("04_clinical_outcomes.R", "05_organ_protection.R", "06_survival_analysis.R",
               "08_sensitivity_analyses.R", "09_tables_figures.R")

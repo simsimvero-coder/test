@@ -49,7 +49,7 @@ fe_cr2_or <- function(formula, d) {
   out
 }
 
-for (v in c("d30", "dzh", "major_compl")) {
+for (v in c("comp_primary", "d30", "dzh", "major_compl")) {
   log_msg("Sensitivity analyses: ", v)
   dl <- lapply(imps, function(d) d[!is.na(get(v))])
   n <- nrow(dl[[1]]); ev <- sum(dl[[1]][[v]] == 1)
@@ -98,23 +98,29 @@ if (max(miss) > 0 && CONFIG$missing_method == "imputation") {   # MNAR delta app
   for (delta in c(-CONFIG$mnar_delta, CONFIG$mnar_delta)) {
     log_msg("MNAR: ", dvar, " delta ", delta)
     di <- make_imputations(cohort, m = CONFIG$n_imputations, delta = delta, delta_var = dvar)
-    dl <- lapply(di, function(d) d[!is.na(d30)])
-    add(sprintf("MNAR: imputed %s shifted by %+g", dvar, delta), "d30",
-        pooled_or(build_formula("d30", COVARS_M1, specs), dl),
-        n = nrow(dl[[1]]), events = sum(dl[[1]]$d30 == 1), note = sprintf("%d missing values shifted", max(miss)))
+    dl <- lapply(di, function(d) d[!is.na(comp_primary)])
+    add(sprintf("MNAR: imputed %s shifted by %+g", dvar, delta), "comp_primary",
+        pooled_or(build_formula("comp_primary", COVARS_M1, specs), dl),
+        note = sprintf("%d missing values shifted", max(miss)))
   }
 }
 
-# 8. Failure to rescue with the extended complication definition
-dl <- lapply(imps, function(d) d[major_compl_ext == 1 & !is.na(d30)])
-f_ftr <- build_formula("d30", c(COVARS_M1, "n_compl"), specs)
-add("FTR: extended complication set (+ ventilation >24 h, stroke without deficit)", "ftr_d30",
-    pooled_or(f_ftr, dl), n = nrow(dl[[1]]), events = sum(dl[[1]]$d30 == 1))
+# 8. Primary composite with the other stroke definition
+alt <- if (CONFIG$composite_stroke == "any") "stroke with deficit only" else "any stroke (incl. without deficit/TIA)"
+dl <- lapply(imps, function(d) d[!is.na(comp_primary_altstroke)])
+add(paste("Primary composite with", alt), "comp_primary",
+    pooled_or(build_formula("comp_primary_altstroke", COVARS_M1, specs), dl))
+
+# 9. Failure to rescue with the extended complication definition (in-hospital death)
+dl <- lapply(imps, function(d) d[major_compl_ext == 1 & !is.na(dzh)])
+f_ftr <- build_formula("dzh", c(COVARS_M1, "n_compl_new"), specs)
+add("FTR: extended complication set (broader set + ventilation >24 h, stroke without deficit)", "ftr_dzh",
+    pooled_or(f_ftr, dl))
 
 sens <- rbindlist(rows, fill = TRUE)
 write_out(sens, SUB, "sensitivity_year_effect")
 
-# 9. Practice variables: raw circulatory arrest variable; arrest duration without >150 min
+# 10. Practice variables: raw circulatory arrest variable; arrest duration without >150 min
 prac <- list()
 base <- function(d) d[ecc_any == 1 | is.na(ecc_any)]
 f_ca <- as.formula("arrest ~ year_c + (1 | centrum)")
@@ -134,6 +140,6 @@ for (excl in c(FALSE, TRUE)) {
 }
 write_out(rbindlist(prac), SUB, "sensitivity_practice")
 
-# Summary figure data: forest of the year effect on 30-day mortality
+# Summary figure data: forest of the year effect on the primary composite
 saveRDS(sens, derived_method("sensitivity.rds"))
 log_msg("Done.")

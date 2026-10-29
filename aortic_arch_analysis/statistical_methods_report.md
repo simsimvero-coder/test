@@ -27,13 +27,12 @@ This report explains the analyses implemented in scripts `01`–`09`: why each m
 
 ## 2. Choice of the primary endpoint
 
-**30-day all-cause mortality** (`overl30d`) is primary, for three reasons:
+The **primary endpoint is the composite of paper 1**: in-hospital death, stroke, renal failure or GI complication. It was chosen explicitly for continuity with paper 1, so that the two papers can be compared directly.
 
-* The vital status is verified against the BRP, the national population register.
-* It includes deaths after discharge or transfer. NHR in-hospital mortality excludes patients transferred to another hospital, and transfer practices differ by centre and over time.
-* In-hospital death is attributed to a single intervention under specific rules.
+**30-day all-cause mortality** is a key secondary endpoint. It complements the composite because the vital status is verified against the BRP and it includes deaths after discharge or transfer, which in-hospital death misses (NHR in-hospital mortality excludes patients transferred to another hospital, and transfer practice differs by centre and over time).
 
-In-hospital mortality and 1-year mortality are secondary.
+* Stroke in the composite: stroke with a permanent deficit by default (`CVA_zonder_restletsel` includes TIA). The composite with any stroke is a sensitivity analysis.
+* 1-year mortality (binary) is analysed for operations up to 2023 only. For operations in 2024, many survivors do not yet have one year of follow-up, so they would be excluded while early deaths would be included, which biases the 2024 estimate upwards. Kaplan–Meier estimates of 1-year mortality, which handle censoring, are reported for all years.
 
 ---
 
@@ -106,7 +105,7 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
 
 ## 4. Failure to rescue (FTR)
 
-* **Definition.** FTR = 30-day death among patients with ≥ 1 major complication. The complications are stroke with a deficit, renal failure, reintubation, a GI complication and a major vascular complication. All five were recorded throughout 2013–2024 under stable definitions.
+* **Definition (main analysis, paper 1).** FTR = in-hospital death among patients with ≥ 1 major complication, where major complication = stroke, renal failure or GI complication. **Additional analyses**: 30-day death as numerator, and a broader complication definition that adds reintubation and major vascular complication (an extended set adding ventilation > 24 h and stroke without deficit is in the sensitivity analyses).
 * **Verified identities.** The denominator equals the number with the composite = 1. The numerator is no larger than all 30-day deaths. Deaths without a recorded complication are counted, because they are outside FTR by definition. The decomposition *mortality = P(C)·FTR + (1 − P(C))·mortality without C* holds exactly each year. The script stops if any of these identities fails.
 * **The conditioning problem.** FTR conditions on a post-operative event that is itself influenced by year (better prevention or more complete recording) and by patient risk. Changes in FTR can therefore reflect changes in *who* has complications rather than better rescue. Three measures address this:
   1. The FTR model adjusts for preoperative confounders and the number of complications.
@@ -245,6 +244,7 @@ A finding is **uncertain** if it fails any of these: in particular, if it depend
 ## 12. Execution and verification
 
 * **Development environment**: R 4.3.3 on Linux with Ubuntu-packaged CRAN packages. Versions are written to `results/session_info.txt` on every run.
+* **Compatibility with R 4.2.3 (Intel Mac)**: the code uses no syntax or functions introduced after R 4.2, and every package function it uses exists in the package versions available for R 4.2. Running R 4.2.3 itself was not possible in the development environment. `00_check_environment.R` (also the first step of `run_all.R`) checks the R version, package versions, the data file, model fitting and parallel processing on the analysis computer.
 * **Development testing**: during development, the scripts were debugged on a generated test file with the same 60 columns and NHR codings. That file and its generator have since been removed; the pipeline now reads only the real extract (`AORTABOOG_NL_schoon v3(1).xlsx` on the desktop). All nine scripts were executed on the test file.
   * The checks built into the code passed: FTR identities, time-scale verification, and consistency between tables, figures and models.
   * The models recovered the effects programmed into the test file, for example a temperature trend of about +0.45 °C per year and a centre SD for 30-day mortality of 0.30 that lies within the estimated profile CI.

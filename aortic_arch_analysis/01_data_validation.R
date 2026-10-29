@@ -162,7 +162,8 @@ dv[, lvef_cat := relevel(lvef_cat, ">50%")]
 
 # Pathology (precedence: acute dissection > chronic dissection/aneurysm > infection > other)
 dv[, `:=`(p_acute = seg_any(20), p_aneur = seg_any(c(10, 30)),
-          p_infect = seg_any(40), p_other = seg_any(c(90, 91)))]
+          p_infect = seg_any(40), p_other = seg_any(c(90, 91)),
+          p_chronic = seg_any(30))]
 dv[, path5 := fcase(p_acute, "Acute dissection",
                     p_aneur & seg_any(30), "Chronic dissection",
                     p_aneur, "Aneurysm",
@@ -170,10 +171,12 @@ dv[, path5 := fcase(p_acute, "Acute dissection",
                     p_other, "Other",
                     !is.na(p_acute), "None recorded",
                     default = NA_character_)]
+# Chronic dissection and infection are excluded from the analysis cohort (02);
+# within the cohort, path3 is therefore aneurysm / acute dissection / other.
 dv[, path3 := factor(fcase(path5 == "Acute dissection", "Acute dissection",
-                           path5 %in% c("Aneurysm", "Chronic dissection"), "Aneurysm/chronic dissection",
+                           path5 %in% c("Aneurysm", "Chronic dissection"), "Aneurysm",
                            path5 %in% c("Infection", "Other", "None recorded"), "Other"),
-                     c("Aneurysm/chronic dissection", "Acute dissection", "Other"))]
+                     c("Aneurysm", "Acute dissection", "Other"))]
 dv[, acute_dissection := as.integer(path3 == "Acute dissection")]
 
 # Acute vs non-acute (study definition, specified by the investigators):
@@ -245,10 +248,24 @@ composite <- function(cols) {
   m <- as.matrix(dv[, .SD, .SDcols = cols])
   apply(m, 1, function(r) if (any(r == 1, na.rm = TRUE)) 1L else if (any(is.na(r))) NA_integer_ else 0L)
 }
-MAJOR_COMPONENTS <- c("stroke_def", "renal", "reintub", "gi", "vasc_major")
+# Stroke used in the composites (CONFIG$composite_stroke; the other choice is a sensitivity analysis)
+dv[, stroke_comp := if (CONFIG$composite_stroke == "any") stroke_any else stroke_def]
+dv[, stroke_alt  := if (CONFIG$composite_stroke == "any") stroke_def else stroke_any]
+
+# PRIMARY ENDPOINT (paper 1): in-hospital death, stroke, renal failure or GI complication
+dv[, comp_primary := composite(c("dzh", "stroke_comp", "renal", "gi"))]
+dv[, comp_primary_altstroke := composite(c("dzh", "stroke_alt", "renal", "gi"))]
+
+# MAJOR COMPLICATION (paper 1, main analysis and FTR denominator): stroke, GI, renal failure
+MAJOR_COMPONENTS <- c("stroke_comp", "renal", "gi")
 dv[, major_compl := composite(MAJOR_COMPONENTS)]
 dv[, n_compl := rowSums(as.matrix(.SD) == 1, na.rm = TRUE), .SDcols = MAJOR_COMPONENTS]
-dv[, major_compl_ext := composite(c(MAJOR_COMPONENTS, "vent24", "stroke_nodef"))]
+# Supplementary definitions: broader set (adds reintubation and major vascular complication),
+# and extended set (adds ventilation > 24 h and stroke without deficit)
+MAJOR_NEW <- c("stroke_def", "renal", "reintub", "gi", "vasc_major")
+dv[, major_compl_new := composite(MAJOR_NEW)]
+dv[, n_compl_new := rowSums(as.matrix(.SD) == 1, na.rm = TRUE), .SDcols = MAJOR_NEW]
+dv[, major_compl_ext := composite(c(MAJOR_NEW, "vent24", "stroke_nodef"))]
 
 # 1-year mortality: binary only when follow-up >= 365 days or death within 365 days
 dv[, d1y := fifelse(!is.na(time_d) & !is.na(status),

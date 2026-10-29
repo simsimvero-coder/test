@@ -20,32 +20,42 @@ STRUCT <- attr(dv, "structural_missing")
 rm(dv)
 yrs <- CONFIG$study_years
 
+# Primary endpoint (decided explicitly, continuity with paper 1): composite of in-hospital
+# death, stroke, renal failure or GI complication. 30-day mortality is a key secondary endpoint.
+stroke_lab <- if (CONFIG$composite_stroke == "any") "any stroke" else "stroke with deficit"
 OUT <- data.table(
-  var   = c("d30", "dzh", "d1y", "stroke_def", "stroke_nodef", "renal", "vent24",
-            "reintub", "icu_readm", "major_compl", "ecmo", "pmi", "delirium"),
-  label = c("30-day mortality", "In-hospital mortality", "1-year mortality (complete follow-up)",
+  var   = c("comp_primary", "d30", "dzh", "d1y", "stroke_def", "stroke_nodef", "renal", "gi", "vent24",
+            "reintub", "icu_readm", "major_compl", "major_compl_new", "ecmo", "pmi", "delirium"),
+  label = c(sprintf("Primary composite (in-hospital death, %s, renal failure, GI complication)", stroke_lab),
+            "30-day mortality", "In-hospital mortality",
+            sprintf("1-year mortality (operations %d-%d)", min(yrs), CONFIG$d1y_last_year),
             "Stroke with permanent deficit", "Stroke/TIA without deficit", "Renal failure",
-            "Ventilation > 24 h", "Reintubation (respiratory insufficiency)", "ICU readmission",
-            "Major complication (composite)", "ECMO during admission",
-            "Postoperative myocardial infarction", "Delirium"),
-  role  = c("primary", rep("secondary", 9), rep("exploratory", 3)))
+            "GI complication", "Ventilation > 24 h", "Reintubation (respiratory insufficiency)", "ICU readmission",
+            sprintf("Major complication (%s, renal failure, GI)", stroke_lab),
+            "Major complication, broader definition (+ reintubation, major vascular)",
+            "ECMO during admission", "Postoperative myocardial infarction", "Delirium"),
+  role  = c("primary", rep("secondary", 11), "supplementary", rep("exploratory", 3)))
 # Variables recorded only in later years: restrict and do not test trends
 OUT[, first_year := vapply(var, function(v) {
   src <- c(ecmo = "ECMO_opname", pmi = "postop_MI", delirium = "delier")[v]
   if (!is.na(src) && src %in% STRUCT$variable) STRUCT[variable == src, first_year] else min(yrs)
 }, numeric(1))]
 OUT[var %in% c("ecmo", "pmi", "delirium"), role := "exploratory (recorded from first_year only)"]
+# Last operation year analysed: 1-year mortality only for years with complete potential
+# 1-year follow-up (avoids selective inclusion of early deaths from the last year)
+OUT[, last_year := max(yrs)]
+OUT[var == "d1y", last_year := CONFIG$d1y_last_year]
 
 # ---- 1. Crude rates ---------------------------------------------------------------------
 crude <- rbindlist(lapply(seq_len(nrow(OUT)), function(i) {
-  v <- OUT$var[i]; d <- cohort[year >= OUT$first_year[i] & !is.na(get(v))]
+  v <- OUT$var[i]; d <- cohort[year >= OUT$first_year[i] & year <= OUT$last_year[i] & !is.na(get(v))]
   grp <- function(by) d[, .(events = sum(get(v) == 1), n = .N), by = by]
   rbind(cbind(group_type = "overall", group = "All", d[, .(events = sum(get(v) == 1), n = .N)]),
         grp("urgency2")[!is.na(urgency2), .(group_type = "acute status", group = as.character(urgency2), events, n)],
         grp("era")[, .(group_type = "era", group = as.character(era), events, n)],
         grp("year")[, .(group_type = "year", group = as.character(year), events, n)],
         fill = TRUE)[, `:=`(outcome = v, label = OUT$label[i], pct = 100 * events / n,
-                            n_missing = sum(is.na(cohort[year >= OUT$first_year[i]][[v]])))]
+                            n_missing = sum(is.na(cohort[year >= OUT$first_year[i] & year <= OUT$last_year[i]][[v]])))]
 }))
 crude[, c("lower", "upper") := as.list(binom.test(events, n)$conf.int * 100), by = seq_len(nrow(crude))]
 write_out(crude, SUB, "crude_rates")
@@ -61,8 +71,8 @@ write_out(sparse[, .(n_centres = .N, centres_zero_events = sum(events == 0),
 model_rows <- list(); diag_rows <- list(); gcomp_rows <- list(); urg_rows <- list()
 centre_rows <- list(); fits_keep <- list()
 
-analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = FALSE) {
-  dl_all <- lapply(imps, function(d) d[year >= first_year & !is.na(get(v))])
+analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = FALSE, last_year = max(yrs)) {
+  dl_all <- lapply(imps, function(d) d[year >= first_year & year <= last_year & !is.na(get(v))])
   covars <- COVARS_M1
   f1 <- build_formula(v, covars, specs)
   dl <- complete_for(dl_all, f1)          # complete-case: rows with all model variables
@@ -100,7 +110,7 @@ analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = F
   res$nonlinear <- cbind(outcome = v, nl)
   res$diag <- rbind(res$diag, cbind(outcome = v, model = "M1 spline", ms$diag, epv = ev_pp, reduced = reduced))
   # Standardised (g-computation) risk by year from the spline model
-  gy <- gcomp_mi(lapply(ms$fits, `[[`, "fit"), dl, yrs[yrs >= first_year])
+  gy <- gcomp_mi(lapply(ms$fits, `[[`, "fit"), dl, yrs[yrs >= first_year & yrs <= last_year])
   res$gcomp <- cbind(outcome = v, label = label, gy)
   res
 }
@@ -108,7 +118,7 @@ analyse_binary <- function(v, label, first_year, test_trend = TRUE, extended = F
 for (i in seq_len(nrow(OUT))) {
   v <- OUT$var[i]
   log_msg("Outcome: ", v)
-  r <- tryCatch(analyse_binary(v, OUT$label[i], OUT$first_year[i],
+  r <- tryCatch(analyse_binary(v, OUT$label[i], OUT$first_year[i], last_year = OUT$last_year[i],
                                test_trend = !grepl("exploratory", OUT$role[i])),
                 error = function(e) { log_msg("ERROR ", v, ": ", conditionMessage(e)); NULL })
   if (is.null(r)) next
@@ -137,7 +147,7 @@ write_out(yr, SUB, "year_trend_summary")
 # ---- 3. Acute vs non-acute (study definition) --------------------------------------------------------------------
 # OR acute vs non-acute, without pathology (primary: pathology is part of the
 # definition) and with pathology; year x acute interaction; stratified year trends.
-KEY <- intersect(c("d30", "dzh", "major_compl", "stroke_def", "renal"), names(fits_keep))
+KEY <- intersect(c("comp_primary", "d30", "dzh", "major_compl", "stroke_def", "renal"), names(fits_keep))
 covars_nourg <- setdiff(COVARS_M1, "urg3")
 for (v in KEY) {
   dl <- fits_keep[[v]]$data
@@ -164,11 +174,11 @@ write_out(rbindlist(lapply(urg_rows, `[[`, "interaction"))[, `:=`(ratio_of_or = 
 write_out(rbindlist(lapply(urg_rows, `[[`, "strata")), SUB, "year_trend_by_urgency_stratum")
 
 # ---- 4. Centre variation ----------------------------------------------------------------------
-for (v in intersect(c("d30", "dzh", "major_compl", "stroke_def", "renal", "vent24"), names(fits_keep))) {
+for (v in intersect(c("comp_primary", "d30", "dzh", "major_compl", "stroke_def", "renal", "vent24"), names(fits_keep))) {
   fk <- fits_keep[[v]]
   f1 <- fk$fits[[1]]$fit; d1 <- fk$data[[1]]
   # Profile-likelihood CI for the centre SD (complete-case fit; documented)
-  cc <- cohort[year >= OUT[var == v, first_year] & !is.na(get(v))]
+  cc <- cohort[year >= OUT[var == v, first_year] & year <= OUT[var == v, last_year] & !is.na(get(v))]
   cc <- cc[complete.cases(cc[, .SD, .SDcols = setdiff(fk$covars, character(0))])]
   prof <- tryCatch(profile_sd_ci(fk$formula, cc), error = function(e) c(sd = NA, lower = NA, upper = NA))
   s <- fk$re_sd
@@ -193,8 +203,8 @@ write_out(rbindlist(centre_rows[grepl("_cat", names(centre_rows))]), SUB, "centr
 write_out(rbindlist(centre_rows[grepl("_fun", names(centre_rows))]), SUB, "centre_observed_expected")
 
 # ---- 5. Primary model diagnostics -----------------------------------------------------------------
-if ("d30" %in% names(fits_keep)) {
-  f1 <- fits_keep$d30$fits[[1]]$fit; d1 <- fits_keep$d30$data[[1]]
+if ("comp_primary" %in% names(fits_keep)) {
+  f1 <- fits_keep$comp_primary$fits[[1]]$fit; d1 <- fits_keep$comp_primary$data[[1]]
   p_hat <- fitted(f1); yobs <- getME(f1, "y")
   lp <- qlogis(predict(f1, type = "response", re.form = NA))
   cstat <- function(p, y) { r <- rank(p); n1 <- sum(y == 1); n0 <- sum(y == 0)
@@ -237,42 +247,58 @@ qqnorm(ranef(los_fit$fits[[1]]$fit)$centrum[, 1], main = "Centre random effects"
 grDevices::dev.off()
 
 # ---- 7. Failure to rescue ------------------------------------------------------------------------
-MAJOR <- c("stroke_def", "renal", "reintub", "gi", "vasc_major")
-ftr_d <- cohort[major_compl == 1]
-check <- data.table(
-  item = c("patients with major complication (denominator)", "denominator with 30-day status known",
-           "deaths within 30 days among denominator (numerator)",
-           "all 30-day deaths in cohort", "30-day deaths without recorded major complication",
-           "denominator equals sum(major_compl == 1)", "numerator <= all 30-day deaths"),
-  value = c(nrow(ftr_d), sum(!is.na(ftr_d$d30)), sum(ftr_d$d30 == 1, na.rm = TRUE),
-            sum(cohort$d30 == 1, na.rm = TRUE), sum(cohort$d30 == 1 & cohort$major_compl == 0, na.rm = TRUE),
-            nrow(ftr_d) == sum(cohort$major_compl == 1, na.rm = TRUE),
-            sum(ftr_d$d30 == 1, na.rm = TRUE) <= sum(cohort$d30 == 1, na.rm = TRUE)))
-stopifnot(check$value[6] == 1, check$value[7] == 1)
-write_out(check, SUB, "ftr_numerator_denominator_check")
-# Decomposition by year: mortality = P(C) * FTR + P(no C) * mortality without C
-decomp <- cohort[!is.na(major_compl) & !is.na(d30),
-                 .(n = .N, p_complication = mean(major_compl),
-                   ftr = mean(d30[major_compl == 1]), mort_no_compl = mean(d30[major_compl == 0]),
-                   mortality = mean(d30)), by = year][order(year)]
-decomp[, check_identity := p_complication * ftr + (1 - p_complication) * mort_no_compl - mortality]
-stopifnot(all(abs(decomp$check_identity) < 1e-10))
-write_out(decomp, SUB, "ftr_decomposition_by_year")
-ftr_models <- list()
-for (num in c("d30", "dzh")) {
-  dl0 <- lapply(imps, function(d) d[major_compl == 1 & !is.na(get(num))])
-  f <- build_formula(num, c(COVARS_M1, "n_compl"), specs)
+# Main analysis (paper 1 definitions): denominator = patients with a major complication
+# (stroke, renal failure, GI complication); numerator = in-hospital death.
+# Additional analyses: 30-day death as numerator; broader complication definition.
+ftr_defs <- data.table(
+  denominator = c("major_compl", "major_compl", "major_compl_new", "major_compl_new"),
+  n_var       = c("n_compl", "n_compl", "n_compl_new", "n_compl_new"),
+  numerator   = c("dzh", "d30", "dzh", "d30"),
+  role        = c("main (paper 1 definitions)", "additional: 30-day death",
+                  "additional: broader complication definition", "additional: broader definition, 30-day death"))
+checks <- list(); decomps <- list(); ftr_models <- list()
+for (k in seq_len(nrow(ftr_defs))) {
+  den <- ftr_defs$denominator[k]; num <- ftr_defs$numerator[k]; nv <- ftr_defs$n_var[k]
+  ftr_d <- cohort[get(den) == 1]
+  chk_k <- data.table(
+    definition = ftr_defs$role[k], denominator = den, numerator = num,
+    item = c("patients with complication (denominator)", "denominator with outcome known",
+             "deaths among denominator (numerator)", "all deaths in cohort",
+             "deaths without recorded complication",
+             "denominator equals sum(complication == 1)", "numerator <= all deaths"),
+    value = c(nrow(ftr_d), sum(!is.na(ftr_d[[num]])), sum(ftr_d[[num]] == 1, na.rm = TRUE),
+              sum(cohort[[num]] == 1, na.rm = TRUE),
+              sum(cohort[[num]] == 1 & cohort[[den]] == 0, na.rm = TRUE),
+              nrow(ftr_d) == sum(cohort[[den]] == 1, na.rm = TRUE),
+              sum(ftr_d[[num]] == 1, na.rm = TRUE) <= sum(cohort[[num]] == 1, na.rm = TRUE)))
+  stopifnot(chk_k$value[6] == 1, chk_k$value[7] == 1)
+  checks[[k]] <- chk_k
+  # Decomposition by year: mortality = P(C) * FTR + P(no C) * mortality without C
+  dc <- cohort[!is.na(get(den)) & !is.na(get(num)),
+               .(n = .N, p_complication = mean(get(den)),
+                 ftr = mean(get(num)[get(den) == 1]), mort_no_compl = mean(get(num)[get(den) == 0]),
+                 mortality = mean(get(num))), by = year][order(year)]
+  dc[, check_identity := p_complication * ftr + (1 - p_complication) * mort_no_compl - mortality]
+  stopifnot(all(abs(dc$check_identity) < 1e-10))
+  decomps[[k]] <- cbind(definition = ftr_defs$role[k], denominator = den, numerator = num, dc)
+  dl0 <- lapply(imps, function(d) d[get(den) == 1 & !is.na(get(num))])
+  f <- build_formula(num, c(COVARS_M1, nv), specs)
   dl <- complete_for(dl0, f)
-  npar <- n_fixed_par(f, dl[[1]]); ev <- epv(dl[[1]][[num]], npar)
+  ev <- epv(dl[[1]][[num]], n_fixed_par(f, dl[[1]]))
   if (ev < 10) {
-    f <- build_formula(num, c("age", "female", "urg3", "path3", "n_compl"), specs)
+    f <- build_formula(num, c("age", "female", "urg3", "path3", nv), specs)
     dl <- complete_for(dl0, f)
   }
   fp <- fit_pooled(f, dl)
-  ftr_models[[num]] <- exp_table(fp$pooled)[, `:=`(numerator = num, n = nrow(dl[[1]]),
-                                                   events = sum(dl[[1]][[num]] == 1), epv = ev,
-                                                   reduced = ev < 10, centre_sd = fp$re_sd)]
+  ftr_models[[k]] <- exp_table(fp$pooled)[, `:=`(definition = ftr_defs$role[k], denominator = den,
+                                                 numerator = num, n = nrow(dl[[1]]),
+                                                 events = sum(dl[[1]][[num]] == 1), epv = ev,
+                                                 reduced = ev < 10, centre_sd = fp$re_sd)]
 }
+write_out(rbindlist(checks), SUB, "ftr_numerator_denominator_check")
+decomp_all <- rbindlist(decomps)
+write_out(decomp_all, SUB, "ftr_decomposition_by_year")
+decomp <- decomp_all[definition == ftr_defs$role[1]]
 write_out(rbindlist(ftr_models), SUB, "ftr_models")
 
 saveRDS(list(OUT = OUT, crude = crude, models = models, year = yr, gcomp = gcomp,
@@ -280,6 +306,7 @@ saveRDS(list(OUT = OUT, crude = crude, models = models, year = yr, gcomp = gcomp
              caterpillar = rbindlist(centre_rows[grepl("_cat", names(centre_rows))]),
              funnel = rbindlist(centre_rows[grepl("_fun", names(centre_rows))]),
              urgency = rbindlist(lapply(urg_rows, `[[`, "or")),
-             los = rbind(los_tab, los_cox, fill = TRUE), ftr = rbindlist(ftr_models), ftr_decomp = decomp),
+             los = rbind(los_tab, los_cox, fill = TRUE), ftr = rbindlist(ftr_models), ftr_decomp = decomp,
+             ftr_decomp_all = decomp_all),
         derived_method("outcomes.rds"))
 log_msg("Done.")

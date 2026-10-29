@@ -23,6 +23,22 @@ flow <- rbind(flow, data.table(step = "Included according to incl_cohort", n = n
 n_out_year <- step[is.na(jaar) | !jaar %in% CONFIG$study_years, .N]
 step <- step[!is.na(jaar) & jaar %in% CONFIG$study_years]
 flow <- rbind(flow, data.table(step = "  excluded: operation year missing or outside study period", n = -n_out_year))
+# Explicit surgical selection (re-applied here; see CONFIG): open/hybrid arch surgery with ECC
+drop_step <- function(step, cond, label) {
+  cond[is.na(cond)] <- FALSE
+  flow <<- rbind(flow, data.table(step = paste0("  excluded: ", label), n = -sum(cond)))
+  step[!cond]
+}
+step <- drop_step(step, !(step$ECC %in% c(10, 20, 30)), "no cardiopulmonary bypass (ECC = 0) or ECC unknown")
+step <- drop_step(step, step$aotachir_benadering %in% c(20, 21), "endovascular-only aortic repair ((T)EVAR, aotachir_benadering 20/21)")
+step <- drop_step(step, step$chir_benadering %in% 50, "percutaneous approach (chir_benadering 50)")
+step <- drop_step(step, step$aotachir_benadering %in% 0, "no aortic surgery recorded (aotachir_benadering 0)")
+if (!CONFIG$keep_unknown_approach)
+  step <- drop_step(step, is.na(step$aotachir_benadering), "aortic surgical approach unknown")
+step <- drop_step(step, step$p_chronic %in% TRUE, "chronic dissection (code 30) in any aortic segment")
+step <- drop_step(step, step$p_infect %in% TRUE, "infection (code 40) in any aortic segment")
+flow <- rbind(flow, data.table(step = "Open or hybrid arch surgery with ECC", n = nrow(step)))
+write_out(step[, .N, by = .(aotachir_benadering, ECC, chir_benadering)][order(-N)], SUB, "selected_cohort_approach_ecc")
 n_dup <- step[drop_duplicate == TRUE, .N]
 step <- step[drop_duplicate == FALSE]
 flow <- rbind(flow, data.table(step = "  excluded: exact duplicate record", n = -n_dup))
