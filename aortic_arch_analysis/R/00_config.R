@@ -71,7 +71,7 @@ CONFIG <- list(
   # Stroke counted in the primary composite and in 'major complication':
   # "deficit" = CVA_restletsel only; "any" = CVA_restletsel or CVA_zonder_restletsel
   # (the latter includes TIA). The other choice is run as a sensitivity analysis.
-  composite_stroke = "deficit",
+  composite_stroke = "any",
   # 1-year mortality (binary) is analysed for operation years up to this year only,
   # so that every included year has complete potential 1-year follow-up.
   d1y_last_year = 2023,

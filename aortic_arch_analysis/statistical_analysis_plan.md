@@ -88,7 +88,7 @@
 
 | Type | Endpoint | Variable / definition |
 |---|---|---|
-| **Primary** | Composite (paper 1): in-hospital death, stroke, renal failure or GI complication | Any of `overleden_zh`, stroke (default `CVA_restletsel`; see below), `nierfalen`, `gastroint_compl` ∈ {1, 10, 90}. Missing only when no component is positive and at least one is missing. |
+| **Primary** | Composite (paper 1): in-hospital death, stroke, renal failure or GI complication | Any of `overleden_zh`, stroke with or without residual deficit (`CVA_restletsel` or `CVA_zonder_restletsel`; see below), `nierfalen`, `gastroint_compl` ∈ {1, 10, 90}. Missing only when no component is positive and at least one is missing. |
 | Secondary (key) | 30-day all-cause mortality | `overl30d`. BRP-verified, it captures deaths after discharge and after transfer. |
 | Secondary | In-hospital mortality | `overleden_zh` |
 | Secondary | 1-year mortality | 1 − Kaplan–Meier survival at 365 days (handles censoring). The binary trend model is restricted to **operations up to 2023**, so that every included year has complete potential 1-year follow-up; including 2024 would mainly add early deaths and bias the trend. |
@@ -225,7 +225,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 ### 5.9 Multiplicity
 
 * Primary endpoint: a two-sided α of 0.05, with no adjustment.
-* **Stroke in the composite.** The default is stroke with a permanent deficit (`CVA_restletsel`), because `CVA_zonder_restletsel` includes TIA. The composite with any stroke is run as a sensitivity analysis. The choice is one setting (`composite_stroke`) in `R/00_config.R`.
+* **Stroke in the composite (paper 1 definition).** Stroke with or without residual deficit (`CVA_restletsel` or `CVA_zonder_restletsel`); the same definition is used for major complication and FTR. Because `CVA_zonder_restletsel` also includes TIA, the composite with stroke with residual deficit only is run as a sensitivity analysis. The choice is one setting (`composite_stroke`) in `R/00_config.R`.
 * The year trends of the secondary binary early outcomes (Q4, including 30-day mortality) are adjusted with **Holm's method** (family-wise error), shown alongside unadjusted values.
 * Exploratory analyses (subgroups, interactions, outcomes from mid-2022 onward) use **Benjamini–Hochberg** (false discovery rate) and are labelled hypothesis-generating.
 * Estimates and CIs are interpreted ahead of significance.

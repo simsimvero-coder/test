@@ -31,7 +31,7 @@ The **primary endpoint is the composite of paper 1**: in-hospital death, stroke,
 
 **30-day all-cause mortality** is a key secondary endpoint. It complements the composite because the vital status is verified against the BRP and it includes deaths after discharge or transfer, which in-hospital death misses (NHR in-hospital mortality excludes patients transferred to another hospital, and transfer practice differs by centre and over time).
 
-* Stroke in the composite: stroke with a permanent deficit by default (`CVA_zonder_restletsel` includes TIA). The composite with any stroke is a sensitivity analysis.
+* Stroke in the composite (paper 1 definition): stroke with or without residual deficit; the same definition applies to major complication and FTR. Because `CVA_zonder_restletsel` includes TIA, the composite with stroke with residual deficit only is a sensitivity analysis.
 * 1-year mortality (binary) is analysed for operations up to 2023 only. For operations in 2024, many survivors do not yet have one year of follow-up, so they would be excluded while early deaths would be included, which biases the 2024 estimate upwards. Kaplan–Meier estimates of 1-year mortality, which handle censoring, are reported for all years.
 
 ---
