@@ -239,7 +239,11 @@ gt_fmt <- copy(group_trends)[, cell := ifelse(is.na(or_per_year), model,
                                               sprintf("%s (%s-%s); p=%s", formatC(or_per_year, format = "f", digits = 3),
                                                       formatC(lower, format = "f", digits = 3),
                                                       formatC(upper, format = "f", digits = 3), fmt_p(p)))]
-gt_fmt[, column := paste0(group, ", ", start_year, "-", end_year)]
+# Columns: group x start year (end year is the last study year; for 1-year mortality it is
+# CONFIG$d1y_last_year, stated in the row label)
+gt_fmt[, column := factor(paste0(group, ", from ", start_year),
+                          paste0(rep(c("Acute", "Non-acute"), each = 2), ", from ",
+                                 rep(c(min(yrs), CONFIG$trend_sens_start), 2)))]
 gt_wide <- dcast(gt_fmt, outcome + label ~ column, value.var = "cell")
 gt_wide <- gt_wide[order(match(outcome, c(OUT$var, "ftr_dzh", "ftr_d30")))]
 write_out(gt_wide, SUB, "year_trend_by_group_and_start_table")
