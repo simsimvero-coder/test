@@ -72,6 +72,10 @@ chk("Table 3 primary-composite events equal cohort count",
 chk("Table 3 30-day deaths equal cohort count",
     ev_tab[outcome == "d30", events] == sum(cohort$d30 == 1, na.rm = TRUE))
 
+# Table 4: adjusted OR per year by group (acute / non-acute) and start year (2013 / 2015)
+t4 <- copy(outc$group_trends_wide)
+write_out(t4, SUB, "Table4_trends_by_group_and_start_year")
+
 # Supplementary workbook
 supp <- list()
 add_supp <- function(name, sub, file) if (has(sub, file)) supp[[name]] <<- rd(sub, file)
@@ -82,6 +86,8 @@ add_supp("S4_volume_models", "03_volume", "volume_trend_models")
 add_supp("S5_volume_interaction", "03_volume", "volume_interaction_urgency")
 add_supp("S6_outcome_models_all_terms", "04_outcomes", "adjusted_models_M1_all_terms")
 add_supp("S7_year_trend_summary", "04_outcomes", "year_trend_summary")
+add_supp("S7c_trends_by_group_long", "04_outcomes", "year_trend_by_group_and_start")
+add_supp("S30b_group_trends_CR2", "08_sensitivity", "group_trends_fixed_effects_CR2")
 add_supp("S7b_year_trend_from2015", "04_outcomes", paste0("year_trend_summary_from", CONFIG$trend_sens_start))
 add_supp("S3b_casemix_trends_from2015", "02_descriptives", paste0("characteristics_trend_per_year_from", CONFIG$trend_sens_start))
 add_supp("S8_acute_vs_nonacute", "04_outcomes", "acute_vs_nonacute_or")
@@ -109,7 +115,7 @@ add_supp("S29_timescale_check", "07_population", "time_scale_verification")
 add_supp("S30_sensitivity", "08_sensitivity", "sensitivity_year_effect")
 add_supp("S31_sens_practice", "08_sensitivity", "sensitivity_practice")
 add_supp("S32_convergence", "04_outcomes", "model_convergence_diagnostics")
-writexl::write_xlsx(c(list(Table1 = t1, Table2 = t2, Table3 = t3), supp),
+writexl::write_xlsx(c(list(Table1 = t1, Table2 = t2, Table3 = t3, Table4 = t4), supp),
                     file.path(out_dir(SUB), "Tables_and_Supplement.xlsx"))
 
 # =============================== FIGURES =========================================================
@@ -129,7 +135,11 @@ if (vol$has_pop) {
     labs(x = NULL, y = "Per million inhabitants", title = "B. Population-adjusted rate (fitted trend, 95% CI)") + theme_pub()
   save_fig(p1a / p1b, SUB, "Figure1_volume", 8, 8)
 } else save_fig(p1a, SUB, "Figure1_volume", 8, 4.5)
-chk("Figure 1 counts sum to cohort size (all years)", sum(cnt[type == "All", n]) == nrow(cohort))
+surg <- load_derived("surgical_cohort.rds")
+chk("Figure 1 total counts sum to the surgical cohort (incl. not classifiable)", sum(cnt[type == "All", n]) == nrow(surg),
+    sprintf("%d vs %d", sum(cnt[type == "All", n]), nrow(surg)))
+chk("Figure 1 acute + non-acute counts sum to the analysis cohort",
+    sum(cnt[type %in% c("Acute", "Non-acute"), n]) == nrow(cohort))
 
 # Figure 2: case-mix over time
 an <- rd("02_descriptives", "characteristics_by_year")
@@ -279,7 +289,7 @@ if (has("04_outcomes", "primary_model_binned_residuals")) {
 
 # =============================== CONSISTENCY & REPORT ===========================================
 flow_tab <- rd("02_descriptives", "flow_diagram")
-chk("Flow diagram: analysis cohort equals cohort size", flow_tab[step == "Analysis cohort", n] == nrow(cohort))
+chk("Flow diagram: analysis cohort equals cohort size", flow_tab[grepl("^Analysis cohort", step), n] == nrow(cohort))
 cks <- rbindlist(checks)
 write_out(cks, SUB, "consistency_checks_tables_figures_models")
 if (!all(cks$passed)) log_msg("WARNING: consistency check(s) failed: ", paste(cks[passed == FALSE, check], collapse = "; "))
@@ -298,8 +308,8 @@ report <- c(
   sprintf("Generated %s. Input: `%s`. Every number below is read from the fitted analyses; no values were typed by hand.",
           format(Sys.time()), basename(CONFIG$raw_data_path)), "",
   "", "## Cohort", "",
-  sprintf("* Records in extract: %d; analysis cohort: %d patients from %d centres (%d-%d).",
-          flow[step == "Records in extract", n], nrow(cohort), uniqueN(cohort$centrum),
+  sprintf("* Records in extract: %d; surgical cohort (national volume): %d; analysis cohort (classified, clinical analyses): %d patients from %d centres (%d-%d).",
+          flow[step == "Records in extract", n], nrow(surg), nrow(cohort), uniqueN(cohort$centrum),
           min(cohort$year), max(cohort$year)),
   sprintf("* Acute (study definition): %d (%.1f%% of classifiable); not classifiable: %d; acute aortic dissection: %d (%.1f%%).",
           sum(cohort$acute == 1, na.rm = TRUE), 100 * mean(cohort$acute, na.rm = TRUE), sum(is.na(cohort$acute)),
@@ -319,6 +329,10 @@ report <- c(
     with(outc$year_from[outcome == "comp_primary"],
          sprintf("* Sensitivity, operations from %d: OR per year %s (95%% CI %s-%s), p = %s.",
                  from_year, g(ratio, 3), g(ratio_lower, 3), g(ratio_upper, 3), fmt_p(p))) else "",
+  "", "## Primary composite: trends by group and start year (OR per year)", "",
+  with(outc$group_trends[outcome == "comp_primary"],
+       sprintf("* %s, %d-%d: %s", group, start_year, end_year,
+               ifelse(is.na(or_per_year), model, sprintf("%s (%s-%s), p = %s", g(or_per_year, 3), g(lower, 3), g(upper, 3), fmt_p(p))))),
   "", "## Secondary early outcomes (OR per year; Holm-adjusted p)", "",
   sprintf("* %s: %s (%s-%s); p = %s; Holm p = %s%s", yr[role == "secondary"]$label,
           g(yr[role == "secondary"]$or_per_year, 3), g(yr[role == "secondary"]$lower, 3), g(yr[role == "secondary"]$upper, 3),

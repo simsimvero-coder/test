@@ -166,33 +166,83 @@ if (nrow(yr_from)) {
 }
 
 # ---- 3. Acute vs non-acute (study definition) --------------------------------------------------------------------
-# OR acute vs non-acute, without pathology (primary: pathology is part of the
-# definition) and with pathology; year x acute interaction; stratified year trends.
+# OR acute vs non-acute (adjusted for the M1 covariates; and additionally for pathology)
+# and year x acute interaction, for the main endpoints.
 KEY <- intersect(c("comp_primary", "d30", "dzh", "major_compl", "stroke_def", "renal"), names(fits_keep))
-covars_nourg <- COVARS_M1
 for (v in KEY) {
   dl <- fits_keep[[v]]$data
-  f_a <- build_formula(v, c(covars_nourg, "acute"), specs)
-  f_b <- build_formula(v, c(covars_nourg, "path3", "acute"), specs)
-  f_i <- build_formula(v, c(covars_nourg, "acute", "year_c:acute"), specs)
+  f_a <- build_formula(v, c(COVARS_M1, "acute"), specs)
+  f_b <- build_formula(v, c(COVARS_M1, "path3", "acute"), specs)
+  f_i <- build_formula(v, c(COVARS_M1, "acute", "year_c:acute"), specs)
   pa <- exp_table(fit_pooled(f_a, dl)$pooled, "acute")[, adjustment := "without pathology"]
   pb <- exp_table(fit_pooled(f_b, dl)$pooled, "acute")[, adjustment := "with pathology"]
   p_int <- fit_pooled(f_i, dl)$pooled
-  strat <- rbindlist(lapply(c(0, 1), function(g) {
-    dg <- lapply(dl, function(d) d[acute == g])
-    ff <- build_formula(v, covars_nourg, specs)
-    if (sum(dg[[1]][[v]] == 1) < 20) return(NULL)
-    exp_table(fit_pooled(ff, dg)$pooled, "year_c")[, stratum := if (g == 1) "Acute" else "Non-acute"]
-  }))
-  urg_rows[[v]] <- list(
-    or = rbind(pa, pb)[, outcome := v],
-    interaction = p_int[term == "year_c:acute"][, outcome := v],
-    strata = strat[, outcome := v])
+  urg_rows[[v]] <- list(or = rbind(pa, pb)[, outcome := v],
+                        interaction = p_int[term == "year_c:acute"][, outcome := v])
 }
 write_out(rbindlist(lapply(urg_rows, `[[`, "or")), SUB, "acute_vs_nonacute_or")
 write_out(rbindlist(lapply(urg_rows, `[[`, "interaction"))[, `:=`(ratio_of_or = exp(estimate), p_bh = bh(p))],
           SUB, "acute_vs_nonacute_year_interaction")
-write_out(rbindlist(lapply(urg_rows, `[[`, "strata")), SUB, "year_trend_by_urgency_stratum")
+
+# ---- 3b. Year trends per group (acute / non-acute) x start year (2013 / 2015) -----------------------------------
+# For every outcome: adjusted OR per calendar year within the acute and the non-acute group,
+# starting in the first study year and in CONFIG$trend_sens_start (1-year mortality ends in
+# CONFIG$d1y_last_year). Same covariates (M1); reduced model if EPV < 10; not fitted if EPV < 5.
+group_trend <- function(dl_base, v, label, group, start, end) {
+  g <- if (group == "Acute") 1L else 0L
+  dg0 <- lapply(dl_base, function(d) d[acute == g & year >= start & year <= end & !is.na(get(v))])
+  f <- build_formula(v, COVARS_M1, specs); model <- "M1"
+  dg <- complete_for(dg0, f); y <- dg[[1]][[v]]; ev <- sum(y == 1)
+  ep <- if (ev > 0) epv(y, n_fixed_par(f, dg[[1]])) else 0
+  if (ep < 10) { f <- build_formula(v, COVARS_REDUCED, specs); model <- "reduced"
+                 dg <- complete_for(dg0, f); y <- dg[[1]][[v]]; ev <- sum(y == 1)
+                 ep <- if (ev > 0) epv(y, n_fixed_par(f, dg[[1]])) else 0 }
+  base <- data.table(outcome = v, label = label, group = group, start_year = start, end_year = end,
+                     n = length(y), events = ev)
+  if (ev < 10 || ep < 5)
+    return(cbind(base, epv = ep, model = "not fitted (EPV < 5)", or_per_year = NA_real_,
+                 lower = NA_real_, upper = NA_real_, p = NA_real_))
+  fp <- fit_pooled(f, dg)
+  e <- exp_table(fp$pooled, "year_c")
+  cbind(base, epv = ep, model = model, or_per_year = e$ratio, lower = e$ratio_lower,
+        upper = e$ratio_upper, p = e$p, n_convergence_warning = fp$diag$n_convergence_warning)
+}
+gt_rows <- list()
+for (v in intersect(OUT[!grepl("exploratory", role), var], names(fits_keep))) {
+  o <- OUT[var == v]
+  starts <- unique(c(o$first_year, max(o$first_year, CONFIG$trend_sens_start)))
+  for (grp in c("Acute", "Non-acute")) for (st in starts) {
+    log_msg("Group trend: ", v, " / ", grp, " / from ", st)
+    gt_rows[[length(gt_rows) + 1]] <- tryCatch(group_trend(fits_keep[[v]]$data, v, o$label, grp, st, o$last_year),
+      error = function(e) data.table(outcome = v, label = o$label, group = grp, start_year = st,
+                                     end_year = o$last_year, model = paste("error:", conditionMessage(e))))
+  }
+}
+# Failure to rescue per group and start year (paper-1 complication definition; in-hospital and 30-day death)
+for (num in c("dzh", "d30")) {
+  lab <- sprintf("Failure to rescue (%s among patients with major complication)",
+                 if (num == "dzh") "in-hospital death" else "30-day death")
+  dl_f <- lapply(imps, function(d) d[major_compl == 1 & !is.na(get(num))][, ftr_y := get(num)])
+  dl_f <- complete_for(dl_f, build_formula("ftr_y", COVARS_M1, specs))
+  for (grp in c("Acute", "Non-acute")) for (st in unique(c(min(yrs), CONFIG$trend_sens_start))) {
+    log_msg("Group trend: FTR ", num, " / ", grp, " / from ", st)
+    gt_rows[[length(gt_rows) + 1]] <- tryCatch(
+      group_trend(dl_f, "ftr_y", lab, grp, st, max(yrs))[, outcome := paste0("ftr_", num)],
+      error = function(e) data.table(outcome = paste0("ftr_", num), label = lab, group = grp, start_year = st,
+                                     end_year = max(yrs), model = paste("error:", conditionMessage(e))))
+  }
+}
+group_trends <- rbindlist(gt_rows, fill = TRUE)
+write_out(group_trends, SUB, "year_trend_by_group_and_start")
+# Publication layout: one row per outcome, four columns (group x start year)
+gt_fmt <- copy(group_trends)[, cell := ifelse(is.na(or_per_year), model,
+                                              sprintf("%s (%s-%s); p=%s", formatC(or_per_year, format = "f", digits = 3),
+                                                      formatC(lower, format = "f", digits = 3),
+                                                      formatC(upper, format = "f", digits = 3), fmt_p(p)))]
+gt_fmt[, column := paste0(group, ", ", start_year, "-", end_year)]
+gt_wide <- dcast(gt_fmt, outcome + label ~ column, value.var = "cell")
+gt_wide <- gt_wide[order(match(outcome, c(OUT$var, "ftr_dzh", "ftr_d30")))]
+write_out(gt_wide, SUB, "year_trend_by_group_and_start_table")
 
 # ---- 4. Centre variation ----------------------------------------------------------------------
 for (v in intersect(c("comp_primary", "d30", "dzh", "major_compl", "stroke_def", "renal", "vent24"), names(fits_keep))) {
@@ -334,6 +384,7 @@ decomp <- decomp_all[definition == ftr_defs$role[1]]
 write_out(rbindlist(ftr_models), SUB, "ftr_models")
 
 saveRDS(list(OUT = OUT, crude = crude, models = models, year = yr, year_from = yr_from, gcomp = gcomp,
+             group_trends = group_trends, group_trends_wide = gt_wide,
              centre = rbindlist(centre_rows[!grepl("_cat|_fun", names(centre_rows))]),
              caterpillar = rbindlist(centre_rows[grepl("_cat", names(centre_rows))]),
              funnel = rbindlist(centre_rows[grepl("_fun", names(centre_rows))]),

@@ -243,13 +243,14 @@ dv[, `:=`(
 )]
 dv[is.na(gastroint_compl), gi := NA_integer_]
 dv[is.na(vasc_compl_opname), vasc_major := NA_integer_]
-dv[, stroke_any := pmax(stroke_def, stroke_nodef, na.rm = TRUE)]
-dv[is.na(stroke_def) & is.na(stroke_nodef), stroke_any := NA]
 
 composite <- function(cols) {
   m <- as.matrix(dv[, .SD, .SDcols = cols])
   apply(m, 1, function(r) if (any(r == 1, na.rm = TRUE)) 1L else if (any(is.na(r))) NA_integer_ else 0L)
 }
+# Any stroke (with or without deficit), with the same strict missing-data rule as the
+# composites: 1 if either is positive; 0 only if both are known and negative; else NA
+dv[, stroke_any := composite(c("stroke_def", "stroke_nodef"))]
 # Stroke used in the composites (CONFIG$composite_stroke; the other choice is a sensitivity analysis)
 dv[, stroke_comp := if (CONFIG$composite_stroke == "any") stroke_any else stroke_def]
 dv[, stroke_alt  := if (CONFIG$composite_stroke == "any") stroke_def else stroke_any]

@@ -44,6 +44,14 @@ yf <- lapply(MISSING_METHODS, function(m) {
 if (!any(vapply(yf, is.null, logical(1))))
   write_out(side(yf[[1]], yf[[2]][, !"label"], "outcome"), SUB, paste0("outcome_year_trend_from", CONFIG$trend_sens_start, "_MI_vs_CC"))
 
+# ---- 1c. Trends by group and start year ---------------------------------------------------------
+gt <- lapply(MISSING_METHODS, function(m) {
+  y <- ld("outcomes.rds", m)$group_trends
+  y[, .(outcome, label, group, start_year, end_year, n, events, estimate = or_per_year, lower, upper, p)]
+})
+write_out(side(gt[[1]], gt[[2]][, !"label"], c("outcome", "group", "start_year", "end_year")), SUB,
+          "trends_by_group_and_start_MI_vs_CC")
+
 # ---- 2. Acute vs non-acute ----------------------------------------------------------------------
 ur <- lapply(MISSING_METHODS, function(m) ld("outcomes.rds", m)$urgency[
   , .(outcome, adjustment, estimate = ratio, lower = ratio_lower, upper = ratio_upper, p)])
@@ -96,6 +104,7 @@ save_fig(p, SUB, "year_trend_MI_vs_CC", 8, 5.5)
 
 # ---- 8. Workbook and short summary ---------------------------------------------------------------------
 sheets <- list(outcome_trends = t_year,
+               trends_by_group = side(gt[[1]], gt[[2]][, !"label"], c("outcome", "group", "start_year", "end_year")),
                acute_vs_nonacute = side(ur[[1]], ur[[2]], c("outcome", "adjustment")),
                ftr = side(ft[[1]], ft[[2]], c("definition", "numerator", "period")),
                organ_protection = side(pr[[1]], pr[[2]], c("outcome", "population", "adjusted", "model", "period")),

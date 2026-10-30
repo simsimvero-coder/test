@@ -63,9 +63,10 @@ CONFIG <- list(
   # Open or hybrid arch surgery with cardiopulmonary bypass (ECC 10/20/30);
   # excluded: endovascular-only aortic repair (aotachir_benadering 20/21),
   # percutaneous approach (chir_benadering 50), chronic dissection (code 30) or
-  # infection (code 40) in any aortic segment. Unknown approach is excluded
-  # unless keep_unknown_approach = TRUE (counted in the flow diagram either way).
-  keep_unknown_approach = FALSE,
+  # infection (code 40) in any aortic segment. Records with unknown aortic approach
+  # are KEPT (as in the original analysis) when they meet all other criteria;
+  # set keep_unknown_approach = FALSE to exclude them. Counted in the flow diagram.
+  keep_unknown_approach = TRUE,
 
   # ---- outcome definitions (paper 1 definitions are the main analysis) --------
   # Stroke counted in the primary composite (paper 1: with or without deficit):

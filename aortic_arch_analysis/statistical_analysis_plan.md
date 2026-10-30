@@ -117,9 +117,10 @@
 All rows with `incl_cohort` indicating inclusion, after which the **surgical selection of paper 1 is re-applied explicitly** in `02_cohort_descriptives.R`:
 
 * included: open or hybrid arch surgery (`aotachir_benadering` 10 = open, 30 = combined open + endovascular) **with cardiopulmonary bypass** (`ECC` 10/20/30);
-* excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50); no aortic surgery recorded (`aotachir_benadering` 0); aortic approach unknown (configurable);
+* excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50); no aortic surgery recorded (`aotachir_benadering` 0). Registrations with **unknown aortic approach are kept** when they meet all other criteria (as in the original analysis);
 * excluded: chronic dissection (code 30) or infection (code 40) in any of `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`;
-* excluded: records that cannot be classified as acute or non-acute (study definition, §4.3).
+* this gives the **surgical cohort**, used for the national volume (total counts, Figure 1);
+* records that cannot be classified as acute or non-acute (§4.3) are then excluded, giving the **analysis cohort**, used for all clinical analyses and for the acute and non-acute volume series.
 
 Each excluded row is counted, by `excl_reden` for the upstream exclusions and by criterion for the surgical selection, and a flow diagram is produced as a table. No record is dropped silently: every exclusion, recode to missing and out-of-range value is logged in `results/01_validation/`.
 
@@ -173,6 +174,8 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 **Non-linearity in year.** The linear year effect is the prespecified primary estimand. Non-linearity is tested by a likelihood ratio test of a natural spline with 3 df against the linear term. Adjusted, standardised risks by year (g-computation over the observed cohort, using the spline model) are plotted, with 95% simulation intervals.
 
 **Sparse events.** Events per model parameter (EPV) are computed. If EPV < 10, a reduced model (year, age, sex, urgency, pathology) is used and flagged.
+
+**Trends per group (Q5).** For every outcome (primary composite, in-hospital and 30-day mortality, major complication, FTR, each individual complication; 1-year mortality up to 2023), the adjusted OR per year is estimated separately in the acute and the non-acute group, from 2013 and from 2015 (four estimates per outcome; Table 4). The centre fixed-effects model with CR2 inference is repeated per group and start year for the main endpoints.
 
 **Acute versus non-acute (Q5).** The adjusted OR for acute versus non-acute (primary: adjusted for age, sex, eGFR, LVEF, previous cardiac surgery and endocarditis, without pathology because pathology is part of the definition; secondary: also adjusted for pathology). An acute × year interaction tests whether the trends differ, and stratified models are also fitted.
 

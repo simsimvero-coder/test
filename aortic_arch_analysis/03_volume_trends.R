@@ -9,7 +9,10 @@ source("R/00_config.R"); source("R/functions.R")
 start_log("03_volume_trends")
 SUB <- "03_volume"
 
-cohort <- load_derived("cohort.rds")
+# National volume uses the SURGICAL cohort (all surgically selected registrations,
+# including those not classifiable as acute/non-acute). The acute and non-acute series
+# are its classified subsets (= the analysis cohort).
+surg <- load_derived("surgical_cohort.rds")
 
 # ---- population (CBS 03759ned, average population per year) --------------------------
 read_cbs_population <- function(path) {
@@ -35,12 +38,13 @@ if (is.null(pop)) {
 yrs <- CONFIG$study_years
 cnt <- CJ(year = yrs, type = c("All", "Acute", "Non-acute"))
 cnt[, n := mapply(function(y, t) {
-  d <- cohort[year == y]
+  d <- surg[year == y]
   if (t == "All") nrow(d) else if (t == "Acute") sum(d$acute == 1, na.rm = TRUE)
   else sum(d$acute == 0, na.rm = TRUE)
 }, year, type)]
-n_unknown_urg <- cohort[is.na(acute), .N, by = year]   # not classifiable as acute/non-acute
+n_unknown_urg <- surg[is.na(acute), .N, by = year][order(year)]   # not classifiable as acute/non-acute
 write_out(n_unknown_urg, SUB, "counts_not_classifiable")
+stopifnot(all(cnt[type == "All", n] >= cnt[type == "Acute", n] + cnt[type == "Non-acute", n]))
 if (!is.null(pop)) {
   cnt <- merge(cnt, pop[, .(year, pop_avg)], by = "year", all.x = TRUE)
   if (anyNA(cnt$pop_avg)) log_msg("WARNING: population missing for some years: ",
@@ -48,7 +52,9 @@ if (!is.null(pop)) {
   cnt[, rate_per_million := 1e6 * n / pop_avg]
 }
 cnt[, year_c := year - CONFIG$reference_year]
-write_out(dcast(cnt, year ~ type, value.var = "n"), SUB, "annual_counts")
+ac <- dcast(cnt, year ~ type, value.var = "n")
+ac[, `Not classifiable` := All - Acute - `Non-acute`]
+write_out(ac, SUB, "annual_counts")
 if (!is.null(pop)) write_out(dcast(cnt, year ~ type, value.var = "rate_per_million"), SUB, "annual_rates_per_million")
 
 # ---- count models ------------------------------------------------------------------------
@@ -129,8 +135,8 @@ diag <- rbindlist(lapply(series_fits, function(s)
 write_out(diag, SUB, "volume_model_residuals")
 
 # ---- centre volume -------------------------------------------------------------------------
-cv <- cohort[, .N, by = .(centre_lab, year)]
-cv <- merge(CJ(centre_lab = levels(cohort$centre_lab), year = yrs), cv, all.x = TRUE)
+cv <- surg[, .N, by = .(centre_lab, year)]
+cv <- merge(CJ(centre_lab = levels(surg$centre_lab), year = yrs), cv, all.x = TRUE)
 cv[is.na(N), N := 0L]
 write_out(dcast(cv, centre_lab ~ year, value.var = "N"), SUB, "centre_annual_volume")
 cv_sum <- cv[, .(total = sum(N), median_annual = median(N), min_annual = min(N), max_annual = max(N),

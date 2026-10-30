@@ -91,6 +91,13 @@ On the test data, refits changed the log-odds coefficients by less than 0.005, w
 * Primary model: binned residuals against fitted probabilities (Figure S4), the C statistic (conditional and fixed-effects only) and the calibration slope. These describe how well the case-mix adjustment works. They are not a prediction model.
 * Length of stay: residual and random-effect Q–Q plots.
 
+### 3.6b Two cohorts and trends per group
+
+* **Surgical cohort**: all registrations meeting the surgical selection (including unknown aortic approach and those not classifiable as acute/non-acute). Used for the national volume trend and Figure 1, so the national picture is complete.
+* **Analysis cohort**: the classified registrations. Used for all clinical analyses and for the acute and non-acute volume series.
+* **Trends per group**: for every outcome, separate models in the acute and non-acute group, starting in 2013 and in 2015 (Table 4), with the same covariates; a reduced model is used when events per parameter < 10 and no model when < 5. The centre fixed-effects CR2 analysis is repeated per group and start year for the main endpoints; estimates are pooled over imputations with Rubin's rules, using the smaller of the mean Satterthwaite and the Rubin degrees of freedom.
+* **Any stroke** follows the same strict rule as the composites: positive if either stroke variable is positive, negative only if both are known and negative, otherwise missing.
+
 ### 3.7 Acute versus non-acute
 
 The groups follow the study definition: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who cannot be classified are excluded from the analysis cohort (flow diagram); the classification uses observed data only and is not imputed.

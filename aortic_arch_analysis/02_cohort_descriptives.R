@@ -37,23 +37,33 @@ if (!CONFIG$keep_unknown_approach)
   step <- drop_step(step, is.na(step$aotachir_benadering), "aortic surgical approach unknown")
 step <- drop_step(step, step$p_chronic %in% TRUE, "chronic dissection (code 30) in any aortic segment")
 step <- drop_step(step, step$p_infect %in% TRUE, "infection (code 40) in any aortic segment")
-flow <- rbind(flow, data.table(step = "Open or hybrid arch surgery with ECC", n = nrow(step)))
-# Records that cannot be classified as acute or non-acute (study definition) are excluded
-step <- drop_step(step, is.na(step$acute), "not classifiable as acute or non-acute")
-write_out(step[, .N, by = .(aotachir_benadering, ECC, chir_benadering)][order(-N)], SUB, "selected_cohort_approach_ecc")
+n_unknown_kept <- sum(is.na(step$aotachir_benadering))
 n_dup <- step[drop_duplicate == TRUE, .N]
 step <- step[drop_duplicate == FALSE]
 flow <- rbind(flow, data.table(step = "  excluded: exact duplicate record", n = -n_dup))
-flow <- rbind(flow, data.table(step = "Analysis cohort", n = nrow(step)))
-write_out(flow, SUB, "flow_diagram")
-cohort <- step
-log_msg("Analysis cohort: ", nrow(cohort), " patients")
+flow <- rbind(flow, data.table(step = sprintf("Surgical cohort: open or hybrid arch surgery with ECC (incl. %d with unknown aortic approach)", n_unknown_kept),
+                               n = nrow(step)))
+write_out(step[, .N, by = .(aotachir_benadering, ECC, chir_benadering)][order(-N)], SUB, "selected_cohort_approach_ecc")
 
-# Anonymised centre labels (A = largest). The key stays in data/derived only.
-cmap <- anonymise_centres(cohort$centrum)
+# Two data sets:
+#  surgical_cohort - every surgically selected registration (incl. those not classifiable as
+#                    acute/non-acute): national volume (total) and Figure 1.
+#  cohort          - classified registrations (analysis cohort): all clinical analyses and the
+#                    acute/non-acute volume series.
+surgical_cohort <- copy(step)
+cohort <- drop_step(step, is.na(step$acute), "not classifiable as acute or non-acute (clinical analyses only)")
+flow <- rbind(flow, data.table(step = "Analysis cohort (classified as acute or non-acute)", n = nrow(cohort)))
+write_out(flow, SUB, "flow_diagram")
+log_msg("Surgical cohort: ", nrow(surgical_cohort), "; analysis cohort: ", nrow(cohort))
+
+# Anonymised centre labels (A = largest, based on the surgical cohort). Key stays in data/derived.
+cmap <- anonymise_centres(surgical_cohort$centrum)
+surgical_cohort[, centre_lab := factor(cmap[centrum], levels = LETTERS[seq_along(cmap)])]
 cohort[, centre_lab := factor(cmap[centrum], levels = LETTERS[seq_along(cmap)])]
+surgical_cohort[, centrum := factor(centrum)]
 cohort[, centrum := factor(centrum)]
 saveRDS(data.table(centrum = names(cmap), label = cmap), derived_path("centre_key.rds"))
+saveRDS(surgical_cohort, derived_path("surgical_cohort.rds"))
 
 # Spline knots (fixed for all models)
 specs <- list(age = spline_spec(cohort$age, 3), egfr = spline_spec(cohort$egfr, 3),

@@ -123,6 +123,43 @@ f_ftr <- build_formula("dzh", c(COVARS_M1, "n_compl_new"), specs)
 add("FTR: extended complication set (broader set + ventilation >24 h, stroke without deficit)", "ftr_dzh",
     pooled_or(f_ftr, dl))
 
+# 9b. Centre fixed effects with CR2 cluster-robust inference, PER GROUP (acute / non-acute)
+#     and start year (2013 / 2015), for the main endpoints and FTR. Pooled over imputations
+#     with Rubin's rules; df = min(mean Satterthwaite df, Rubin df) (conservative).
+fe_cr2_pooled <- function(v, dl) {
+  f <- as.formula(paste(v, "~", paste(c("year_c", covar_terms(COVARS_M1, specs), "centrum"), collapse = " + ")))
+  vars <- all.vars(f)
+  per <- lapply(dl, function(d) {
+    dd <- d[complete.cases(d[, .SD, .SDcols = intersect(vars, names(d))])]
+    dd[, centrum := droplevels(as.factor(centrum))]
+    fit <- glm(f, family = binomial, data = dd)
+    ct <- clubSandwich::coef_test(fit, vcov = "CR2", cluster = dd$centrum, test = "Satterthwaite")
+    r <- ct[ct$Coef == "year_c", ]
+    list(b = r$beta, v = r$SE^2, df = r$df_Satt, n = nrow(dd), ev = sum(dd[[v]] == 1))
+  })
+  m <- length(per); b <- vapply(per, `[[`, 0, "b"); U <- mean(vapply(per, `[[`, 0, "v"))
+  B <- if (m > 1) var(b) else 0; Tv <- U + (1 + 1 / m) * B
+  df_r <- if (B > 0) (m - 1) * (1 + U / ((1 + 1 / m) * B))^2 else Inf
+  df <- min(mean(vapply(per, `[[`, 0, "df")), df_r); se <- sqrt(Tv); est <- mean(b)
+  data.table(n = per[[1]]$n, events = per[[1]]$ev, or_per_year = exp(est),
+             lower = exp(est - qt(.975, df) * se), upper = exp(est + qt(.975, df) * se),
+             p = 2 * pt(abs(est / se), df, lower.tail = FALSE), df = df)
+}
+fe_rows <- list()
+fe_specs <- list(comp_primary = function(d) d[!is.na(comp_primary)][, y := comp_primary],
+                 dzh = function(d) d[!is.na(dzh)][, y := dzh],
+                 d30 = function(d) d[!is.na(d30)][, y := d30],
+                 major_compl = function(d) d[!is.na(major_compl)][, y := major_compl],
+                 ftr_dzh = function(d) d[major_compl == 1 & !is.na(dzh)][, y := dzh])
+for (v in names(fe_specs)) for (grp in c("Acute", "Non-acute")) for (st in unique(c(min(CONFIG$study_years), CONFIG$trend_sens_start))) {
+  g <- if (grp == "Acute") 1L else 0L
+  dl <- lapply(imps, function(d) fe_specs[[v]](d)[acute == g & year >= st])
+  r <- tryCatch(fe_cr2_pooled("y", dl), error = function(e) data.table(note = conditionMessage(e)))
+  fe_rows[[length(fe_rows) + 1]] <- cbind(data.table(outcome = v, group = grp, start_year = st,
+                                                     model = "centre fixed effects, CR2/Satterthwaite"), r)
+}
+write_out(rbindlist(fe_rows, fill = TRUE), SUB, "group_trends_fixed_effects_CR2")
+
 sens <- rbindlist(rows, fill = TRUE)
 write_out(sens, SUB, "sensitivity_year_effect")
 
