@@ -337,9 +337,9 @@ miss_year <- dv[included == TRUE, lapply(.SD, function(x) round(100 * mean(is.na
 setorder(miss_year, jaar)
 write_out(miss_year, SUB, "missing_pct_by_year_all_variables")
 struct <- melt(miss_year, id.vars = "jaar", variable.name = "variable", value.name = "pct_missing")
-struct_flag <- struct[, .(min_pct = min(pct_missing), max_pct = max(pct_missing),
+struct_flag <- struct[, .(min_pct = as.numeric(min(pct_missing)), max_pct = as.numeric(max(pct_missing)),
                           years_ge90pct_missing = paste(jaar[pct_missing >= 90], collapse = ","),
-                          first_year_lt90pct = suppressWarnings(min(jaar[pct_missing < 90]))),
+                          first_year_lt90pct = suppressWarnings(as.numeric(min(jaar[pct_missing < 90])))),
                       by = variable][max_pct >= 90 & min_pct < 50]
 write_out(struct_flag, SUB, "structurally_missing_variables")
 STRUCTURAL <- struct_flag[, .(variable = as.character(variable), first_year = first_year_lt90pct)]

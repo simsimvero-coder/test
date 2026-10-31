@@ -10,7 +10,10 @@
 # modified). Windows: R's "~" points to Documents, so the user profile is used,
 # and desktops redirected to OneDrive ("OneDrive - <organisation>") are searched too.
 RAW_FILE_NAME  <- "AORTABOOG_NL_schoon v3(1).xlsx"
-RAW_FILE_SHEET <- 1   # sheet number or name in the Excel file
+# Excel sheet with the data. "auto" = the sheet containing the most expected
+# variables (preferring "Alle_records", which also holds the excluded records and
+# incl_cohort/excl_reden). A sheet name or number can be given instead.
+RAW_FILE_SHEET <- "auto"
 
 find_desktop_file <- function(file_name) {
   home <- if (.Platform$OS.type == "windows") Sys.getenv("USERPROFILE") else path.expand("~")

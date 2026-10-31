@@ -125,10 +125,20 @@ read_raw <- function(path, sheet = CONFIG$raw_data_sheet) {
             na.strings = c("", "NA", "NULL", "."), encoding = "UTF-8")
     },
     xlsx = , xls = {
-      if (!is.null(sheet) && is.numeric(sheet)) {
-        sh <- readxl::excel_sheets(path)
-        if (length(sh) > 1) message("Excel file has sheets: ", paste(sh, collapse = ", "),
-                                    " - reading sheet ", sheet, " ('", sh[sheet], "')")
+      sh <- readxl::excel_sheets(path)
+      if (is.null(sheet) || identical(sheet, "auto")) {
+        # pick the sheet whose column names match the most expected variables
+        ov <- vapply(sh, function(s) {
+          nm <- tryCatch(names(readxl::read_excel(path, sheet = s, n_max = 0)), error = function(e) character(0))
+          length(intersect(nm, EXPECTED_VARS))
+        }, numeric(1))
+        best <- sh[ov == max(ov)]
+        sheet <- if ("Alle_records" %in% best) "Alle_records" else best[1]
+        message("Excel sheets: ", paste(sprintf("%s (%d expected columns)", sh, ov), collapse = ", "),
+                " -> reading '", sheet, "'")
+      } else {
+        message("Excel sheets: ", paste(sh, collapse = ", "), " -> reading '",
+                if (is.numeric(sheet)) sh[sheet] else sheet, "'")
       }
       as.data.table(readxl::read_excel(path, sheet = sheet, guess_max = 1e6, na = c("", "NA")))
     },

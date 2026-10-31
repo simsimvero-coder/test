@@ -51,7 +51,10 @@ if (ok_pkgs) {
     if (!is.null(d)) {
       say("OK", "Data file read", sprintf("%d rows, %d columns", nrow(d), ncol(d)))
       miss <- setdiff(EXPECTED_VARS, names(d))
-      say(if (length(miss)) "WARN" else "OK", "Expected columns present",
+      essential <- c("centrum", "jaar", "leeftijd", "geslacht", "urgentie", "incl_cohort",
+                     "overl30d", "mort_status", "overltijd_dag")
+      status <- if (any(essential %in% miss)) "FAIL" else if (length(miss)) "WARN" else "OK"
+      say(status, "Expected columns present",
           if (length(miss)) paste("missing:", paste(miss, collapse = ", ")) else "all 60 present")
     }
   } else {
