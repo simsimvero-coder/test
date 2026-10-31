@@ -70,6 +70,11 @@ CONFIG <- list(
   # are KEPT (as in the original analysis) when they meet all other criteria;
   # set keep_unknown_approach = FALSE to exclude them. Counted in the flow diagram.
   keep_unknown_approach = TRUE,
+  # aotachir_benadering = 0 ("no aortic surgery coded"): excluded, so that the
+  # cohort matches the investigators' analysis cohort (N = 5,009).
+  exclude_no_aortic_approach = TRUE,
+  # Expected sizes (investigators' cohort); a mismatch is reported, not fatal.
+  expected_n_surgical = 5125, expected_n_analysis = 5009,
 
   # ---- outcome definitions (paper 1 definitions are the main analysis) --------
   # Stroke counted in the primary composite (paper 1: with or without deficit):

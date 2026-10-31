@@ -117,7 +117,7 @@
 All rows with `incl_cohort` indicating inclusion, after which the **surgical selection of paper 1 is re-applied explicitly** in `02_cohort_descriptives.R`:
 
 * included: open or hybrid arch surgery (`aotachir_benadering` 10 = open, 30 = combined open + endovascular) **with cardiopulmonary bypass** (`ECC` 10/20/30);
-* excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50). Code 0 for `aotachir_benadering` is not an exclusion criterion, because all included registrations are arch procedures; its frequency is reported in the validation checks. Registrations with **unknown aortic approach are kept** when they meet all other criteria (as in the original analysis);
+* excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50). Registrations coded `aotachir_benadering` = 0 (no aortic surgery coded) are excluded, so that the cohort matches the investigators' analysis cohort (N = 5,009); the number excluded is shown in the flow diagram. Registrations with **unknown aortic approach are kept** when they meet all other criteria (as in the original analysis);
 * excluded: chronic dissection (code 30) or infection (code 40) in any of `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`;
 * this gives the **surgical cohort**, used for the national volume (total counts, Figure 1);
 * records that cannot be classified as acute or non-acute (§4.3) are then excluded, giving the **analysis cohort**, used for all clinical analyses and for the acute and non-acute volume series.

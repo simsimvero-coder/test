@@ -32,6 +32,8 @@ drop_step <- function(step, cond, label) {
 step <- drop_step(step, !(step$ECC %in% c(10, 20, 30)), "no cardiopulmonary bypass (ECC = 0) or ECC unknown")
 step <- drop_step(step, step$aotachir_benadering %in% c(20, 21), "endovascular-only aortic repair ((T)EVAR, aotachir_benadering 20/21)")
 step <- drop_step(step, step$chir_benadering %in% 50, "percutaneous approach (chir_benadering 50)")
+if (CONFIG$exclude_no_aortic_approach)
+  step <- drop_step(step, step$aotachir_benadering %in% 0, "no aortic surgery coded (aotachir_benadering 0)")
 if (!CONFIG$keep_unknown_approach)
   step <- drop_step(step, is.na(step$aotachir_benadering), "aortic surgical approach unknown")
 step <- drop_step(step, step$p_chronic %in% TRUE, "chronic dissection (code 30) in any aortic segment")
@@ -54,6 +56,9 @@ cohort <- drop_step(step, is.na(step$acute), "not classifiable as acute or non-a
 flow <- rbind(flow, data.table(step = "Analysis cohort (classified as acute or non-acute)", n = nrow(cohort)))
 write_out(flow, SUB, "flow_diagram")
 log_msg("Surgical cohort: ", nrow(surgical_cohort), "; analysis cohort: ", nrow(cohort))
+if (nrow(surgical_cohort) != CONFIG$expected_n_surgical || nrow(cohort) != CONFIG$expected_n_analysis)
+  log_msg("WARNING: expected surgical cohort ", CONFIG$expected_n_surgical, " and analysis cohort ",
+          CONFIG$expected_n_analysis, "; see results/02_descriptives/flow_diagram.csv for each exclusion step")
 
 # Anonymised centre labels (A = largest, based on the surgical cohort). Key stays in data/derived.
 cmap <- anonymise_centres(surgical_cohort$centrum)
