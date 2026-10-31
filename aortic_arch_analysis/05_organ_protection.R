@@ -45,13 +45,13 @@ t2 <- rbind(cbind(stratum = "All", desc_by(coh, "era")),
 write_out(t2, SUB, "table2_organ_protection_by_era")
 write_out(coh[, .N, by = .(year, hypo5)][order(year, hypo5)], SUB, "hypothermia_consensus_5level_by_year")
 annual <- coh[, .(n = .N, arrest = mean(circ_arrest_b, na.rm = TRUE),
-                  temp_median = median(temp_min, na.rm = TRUE),
-                  temp_q1 = quantile(temp_min, .25, na.rm = TRUE), temp_q3 = quantile(temp_min, .75, na.rm = TRUE),
-                  ca_median = median(ca_min[circ_arrest_b == 1], na.rm = TRUE)), by = year][order(year)]
+                  temp_median = as.numeric(median(temp_min, na.rm = TRUE)),
+                  temp_q1 = as.numeric(quantile(temp_min, .25, na.rm = TRUE)), temp_q3 = as.numeric(quantile(temp_min, .75, na.rm = TRUE)),
+                  ca_median = as.numeric(median(ca_min[circ_arrest_b == 1], na.rm = TRUE))), by = year][order(year)]
 write_out(annual, SUB, "annual_practice")
 hypo_year <- coh[!is.na(hypo4), .N, by = .(year, hypo4)][, pct := 100 * N / sum(N), by = year]
 write_out(hypo_year[order(year, hypo4)], SUB, "hypothermia_category_by_year")
-centre_year <- coh[, .(n = .N, temp_median = median(temp_min, na.rm = TRUE),
+centre_year <- coh[, .(n = .N, temp_median = as.numeric(median(temp_min, na.rm = TRUE)),
                        arrest = mean(circ_arrest_b, na.rm = TRUE)), by = .(centre_lab, year)]
 write_out(centre_year[order(centre_lab, year)], SUB, "centre_year_practice")
 

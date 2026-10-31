@@ -192,7 +192,7 @@ annual <- cohort[, .(n = .N,
                      acute = mean(acute, na.rm = TRUE),
                      acute_dissection = mean(acute_dissection, na.rm = TRUE),
                      prior_cs = mean(prior_cs, na.rm = TRUE),
-                     euroscore2_median = median(euroscore2, na.rm = TRUE),
+                     euroscore2_median = as.numeric(median(euroscore2, na.rm = TRUE)),
                      hybrid_fet = mean(hybrid_fet, na.rm = TRUE), desc_inv = mean(desc_inv, na.rm = TRUE),
                      conc_cabg = mean(conc_cabg, na.rm = TRUE), conc_valve = mean(conc_valve, na.rm = TRUE),
                      root_inv = mean(root_inv, na.rm = TRUE)), by = year][order(year)]

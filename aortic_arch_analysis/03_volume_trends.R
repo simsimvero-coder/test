@@ -139,7 +139,7 @@ cv <- surg[, .N, by = .(centre_lab, year)]
 cv <- merge(CJ(centre_lab = levels(surg$centre_lab), year = yrs), cv, all.x = TRUE)
 cv[is.na(N), N := 0L]
 write_out(dcast(cv, centre_lab ~ year, value.var = "N"), SUB, "centre_annual_volume")
-cv_sum <- cv[, .(total = sum(N), median_annual = median(N), min_annual = min(N), max_annual = max(N),
+cv_sum <- cv[, .(total = sum(N), median_annual = as.numeric(median(N)), min_annual = min(N), max_annual = max(N),
                  years_active = sum(N > 0)), by = centre_lab]
 write_out(cv_sum, SUB, "centre_volume_summary")
 saveRDS(list(cnt = cnt, fitted = vol_fit, res = vol_res, cv = cv, has_pop = !is.null(pop)),

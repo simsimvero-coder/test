@@ -65,7 +65,7 @@ write_out(crude, SUB, "crude_rates")
 sparse <- rbindlist(lapply(OUT$var, function(v)
   cohort[!is.na(get(v)), .(events = sum(get(v) == 1), n = .N), by = centre_lab][, outcome := v]))
 write_out(sparse[, .(n_centres = .N, centres_zero_events = sum(events == 0),
-                     min_events = min(events), median_events = median(events)), by = outcome],
+                     min_events = as.numeric(min(events)), median_events = as.numeric(median(events))), by = outcome],
           SUB, "sparse_events_by_centre")
 
 # ---- 2. Risk-adjusted models ---------------------------------------------------------------
@@ -313,8 +313,8 @@ cox_est <- lapply(imps, function(d) {
 los_cox <- exp_table(rubin_pool(lapply(cox_est, `[[`, 1), lapply(cox_est, `[[`, 2)), "year_c")
 los_cox[, `:=`(outcome = "Discharge alive (cause-specific HR; >1 = shorter stay)")]
 write_out(rbind(los_tab, los_from, los_cox, fill = TRUE), SUB, "length_of_stay_models")
-write_out(cohort[dzh == 0 & !is.na(los), .(n = .N, median = median(los), q1 = quantile(los, .25),
-                                            q3 = quantile(los, .75)), by = year][order(year)],
+write_out(cohort[dzh == 0 & !is.na(los), .(n = .N, median = as.numeric(median(los)), q1 = as.numeric(quantile(los, .25)),
+                                            q3 = as.numeric(quantile(los, .75))), by = year][order(year)],
           SUB, "length_of_stay_by_year")
 write_out(rbind(los_fit$diag[, model := "LOS LMM"]), SUB, "length_of_stay_diagnostics")
 r1 <- residuals(los_fit$fits[[1]]$fit)

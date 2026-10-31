@@ -37,7 +37,7 @@ fu <- data.table(measure = c("reverse KM follow-up Q1 (years)", "reverse KM medi
                  value = c(rk, max(sv$t_years), sum(sv$t_years)))
 write_out(fu, SUB, "follow_up_summary")
 # Follow-up of patients alive at last contact, by operation year (detects incomplete follow-up)
-write_out(sv[status == 0, .(n_alive = .N, median_fu_years = median(t_years), min_fu_years = min(t_years),
+write_out(sv[status == 0, .(n_alive = .N, median_fu_years = as.numeric(median(t_years)), min_fu_years = min(t_years),
                             max_fu_years = max(t_years)), by = year][order(year)], SUB, "follow_up_alive_by_year")
 
 # ---- 2. Kaplan-Meier --------------------------------------------------------------------------
