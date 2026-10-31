@@ -162,25 +162,53 @@ for (adjust in c(FALSE, TRUE)) {
 }
 
 # ---- 4. Ordinal: hypothermia category -------------------------------------------------------------
+# Ordinal mixed model with a usable covariance matrix. If the Hessian is not positive
+# definite, refit with other optimisers; an imputation that still fails is left out
+# of the Rubin pooling (counted and written to ordinal_fit_problems.csv).
+ord_problems <- list()
+fit_clmm_safe <- function(f, d) {
+  fx <- function(m) names(coef(m))[!names(coef(m)) %in% names(m$alpha)]
+  tries <- list(list(), list(control = clmm.control(method = "ucminf")),
+                list(control = clmm.control(method = "nlminb", maxIter = 200, gradTol = 1e-6, innerCtrl = "noWarn")))
+  for (k in seq_along(tries)) {
+    m <- tryCatch(do.call(clmm, c(list(formula = f, data = d, link = "logit", nAGQ = 1), tries[[k]])),
+                  error = function(e) NULL)
+    if (is.null(m)) next
+    v <- tryCatch(vcov(m), error = function(e) NULL)
+    if (!is.null(v) && all(is.finite(diag(v)[fx(m)])) && all(diag(v)[fx(m)] > 0))
+      return(list(fit = m, est = coef(m)[fx(m)], vc = v[fx(m), fx(m)], attempt = k))
+  }
+  NULL
+}
+pool_clmm <- function(fs, label) {
+  ok <- !vapply(fs, is.null, logical(1))
+  ord_problems[[label]] <<- data.table(model = label, imputations = length(fs), failed = sum(!ok),
+                                       refitted = sum(vapply(fs[ok], function(x) x$attempt > 1, logical(1))))
+  if (!any(ok)) return(NULL)
+  if (any(!ok)) log_msg(label, ": ", sum(!ok), " of ", length(fs), " fits without usable covariance - left out of pooling")
+  list(pooled = exp_table(rubin_pool(lapply(fs[ok], `[[`, "est"), lapply(fs[ok], `[[`, "vc")), "year_c"),
+       fits = lapply(fs[ok], `[[`, "fit"))
+}
+
 ord_res <- list()
 for (adjust in c(FALSE, TRUE)) {
   log_msg("hypothermia ordinal, adjusted = ", adjust)
   dl <- lapply(imps, function(d) base(d)[!is.na(hypo4)][, hypo4 := droplevels(hypo4)])
   f <- as.formula(paste("hypo4 ~", paste(c("year_c", rhs_terms(adjust), "(1 | centrum)"), collapse = " + ")))
   dl <- complete_for(dl, f)
-  fits <- par_lapply(dl, function(d) clmm(f, data = d, link = "logit", nAGQ = 1))
-  est <- lapply(fits, function(m) coef(m)[!names(coef(m)) %in% names(m$alpha)])
-  vc  <- lapply(fits, function(m) { v <- vcov(m); nm <- names(coef(m))[!names(coef(m)) %in% names(m$alpha)]; v[nm, nm] })
-  pooled <- exp_table(rubin_pool(est, vc), "year_c")
+  pr <- pool_clmm(par_lapply(dl, function(d) fit_clmm_safe(f, d)),
+                  paste0("hypothermia ordinal, ", if (adjust) "adjusted" else "unadjusted", ", all years"))
+  if (is.null(pr)) { log_msg("hypothermia ordinal: no usable fit, skipped"); next }
+  pooled <- pr$pooled; fits <- pr$fits
   if (adjust) {
     dls <- lapply(dl, function(d) d[year >= CONFIG$trend_sens_start][, hypo4 := droplevels(hypo4)])
-    fs <- par_lapply(dls, function(d) clmm(f, data = d, link = "logit", nAGQ = 1))
-    es <- exp_table(rubin_pool(lapply(fs, function(m) coef(m)[!names(coef(m)) %in% names(m$alpha)]),
-                               lapply(fs, function(m) { v <- vcov(m); nm <- names(coef(m))[!names(coef(m)) %in% names(m$alpha)]; v[nm, nm] })), "year_c")
+    ps2 <- pool_clmm(par_lapply(dls, function(d) fit_clmm_safe(f, d)),
+                     paste0("hypothermia ordinal, adjusted, from ", CONFIG$trend_sens_start))
+    if (!is.null(ps2)) { es <- ps2$pooled
     ord_res[[length(ord_res) + 1]] <- data.table(
       outcome = "Hypothermia category (cumulative OR per year; >1 = shift to warmer)", adjusted = TRUE,
       period = paste("from", CONFIG$trend_sens_start), n = nrow(dls[[1]]),
-      estimate = es$ratio, lower = es$ratio_lower, upper = es$ratio_upper, p = es$p)
+      estimate = es$ratio, lower = es$ratio_lower, upper = es$ratio_upper, p = es$p) }
   }
   ord_res[[length(ord_res) + 1]] <- data.table(
     outcome = "Hypothermia category (cumulative OR per year; >1 = shift to warmer)",
@@ -205,6 +233,7 @@ ord_res[[length(ord_res) + 1]] <- data.table(outcome = "Deep hypothermia <=20 C 
 practice_tab <- rbindlist(practice, fill = TRUE)
 write_out(practice_tab, SUB, "practice_trend_models")
 write_out(rbindlist(ord_res, fill = TRUE), SUB, "hypothermia_ordinal_models")
+if (length(ord_problems)) write_out(rbindlist(ord_problems), SUB, "ordinal_fit_problems")
 write_out(rbindlist(vcs), SUB, "variance_components")
 write_out(rbindlist(lrts, fill = TRUE), SUB, "random_slope_lrt_and_icc")
 write_out(rbindlist(slopes), SUB, "centre_specific_slopes")
