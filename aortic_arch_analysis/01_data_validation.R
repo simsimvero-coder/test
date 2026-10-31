@@ -57,10 +57,19 @@ write_out(freqs[, .(variable, value, N)], SUB, "value_frequencies")
 # ---- 3. Codings -------------------------------------------------------------------
 dv <- copy(raw)
 dv[, row_id := .I]                       # internal row index (bronrij is kept as is)
-code_issues <- list()
+code_issues <- list(); reviewed <- list()
 for (v in intersect(names(CODES), names(dv))) {
   x <- to_code(dv[[v]])
   nonnum <- !is.na(dv[[v]]) & is.na(x) & trimws(as.character(dv[[v]])) != ""
+  if (!is.null(REVIEWED_RECODE[[v]])) {         # reviewed undocumented codes -> recoded (logged)
+    map <- REVIEWED_RECODE[[v]]
+    hit <- !is.na(x) & x %in% as.numeric(names(map))
+    if (any(hit)) {
+      new <- unname(map[as.character(x[hit])])
+      reviewed[[v]] <- data.table(variable = v, from = x[hit], to = new)[, .N, by = .(variable, from, to)]
+      x[hit] <- new
+    }
+  }
   bad <- !is.na(x) & !(x %in% CODES[[v]])
   if (any(nonnum | bad)) {
     code_issues[[v]] <- data.table(variable = v,
@@ -71,6 +80,8 @@ for (v in intersect(names(CODES), names(dv))) {
   set(dv, j = v, value = x)
 }
 code_issues <- rbindlist(code_issues)
+write_out(if (length(reviewed)) rbindlist(reviewed) else data.table(variable = character(), from = numeric(), to = numeric(), N = integer()),
+          SUB, "codes_reviewed_recoded")
 write_out(if (nrow(code_issues)) code_issues else data.table(variable = character(), value = character(), N = integer()),
           SUB, "coding_violations")
 if (nrow(code_issues) && CONFIG$strict_coding) {
@@ -243,6 +254,7 @@ dv[, `:=`(
 )]
 dv[is.na(gastroint_compl), gi := NA_integer_]
 dv[is.na(vasc_compl_opname), vasc_major := NA_integer_]
+dv[vasc_compl_opname %in% 1, vasc_major := NA_integer_]   # complication of unknown severity
 
 composite <- function(cols) {
   m <- as.matrix(dv[, .SD, .SDcols = cols])

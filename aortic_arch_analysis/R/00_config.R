@@ -158,7 +158,9 @@ CODES <- list(
   CVA_zonder_restletsel = BIN,
   nierfalen             = BIN,
   gastroint_compl       = c(0, 1, 10, 90, -1),
-  vasc_compl_opname     = c(0, 10, 20, -1),
+  # 1 = vascular complication, severity unknown (older registrations; reviewed):
+  #     counts as missing for 'major vascular complication'
+  vasc_compl_opname     = c(0, 1, 10, 20, -1),
   mort_status           = BIN,
   overl30d              = BIN,
   overl120d             = BIN,
@@ -166,6 +168,11 @@ CODES <- list(
   delier                = BIN,
   postop_MI             = BIN
 )
+
+# Undocumented codes reviewed with the investigators and recoded (logged in
+# results/01_validation/codes_reviewed_recoded.csv). Format: variable = c(from = to);
+# to = NA sets the value to missing.
+REVIEWED_RECODE <- list(aorta_asc_path = c("1" = 10))   # 1 record: code 1 = aneurysm (10)
 
 # Continuous variables: handbook ranges (outside -> NA, logged).
 # 'hard' = physically impossible / outside handbook; flagged values are kept.

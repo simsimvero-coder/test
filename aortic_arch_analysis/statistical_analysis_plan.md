@@ -127,6 +127,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 ### 4.2 Cleaning rules
 
 1. The code −1 is set to missing wherever the handbook defines it as "unknown".
+   Undocumented codes found in the extract were reviewed with the investigators: `aorta_asc_path` = 1 (one record) is recoded to 10 (aneurysm); `vasc_compl_opname` = 1 (17 records) is read as "vascular complication, severity unknown" and is missing for major vascular complication. Both are logged in `results/01_validation/`.
 2. Values outside the handbook ranges are set to missing and logged, for example `min_temp` outside 10–40 °C, `LVEF` outside 1–99%, `ECC_duur` outside 0–1000 min, `AoX_duur` outside 0–600 min, `circ_arrest_duur` outside 0–150 min (values > 150 are flagged but **kept**, because long arrest times exist clinically; see the sensitivity analysis), `leeftijd` outside 18–100, and `BMI` outside 12–70.
 3. Logical inconsistencies (for example arrest = 0 with duration > 0, `overl30d` = 1 with `overltijd_dag` > 30, or in-hospital death while `mort_status` = alive) are tabulated. The raw data are never altered, and analysis variables follow the rules documented in `01_data_validation.R`.
 
