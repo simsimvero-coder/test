@@ -301,6 +301,7 @@ consistency <- rbindlist(list(
   cc("cross-clamp time > ECC time", dv$aox_min > dv$ecc_min),
   cc("both CVA with and without deficit = 1", dv$stroke_def == 1 & dv$stroke_nodef == 1),
   cc("aortaboog_path = 0 (no arch pathology) among included", dv$included & dv$aortaboog_path == 0),
+  cc("aotachir_benadering = 0 (no aortic surgery coded) among included; not excluded", dv$included & dv$aotachir_benadering == 0),
   cc("aortaboog_path missing among included", dv$included & is.na(dv$aortaboog_path)),
   cc("included but excl_reden filled", dv$included & !is.na(dv$excl_reden) & trimws(as.character(dv$excl_reden)) != ""),
   cc("temperature recorded > 34 C with circulatory arrest", dv$circ_arrest_b == 1 & dv$temp_min > 34)

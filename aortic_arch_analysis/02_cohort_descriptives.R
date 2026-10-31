@@ -32,7 +32,6 @@ drop_step <- function(step, cond, label) {
 step <- drop_step(step, !(step$ECC %in% c(10, 20, 30)), "no cardiopulmonary bypass (ECC = 0) or ECC unknown")
 step <- drop_step(step, step$aotachir_benadering %in% c(20, 21), "endovascular-only aortic repair ((T)EVAR, aotachir_benadering 20/21)")
 step <- drop_step(step, step$chir_benadering %in% 50, "percutaneous approach (chir_benadering 50)")
-step <- drop_step(step, step$aotachir_benadering %in% 0, "no aortic surgery recorded (aotachir_benadering 0)")
 if (!CONFIG$keep_unknown_approach)
   step <- drop_step(step, is.na(step$aotachir_benadering), "aortic surgical approach unknown")
 step <- drop_step(step, step$p_chronic %in% TRUE, "chronic dissection (code 30) in any aortic segment")
