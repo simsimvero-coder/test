@@ -31,6 +31,7 @@ aortic_arch_analysis/
 ├── 09_tables_figures.R        Tables 1-3, figures, supplement workbook, consistency checks, report
 ├── 10_compare_missing_data_methods.R   multiple imputation vs complete case, side by side
 ├── run_all.R                  runs everything in fresh R sessions (04-09 once per missing-data method)
+├── run_complete_case.R        same, complete-case analysis only (no imputation; much faster)
 ├── data/external/             CBS 37360ned (life tables) and 03759ned (population): public, CC BY 4.0
 ├── data/derived/              intermediate files (never committed)
 └── results/                   all output (never committed)
@@ -40,7 +41,7 @@ aortic_arch_analysis/
 
 1. **R ≥ 4.2** (tested for compatibility with R 4.2.3 on macOS; see below) with the packages `data.table`, `ggplot2`, `lme4`, `survival`, `mice`, `ordinal`, `clubSandwich`, `MASS`, `patchwork`, `scales`, `writexl`, `readxl` and `haven`. On Ubuntu they are available as `r-cran-*` packages; elsewhere, use `install.packages()`. Exact versions are written to `results/session_info.txt`.
 2. The data file is read directly from your desktop: **`AORTABOOG_NL_schoon v3(1).xlsx`** (first sheet). The code looks in `Desktop` and `Bureaublad`, including a desktop redirected to OneDrive. The file is only read, never changed or copied. If the file name, sheet or location changes, edit `RAW_FILE_NAME` / `RAW_FILE_SHEET` at the top of `R/00_config.R`, or set the full path in the environment variable `ARCH_RAW_DATA`.
-3. From this folder, first run `Rscript 00_check_environment.R`. It checks R and package versions, finds and reads the data file, and tests model fitting and parallel processing. Then run `Rscript run_all.R` (which repeats the check as its first step).
+3. From this folder, first run `Rscript 00_check_environment.R`. It checks R and package versions, finds and reads the data file, and tests model fitting and parallel processing. Then run `Rscript run_all.R` (which repeats the check as its first step). For the complete-case analysis only, without multiple imputation, run `run_complete_case.R` instead (in R: `setwd(dirname(file.choose())); source("run_complete_case.R")`); results are written to `results/complete_case/`. After a stop, `START <- "05"; source("run_complete_case.R")` resumes at that step.
 
 **On a Mac (Intel, R 4.2.3):** open Terminal, `cd` to the unzipped `aortic_arch_analysis` folder and run the commands above. Install the packages once from R with `install.packages(c("data.table","ggplot2","lme4","survival","mice","ordinal","clubSandwich","MASS","patchwork","scales","writexl","readxl","haven"))`. Parallel fitting works on macOS when run with `Rscript` from Terminal. The data file is found on `~/Desktop`, including an iCloud- or OneDrive-synced desktop.
 4. **Review `results/01_validation/validation_report.md` first.** By default the pipeline stops if a coded variable contains values that are not in the NHR handbook (`strict_coding = TRUE`). This is deliberate: it is better to stop than to guess what an undocumented code means.

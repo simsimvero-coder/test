@@ -236,32 +236,34 @@ heat <- function(d, x, title) {
 save_fig(heat(miss_year, "year", "Missing data by operation year"), SUB, "missing_by_year", 8, 6.5)
 save_fig(heat(miss_centre, "centre_lab", "Missing data by centre (anonymised)"), SUB, "missing_by_centre", 8, 6.5)
 
-# ---- 5. Multiple imputation -------------------------------------------------------------
-log_msg("Multiple imputation: m = ", CONFIG$n_imputations)
-imps <- make_imputations(cohort, m = CONFIG$n_imputations)
-mids <- attr(imps, "mids")
-write_out(if (is.null(mids$loggedEvents)) data.table(note = "no logged events") else mids$loggedEvents,
-          SUB, "imputation_logged_events")
-write_out(data.table(variable = names(mids$method), method = mids$method,
-                     n_missing = vapply(names(mids$method), function(v) sum(is.na(mids$data[[v]])), integer(1))),
-          SUB, "imputation_methods")
-# Diagnostics: observed vs imputed distributions; convergence traces
-dens <- rbindlist(lapply(c("egfr", "lvef", "bmi", "euroscore2"), function(v) {
-  if (sum(is.na(cohort[[v]])) == 0) return(NULL)
-  rbind(data.table(variable = v, type = "Observed", value = cohort[[v]][!is.na(cohort[[v]])]),
-        data.table(variable = v, type = "Imputed",
-                   value = unlist(lapply(imps, function(d) d[[v]][is.na(cohort[[v]])]))))
-}))
-if (nrow(dens)) {
-  p <- ggplot(dens, aes(value, colour = type)) + geom_density() +
-    facet_wrap(~variable, scales = "free") + scale_colour_manual(values = PAL[1:2], name = NULL) +
-    labs(title = "Observed vs imputed values", x = NULL, y = "Density") + theme_pub()
-  save_fig(p, SUB, "imputation_density", 8, 5)
-}
-grDevices::png(file.path(out_dir(SUB), "imputation_convergence.png"), width = 1800, height = 1400, res = 200)
-print(plot(mids))
-grDevices::dev.off()
-attr(imps, "mids") <- NULL
-saveRDS(imps, derived_path("imputed.rds"))
-saveRDS(mids, derived_path("mids.rds"))
+# ---- 5. Multiple imputation (skipped when only the complete-case analysis is run) -----------
+if ("imputation" %in% CONFIG$run_methods) {
+  log_msg("Multiple imputation: m = ", CONFIG$n_imputations)
+  imps <- make_imputations(cohort, m = CONFIG$n_imputations)
+  mids <- attr(imps, "mids")
+  write_out(if (is.null(mids$loggedEvents)) data.table(note = "no logged events") else mids$loggedEvents,
+            SUB, "imputation_logged_events")
+  write_out(data.table(variable = names(mids$method), method = mids$method,
+                       n_missing = vapply(names(mids$method), function(v) sum(is.na(mids$data[[v]])), integer(1))),
+            SUB, "imputation_methods")
+  # Diagnostics: observed vs imputed distributions; convergence traces
+  dens <- rbindlist(lapply(c("egfr", "lvef", "bmi", "euroscore2"), function(v) {
+    if (sum(is.na(cohort[[v]])) == 0) return(NULL)
+    rbind(data.table(variable = v, type = "Observed", value = cohort[[v]][!is.na(cohort[[v]])]),
+          data.table(variable = v, type = "Imputed",
+                     value = unlist(lapply(imps, function(d) d[[v]][is.na(cohort[[v]])]))))
+  }))
+  if (nrow(dens)) {
+    p <- ggplot(dens, aes(value, colour = type)) + geom_density() +
+      facet_wrap(~variable, scales = "free") + scale_colour_manual(values = PAL[1:2], name = NULL) +
+      labs(title = "Observed vs imputed values", x = NULL, y = "Density") + theme_pub()
+    save_fig(p, SUB, "imputation_density", 8, 5)
+  }
+  grDevices::png(file.path(out_dir(SUB), "imputation_convergence.png"), width = 1800, height = 1400, res = 200)
+  print(plot(mids))
+  grDevices::dev.off()
+  attr(imps, "mids") <- NULL
+  saveRDS(imps, derived_path("imputed.rds"))
+  saveRDS(mids, derived_path("mids.rds"))
+} else log_msg("Multiple imputation skipped (ARCH_METHODS = complete_case)")
 log_msg("Done.")

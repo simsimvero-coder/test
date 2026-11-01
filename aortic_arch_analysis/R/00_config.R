@@ -95,6 +95,9 @@ CONFIG <- list(
   # run_all.R runs both. "imputation" = multiple imputation (mice);
   # "complete_case" = per model, patients with all model variables observed.
   missing_method = Sys.getenv("ARCH_MISSING", "imputation"),
+  # Which missing-data methods the pipeline runs (ARCH_METHODS, comma-separated).
+  # "complete_case" alone skips the multiple imputation entirely (much faster).
+  run_methods = trimws(strsplit(Sys.getenv("ARCH_METHODS", "imputation,complete_case"), ",")[[1]]),
   n_imputations = as.integer(Sys.getenv("ARCH_M", "20")),
   mnar_var      = "euroscore2",    # covariate shifted in the MNAR sensitivity analysis
   mnar_delta    = 2,               # shift of imputed values (EuroSCORE II, percentage points)

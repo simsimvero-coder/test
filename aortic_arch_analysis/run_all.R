@@ -24,10 +24,14 @@ shared   <- c("00_check_environment.R", "01_data_validation.R", "02_cohort_descr
 adjusted <- c("04_clinical_outcomes.R", "05_organ_protection.R", "06_survival_analysis.R",
               "08_sensitivity_analyses.R", "09_tables_figures.R")
 # Adjusted analyses run twice: multiple imputation and complete-case analysis
-steps <- c(lapply(shared, function(s) list(script = s, method = "imputation")),
-           unlist(lapply(c("imputation", "complete_case"), function(m)
+# ARCH_METHODS selects the methods; "complete_case" alone skips imputation (see run_complete_case.R)
+methods <- trimws(strsplit(Sys.getenv("ARCH_METHODS", "imputation,complete_case"), ",")[[1]])
+methods <- intersect(c("imputation", "complete_case"), methods)
+if (!length(methods)) stop("ARCH_METHODS must contain imputation and/or complete_case")
+steps <- c(lapply(shared, function(s) list(script = s, method = methods[1])),
+           unlist(lapply(methods, function(m)
              lapply(adjusted, function(s) list(script = s, method = m))), recursive = FALSE),
-           list(list(script = "10_compare_missing_data_methods.R", method = "imputation")))
+           if (length(methods) == 2) list(list(script = "10_compare_missing_data_methods.R", method = "imputation")))
 
 # Optional resume point (see top); removed afterwards so a later run starts from the beginning
 start_at <- if (exists("START", envir = globalenv())) get("START", envir = globalenv()) else ""
@@ -70,6 +74,5 @@ for (i in seq_along(steps)) {
 print(timing)
 res <- Sys.getenv("ARCH_RESULTS", "results")
 write.csv(timing, file.path(res, "logs", "pipeline_timing.csv"), row.names = FALSE)
-message("Pipeline complete. Reports: ", file.path(res, "imputation", "analysis_report.md"), ", ",
-        file.path(res, "complete_case", "analysis_report.md"), " and ",
-        file.path(res, "comparison_missing_data", "MI_vs_CC_summary.md"))
+message("Pipeline complete. Reports: ", paste(file.path(res, methods, "analysis_report.md"), collapse = ", "),
+        if (length(methods) == 2) paste(" and", file.path(res, "comparison_missing_data", "MI_vs_CC_summary.md")) else "")
