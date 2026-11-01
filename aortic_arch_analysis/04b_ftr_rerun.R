@@ -5,7 +5,7 @@
 # Use this after a fix to the FTR code, so the rest of 04 (hours with imputation)
 # does not have to be re-run. The FTR code itself is read from 04_clinical_outcomes.R,
 # so both scripts always run the same analysis.
-# Usage: run rerun_ftr.R (both missing-data methods, then 09 and 10).
+# Usage: run rerun_fixes.R (re-runs this and the other fixed steps, then 09 and 10).
 # =============================================================================
 
 source("R/00_config.R"); source("R/functions.R")

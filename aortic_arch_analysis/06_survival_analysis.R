@@ -65,8 +65,9 @@ write_out(km1, SUB, "one_year_mortality_by_year_km")
 # Plot data: curves on a grid with risk tables
 curve_data <- function(sf, max_years = 12) {
   s <- summary(sf, times = seq(0, max_years * 365.25, by = 7), extend = TRUE)
-  data.table(strata = if (is.null(s$strata)) "Overall" else sub(".*=", "", as.character(s$strata)),
-             years = s$time / 365.25, surv = s$surv, lower = s$lower, upper = s$upper, n_risk = s$n.risk)
+  out <- data.table(strata = if (is.null(s$strata)) "Overall" else sub(".*=", "", as.character(s$strata)),
+                    years = s$time / 365.25, surv = s$surv, lower = s$lower, upper = s$upper, n_risk = s$n.risk)
+  out[n_risk >= KM_MIN_RISK]   # curves stop where fewer than KM_MIN_RISK patients remain at risk
 }
 risk_table <- function(sf, max_years = 10) {
   s <- summary(sf, times = (0:max_years) * 365.25, extend = TRUE)

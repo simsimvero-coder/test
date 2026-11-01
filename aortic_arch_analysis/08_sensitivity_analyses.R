@@ -17,7 +17,7 @@ specs  <- load_derived("specs.rds")
 
 rows <- list()
 add <- function(analysis, outcome, res, term = "year_c", n = NA, events = NA, note = "") {
-  if (!is.null(attr(res, "n"))) { n <- attr(res, "n"); events <- attr(res, "events") }
+  if (!is.null(attr(res, "n", exact = TRUE))) { n <- attr(res, "n", exact = TRUE); events <- attr(res, "events", exact = TRUE) }
   sel <- term; r <- res[res$term == sel]
   rows[[length(rows) + 1]] <<- data.table(analysis = analysis, outcome = outcome, term = term,
                                           or = exp(r$estimate), lower = exp(r$lower), upper = exp(r$upper),

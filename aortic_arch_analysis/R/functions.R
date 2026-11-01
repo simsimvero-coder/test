@@ -438,11 +438,16 @@ gcomp_year <- function(fit, data, years, nsim = CONFIG$n_sim) {
 
 # ---- survival helpers ---------------------------------------------------------------
 
+# Kaplan-Meier estimates at fixed times. Estimates with fewer than KM_MIN_RISK patients
+# still at risk (e.g. beyond the available follow-up) are not reported (NA); n_risk is kept.
+KM_MIN_RISK <- 10
 km_at <- function(sf, times) {
   s <- summary(sf, times = times, extend = TRUE)
-  data.table(strata = if (is.null(s$strata)) "Overall" else as.character(s$strata),
-             time = s$time, n_risk = s$n.risk, n_event_cum = NA_integer_,
-             surv = s$surv, lower = s$lower, upper = s$upper)
+  out <- data.table(strata = if (is.null(s$strata)) "Overall" else as.character(s$strata),
+                    time = s$time, n_risk = s$n.risk, n_event_cum = NA_integer_,
+                    surv = s$surv, lower = s$lower, upper = s$upper)
+  out[n_risk < KM_MIN_RISK, c("surv", "lower", "upper") := NA_real_]
+  out[]
 }
 
 # Reverse Kaplan-Meier median follow-up
