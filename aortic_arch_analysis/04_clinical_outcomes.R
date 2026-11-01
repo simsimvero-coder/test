@@ -367,7 +367,7 @@ for (k in seq_len(nrow(ftr_defs))) {
     dl <- complete_for(dl0, f)
   }
   fp <- fit_pooled(f, dl)
-  ftr_models[[k]] <- exp_table(fp$pooled)[, `:=`(definition = ftr_defs$role[k], denominator = den,
+  ftr_models[[paste0(k, "_all")]] <- exp_table(fp$pooled)[, `:=`(definition = ftr_defs$role[k], denominator = den,
                                                  numerator = num, n = nrow(dl[[1]]),
                                                  events = sum(dl[[1]][[num]] == 1), epv = ev,
                                                  reduced = ev < 10, centre_sd = fp$re_sd,
