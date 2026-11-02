@@ -179,12 +179,12 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
 
 * **Description**: missingness by variable, year and centre (heatmaps), plus checks for variables that are structurally missing in some years.
 * **Assumption**: missing at random (MAR) given the variables in the imputation model. This is plausible because missingness in registries depends mainly on centre and period, and both are included as predictors.
-* **Method**: multiple imputation by chained equations (`mice`; m = 20 by default) with predictive mean matching for continuous and binary variables, and polytomous regression for urgency and pathology.
+* **Method (optional analysis)**: multiple imputation by chained equations (`mice`; m = 20 by default) with predictive mean matching for continuous and binary variables, and polytomous regression for urgency and pathology.
   * Predictors: all model covariates, operative variables, year, **centre as fixed effects** (feasible and appropriate with 15 centres), and the outcomes (30-day death, in-hospital death, the major complication composite, survival status and the Nelson–Aalen cumulative hazard).
   * **Outcome values are never analysed as imputed** ("impute, then delete"). Patients with a missing outcome are excluded from that outcome's model, and their number is reported.
 * **Pooling**: Rubin's rules with Barnard–Rubin-type degrees of freedom and the fraction of missing information, all implemented in code. Multivariate tests use D1.
 * **Diagnostics**: trace plots, observed versus imputed densities, and mice's logged events.
-* **Two complete analyses.** Every adjusted analysis (scripts 04, 05, 06, 08 and 09) is run once with multiple imputation (primary) and once as a complete-case analysis, into `results/imputation/` and `results/complete_case/`. Script 10 places the key estimates side by side (`results/comparison_missing_data/`).
+* **Default: complete-case analysis only** (primary analysis, decision of the investigators), into `results/complete_case/`. The multiple-imputation analysis described here is optional: with `ARCH_METHODS="imputation,complete_case"` every adjusted analysis (scripts 04, 05, 06, 08 and 09) is also run with imputation, into `results/imputation/`, and script 10 places the key estimates side by side (`results/comparison_missing_data/`).
   * The complete-case analysis is unbiased if missingness depends only on the covariates and not on the outcome; it is less efficient and can be biased if missingness is related to the outcome or to calendar time.
   * Agreement between the two strengthens a finding; a material difference indicates that conclusions depend on how missing data are handled, and must be discussed.
   * Under complete-case analysis, n and events are taken from each fitted model (they differ between models with different covariates).

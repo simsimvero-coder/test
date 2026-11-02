@@ -1,6 +1,6 @@
 # =============================================================================
-# run_complete_case.R — runs the whole pipeline with the complete-case analysis
-# only (no multiple imputation). Results: results/complete_case/.
+# run_complete_case.R — complete-case analysis only (no multiple imputation);
+# since this is now the default, it is the same as run_all.R. Results: results/complete_case/.
 # Usage, in R:   setwd(dirname(file.choose())); source("run_complete_case.R")
 # Resume after a stop:   START <- "05"; source("run_complete_case.R")
 # =============================================================================

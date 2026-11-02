@@ -14,7 +14,8 @@
 
 if (!file.exists("R/00_config.R")) stop("Run this script from the project folder (aortic_arch_analysis/).")
 
-required <- c("data.table", "ggplot2", "lme4", "survival", "splines", "mice", "ordinal",
+methods <- trimws(strsplit(Sys.getenv("ARCH_METHODS", "complete_case"), ",")[[1]])
+required <- c("data.table", "ggplot2", "lme4", "survival", "splines", if ("imputation" %in% methods) "mice", "ordinal",
               "clubSandwich", "MASS", "patchwork", "scales", "writexl", "readxl", "haven", "parallel")
 missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing)) stop("Install the missing R packages first: ", paste(missing, collapse = ", "))
@@ -24,8 +25,7 @@ shared   <- c("00_check_environment.R", "01_data_validation.R", "02_cohort_descr
 adjusted <- c("04_clinical_outcomes.R", "05_organ_protection.R", "06_survival_analysis.R",
               "08_sensitivity_analyses.R", "09_tables_figures.R")
 # Adjusted analyses run twice: multiple imputation and complete-case analysis
-# ARCH_METHODS selects the methods; "complete_case" alone skips imputation (see run_complete_case.R)
-methods <- trimws(strsplit(Sys.getenv("ARCH_METHODS", "imputation,complete_case"), ",")[[1]])
+# ARCH_METHODS selects the methods (default: complete case only; see R/00_config.R)
 methods <- intersect(c("imputation", "complete_case"), methods)
 if (!length(methods)) stop("ARCH_METHODS must contain imputation and/or complete_case")
 steps <- c(lapply(shared, function(s) list(script = s, method = methods[1])),

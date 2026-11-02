@@ -223,9 +223,8 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 ### 5.8 Missing data
 
 * Missingness is described by variable, year and centre.
-* **Multiple imputation by chained equations** (`mice`, m = 20). Predictive mean matching for continuous variables, logistic or polytomous regression for categorical variables. Predictors are all analysis covariates, year, centre (fixed effects, appropriate for 15 clusters), the outcomes (30-day death, in-hospital death, the major complication composite, and the event indicator with the Nelson–Aalen cumulative hazard for survival). **Outcomes are not imputed.** Patients with a missing outcome are excluded from that outcome's analysis, and their number is reported.
-* Pooling uses Rubin's rules (implemented in code), and the pooled variance components come from the average across imputations.
-* **All adjusted analyses are run twice**: with multiple imputation (prespecified primary) and as a complete-case analysis (per model, patients with every model variable observed). Both sets are reported in full, and the key estimates are placed side by side (script 10). Additional sensitivity analysis: δ-adjusted imputation (missing not at random): imputed EuroSCORE II shifted by ±2 percentage points.
+* **Primary analysis: complete case** (decision of the investigators). Each model uses the patients with every model variable observed; the number analysed is reported per model. Patients with a missing outcome are excluded from that outcome's analysis, and their number is reported.
+* Optional (not run by default): multiple imputation by chained equations (`mice`, m = 20; predictive mean matching, polytomous regression for categorical variables; outcomes as predictors but never imputed; Rubin's rules), with a δ-adjusted (missing-not-at-random) sensitivity analysis for EuroSCORE II. It is switched on with `ARCH_METHODS="imputation,complete_case"`; script 10 then compares both methods.
 
 ### 5.9 Multiplicity
 
@@ -244,7 +243,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 ### 5.11 Sensitivity analyses (prespecified)
 
-1. Complete-case versus multiple imputation (every adjusted analysis, see §5.8).
+1. Complete-case versus multiple imputation (only when the optional imputation analysis is run, see §5.8).
 2. Adjustment sets M0, M1, M2 and M3.
 3. Clustering: random intercept, random intercept + slope for year, and a centre fixed-effects GLM with CR2/Satterthwaite inference.
 4. Excluding 2024, and excluding salvage operations.
@@ -254,7 +253,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 7. The major complication composite extended to include prolonged ventilation and stroke without a deficit (FTR sensitivity).
 8. In-hospital death as the FTR numerator.
 9. Survival: frailty versus stratified versus robust-SE Cox, piecewise HRs, and RMST.
-10. δ-adjusted multiple imputation (missing not at random).
+10. δ-adjusted multiple imputation (missing not at random; only with the optional imputation analysis).
 11. Arrest duration with values > 150 min excluded.
 
 ### 5.12 What will not be done

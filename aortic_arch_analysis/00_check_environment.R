@@ -8,7 +8,7 @@
 #
 # Usage, from this folder:   Rscript 00_check_environment.R
 # Install missing packages (CRAN binaries for your R version):
-#   install.packages(c("data.table","ggplot2","lme4","survival","mice","ordinal",
+#   install.packages(c("data.table","ggplot2","lme4","survival","ordinal",
 #                      "clubSandwich","MASS","patchwork","scales","writexl","readxl","haven"))
 # =============================================================================
 
@@ -29,9 +29,10 @@ say("INFO", "Cores used for model fits (CONFIG$cores)", CONFIG$cores)
 # ---- packages ---------------------------------------------------------------------------
 # Minimum versions: functions used by this pipeline exist from these versions on.
 need <- c(data.table = "1.13.0", ggplot2 = "3.3.0", lme4 = "1.1-27", survival = "3.2-7",
-          mice = "3.13.0", ordinal = "2019.12-10", clubSandwich = "0.5.0", MASS = "7.3-50",
+          ordinal = "2019.12-10", clubSandwich = "0.5.0", MASS = "7.3-50",
           patchwork = "1.1.0", scales = "1.1.0", writexl = "1.3", readxl = "1.3.1", haven = "2.3.0",
           nloptr = "1.2.0", Matrix = "1.3-0")
+if ("imputation" %in% CONFIG$run_methods) need <- c(need, mice = "3.13.0")   # only for the imputation analysis
 ok_pkgs <- TRUE
 for (p in names(need)) {
   if (!requireNamespace(p, quietly = TRUE)) { say("FAIL", paste("package", p), "not installed"); ok_pkgs <- FALSE; next }
