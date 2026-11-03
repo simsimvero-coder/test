@@ -130,7 +130,7 @@ read_raw <- function(path, sheet = CONFIG$raw_data_sheet) {
         # pick the sheet whose column names match the most expected variables
         ov <- vapply(sh, function(s) {
           nm <- tryCatch(names(readxl::read_excel(path, sheet = s, n_max = 0)), error = function(e) character(0))
-          length(intersect(nm, EXPECTED_VARS))
+          length(intersect(nm, c(EXPECTED_VARS, names(COLUMN_ALIASES))))
         }, numeric(1))
         best <- sh[ov == max(ov)]
         sheet <- if ("Alle_records" %in% best) "Alle_records" else best[1]
@@ -146,6 +146,42 @@ read_raw <- function(path, sheet = CONFIG$raw_data_sheet) {
     dta = as.data.table(haven::zap_labels(haven::read_dta(path))),
     rds = as.data.table(readRDS(path)),
     stop("Unsupported file type: ", ext))
+  harmonise_columns(dt)
+}
+
+# Make extracts with other column names or without the derived columns usable.
+# Every change is reported (attribute "harmonised", written by 01 to
+# results/01_validation/column_harmonisation.csv). Nothing is changed in the file.
+harmonise_columns <- function(dt) {
+  log <- list()
+  note <- function(variable, action) log[[length(log) + 1]] <<- data.table(variable = variable, action = action)
+  for (alt in names(COLUMN_ALIASES)) {
+    std <- COLUMN_ALIASES[[alt]]
+    if (alt %in% names(dt) && !std %in% names(dt)) {
+      setnames(dt, alt, std); note(std, paste0("renamed from '", alt, "'"))
+    }
+  }
+  if (!"bronrij" %in% names(dt)) {
+    dt[, bronrij := .I]; note("bronrij", "absent: row number in the file used as record identifier")
+  }
+  for (v in c("klepchir", "aortachir", "circ_arrest")) {
+    cl <- paste0(v, "_clean")
+    if (!cl %in% names(dt) && v %in% names(dt)) {
+      dt[, (cl) := get(v)]; note(cl, paste0("absent: raw variable '", v, "' used (no cleaned version available)"))
+    }
+  }
+  if (!"incl_cohort" %in% names(dt)) {
+    dt[, incl_cohort := "1"]
+    note("incl_cohort", "absent: all records treated as included; the explicit surgical selection in 02 still applies")
+  }
+  for (v in c("pathologie_groep", "s1_via_bewijs", "excl_reden", "klasse", "overl120d")) {
+    if (!v %in% names(dt)) { dt[, (v) := NA]; note(v, "absent: set to missing (descriptive variable only)") }
+  }
+  if (length(log)) {
+    log <- rbindlist(log)
+    message("Column harmonisation:\n", paste0("  ", log$variable, ": ", log$action, collapse = "\n"))
+    setattr(dt, "harmonised", log)
+  }
   dt
 }
 

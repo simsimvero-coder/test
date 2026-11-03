@@ -55,6 +55,8 @@ if (ok_pkgs) {
       essential <- c("centrum", "jaar", "leeftijd", "geslacht", "urgentie", "incl_cohort",
                      "overl30d", "mort_status", "overltijd_dag")
       status <- if (any(essential %in% miss)) "FAIL" else if (length(miss)) "WARN" else "OK"
+      harm <- attr(d, "harmonised")
+      if (!is.null(harm)) say("WARN", "Columns renamed or added", paste(harm$variable, collapse = ", "))
       say(status, "Expected columns present",
           if (length(miss)) paste("missing:", paste(miss, collapse = ", ")) else "all 60 present")
     }

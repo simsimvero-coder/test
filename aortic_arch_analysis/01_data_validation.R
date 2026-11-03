@@ -22,6 +22,11 @@ write_out(data.table(variable = c(missing_vars, extra_vars),
                                rep("present but not in variable list", length(extra_vars)))),
           SUB, "structure_check")
 if (length(missing_vars)) log_msg("WARNING: absent variables: ", paste(missing_vars, collapse = ", "))
+harm <- attr(raw, "harmonised")
+write_out(if (is.null(harm)) data.table(variable = character(), action = character()) else harm,
+          SUB, "column_harmonisation")
+if (!is.null(harm)) log_msg("WARNING: extract differs from the expected layout; ", nrow(harm),
+                            " column(s) renamed or added (see column_harmonisation.csv)")
 essential <- c("centrum", "jaar", "leeftijd", "geslacht", "urgentie", "incl_cohort",
                "overl30d", "mort_status", "overltijd_dag")
 if (any(essential %in% missing_vars)) {

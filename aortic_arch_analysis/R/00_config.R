@@ -217,6 +217,10 @@ EXPECTED_VARS <- c(
   "incl_cohort", "klasse"
 )
 
+# Other column names used in some extracts (alternative name -> name used in this code)
+COLUMN_ALIASES <- c(centrum_anoniem = "centrum", kreatinine_gehalte = "kreatinine",
+                    aortachir_benadering = "aotachir_benadering")
+
 # Derived variables whose definitions are not in the handbook (described only)
 UNDOCUMENTED_VARS <- c("bronrij", "pathologie_groep", "s1_via_bewijs", "excl_reden",
                        "incl_cohort", "klasse", "overl120d", "klepchir_clean",

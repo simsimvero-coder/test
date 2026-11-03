@@ -17,7 +17,7 @@ flow <- data.table(step = "Records in extract", n = nrow(dv))
 excl <- dv[included == FALSE, .N, by = .(reason = fifelse(is.na(excl_reden) | trimws(as.character(excl_reden)) == "",
                                                          "(no reason recorded)", as.character(excl_reden)))]
 setorder(excl, -N)
-flow <- rbind(flow, data.table(step = paste0("  excluded upstream: ", excl$reason), n = -excl$N))
+if (nrow(excl)) flow <- rbind(flow, data.table(step = paste0("  excluded upstream: ", excl$reason), n = -excl$N))
 step <- dv[included == TRUE]
 flow <- rbind(flow, data.table(step = "Included according to incl_cohort", n = nrow(step)))
 n_out_year <- step[is.na(jaar) | !jaar %in% CONFIG$study_years, .N]
