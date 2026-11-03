@@ -181,7 +181,8 @@ CODES <- list(
 # Undocumented codes reviewed with the investigators and recoded (logged in
 # results/01_validation/codes_reviewed_recoded.csv). Format: variable = c(from = to);
 # to = NA sets the value to missing.
-REVIEWED_RECODE <- list(aorta_asc_path = c("1" = 10))   # 1 record: code 1 = aneurysm (10)
+REVIEWED_RECODE <- list(aorta_asc_path = c("1" = 10),        # 1 record: code 1 = aneurysm (10)
+                        aotachir_benadering = c("1" = 10))   # 1 record (VOLUME2 extract): code 1 = open (10)
 
 # Continuous variables: handbook ranges (outside -> NA, logged).
 # 'hard' = physically impossible / outside handbook; flagged values are kept.
