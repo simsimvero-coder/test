@@ -144,7 +144,19 @@ read_raw <- function(path, sheet = CONFIG$raw_data_sheet) {
     },
     sav = as.data.table(haven::zap_labels(haven::read_sav(path))),
     dta = as.data.table(haven::zap_labels(haven::read_dta(path))),
-    rds = as.data.table(readRDS(path)),
+    rds = , rdata = , rda = {
+      if (ext == "rds") obj <- list(data = readRDS(path)) else {
+        e <- new.env(); load(path, envir = e); obj <- mget(ls(e), envir = e)
+      }
+      obj <- obj[vapply(obj, is.data.frame, logical(1))]
+      if (!length(obj)) stop("No data frame found in ", basename(path))
+      ov <- vapply(obj, function(o) length(intersect(names(o), c(EXPECTED_VARS, names(COLUMN_ALIASES)))), numeric(1))
+      if (length(obj) > 1) message("R file contains data frames: ", paste(sprintf("%s (%d expected columns)", names(obj), ov), collapse = ", "),
+                                   " -> using '", names(obj)[which.max(ov)], "'")
+      o <- as.data.frame(obj[[which.max(ov)]])
+      o[] <- lapply(o, function(x) if (is.factor(x)) as.character(x) else if (inherits(x, c("Date", "POSIXt"))) x else { attributes(x) <- NULL; x })
+      as.data.table(o)
+    },
     stop("Unsupported file type: ", ext))
   harmonise_columns(dt)
 }
