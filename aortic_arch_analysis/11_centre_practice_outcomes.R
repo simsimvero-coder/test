@@ -193,7 +193,7 @@ if (nrow(sc) < 30) {
   # Any selective cerebral perfusion vs none: crude (logistic) and adjusted (M1 + year + centre)
   if (sc[sacp_group == "None", .N] >= 10 && sc[sacp_group != "None", .N] >= 10) {
     for (d in seq_along(imps)) imps[[d]][, scp_any := fifelse(is.na(sacp_group), NA_integer_, as.integer(sacp_group != "None"))]
-    any_rows <- rbindlist(lapply(c(names(OUTS), "stroke_any", "gi"), function(v) {
+    any_rows <- rbindlist(lapply(c(names(OUTS), "stroke_any", "gi", "d1y"), function(v) {
       if (!v %in% names(cohort)) return(NULL)
       x <- sc[!is.na(get(v))][, scp_any := as.integer(sacp_group != "None")]
       g <- summary(glm(as.formula(paste(v, "~ scp_any")), binomial, x))$coefficients["scp_any", ]
@@ -208,7 +208,52 @@ if (nrow(sc) < 30) {
                  n_adjusted = nrow(dl[[1]]))
     }))
     write_out(any_rows, SUB, "sacp_any_vs_none")
+    # survival in the first year: Kaplan-Meier and Cox (crude; adjusted + year, stratified by centre)
+    s1 <- sc[!is.na(time_d) & !is.na(status)][, `:=`(scp_any = as.integer(sacp_group != "None"),
+                                                    t1 = pmin(pmax(time_d, 0.5), 365.25), e1 = as.integer(status == 1 & time_d <= 365.25))]
+    km <- summary(survfit(Surv(t1, e1) ~ scp_any, s1), times = 365.25)
+    c0 <- summary(coxph(Surv(t1, e1) ~ scp_any, s1))
+    s1a <- s1[complete.cases(s1[, .(age, female, logit_es2, prior_cs, year_c)])]
+    c1 <- summary(coxph(as.formula(paste("Surv(t1, e1) ~ scp_any + year_c +", paste(covar_terms(COVARS_M1, specs), collapse = " + "),
+                                         "+ strata(centrum)")), s1a))
+    write_out(data.table(group = c("no SCP", "SCP"), n = as.integer(table(s1$scp_any)), survival_1y = km$surv,
+                         lower = km$lower, upper = km$upper, n_at_risk_1y = km$n.risk,
+                         hr_crude = c0$conf.int["scp_any", 1], hr_crude_lower = c0$conf.int["scp_any", 3],
+                         hr_crude_upper = c0$conf.int["scp_any", 4], p_crude = c0$coefficients["scp_any", 5],
+                         hr_adjusted = c1$conf.int["scp_any", 1], hr_adjusted_lower = c1$conf.int["scp_any", 3],
+                         hr_adjusted_upper = c1$conf.int["scp_any", 4], p_adjusted = c1$coefficients["scp_any", 5]),
+              SUB, "sacp_any_vs_none_1year_survival")
   }
 }
+
+# ---- E. Practice and outcome per patient, without centre effect in the estimate ----------------
+# Logistic regression (crude, and adjusted for the primary covariates and year); the centre is
+# used only for the confidence intervals (CR2 cluster-robust, Satterthwaite).
+log_msg("Practice vs outcome without centre effect")
+PR <- c(temp_1C = "Minimum temperature (per 1 C warmer)", deep = "Deep hypothermia <=20 C (yes vs no)",
+        arrest = "Circulatory arrest (yes vs no)", aox_30 = "Cross-clamp time (per 30 min)",
+        ca_10 = "Circulatory arrest time (per 10 min; arrest patients)")
+UIT <- intersect(c("comp_primary", "dzh", "d30", "d1y", "stroke_def", "stroke_any", "renal", "gi", "major_compl"), names(cohort))
+dp <- copy(imps[[1]])[, `:=`(temp_1C = temp_min, deep = as.integer(temp_min <= 20), arrest = circ_arrest_b, aox_30 = aox_min / 30,
+                            ca_10 = fifelse(circ_arrest_b == 1 & ca_min > 0, ca_min / 10, NA_real_))]
+cr2_or <- function(f, x, t) {
+  m <- glm(f, binomial, x)
+  r <- clubSandwich::coef_test(m, vcov = "CR2", cluster = x$centrum, test = "Satterthwaite"); r <- r[r$Coef == t, ]
+  data.table(or = exp(r$beta), lower = exp(r$beta - qt(.975, r$df_Satt) * r$SE), upper = exp(r$beta + qt(.975, r$df_Satt) * r$SE), p = r$p_Satt)
+}
+pure <- list()
+for (grp in c("All", "Acute", "Non-acute")) for (p in names(PR)) for (v in UIT) {
+  x <- dp[!is.na(get(v)) & !is.na(get(p))]
+  if (grp != "All") x <- x[urgency2 == grp]
+  x <- x[complete.cases(x[, .(age, female, logit_es2, prior_cs, year_c, centrum)])]
+  if (sum(x[[v]] == 1) < 20) next
+  u <- safe(cr2_or(as.formula(paste(v, "~", p)), x, p), paste(p, v))
+  a <- safe(cr2_or(as.formula(paste(v, "~", p, "+ year_c +", paste(covar_terms(COVARS_M1, specs), collapse = " + "))), x, p), paste(p, v))
+  if (is.null(u) || is.null(a)) next
+  pure[[length(pure) + 1]] <- data.table(group = grp, practice = PR[[p]], outcome = v, n = nrow(x), events = sum(x[[v]] == 1),
+                                         or_crude = u$or, lower_crude = u$lower, upper_crude = u$upper, p_crude = u$p,
+                                         or_adjusted = a$or, lower_adjusted = a$lower, upper_adjusted = a$upper, p_adjusted = a$p)
+}
+write_out(rbindlist(pure), SUB, "practice_outcome_without_centre_effect")
 
 log_msg("Done.")
