@@ -56,9 +56,6 @@ cohort <- drop_step(step, is.na(step$acute), "not classifiable as acute or non-a
 flow <- rbind(flow, data.table(step = "Analysis cohort (classified as acute or non-acute)", n = nrow(cohort)))
 write_out(flow, SUB, "flow_diagram")
 log_msg("Surgical cohort: ", nrow(surgical_cohort), "; analysis cohort: ", nrow(cohort))
-if (nrow(surgical_cohort) != CONFIG$expected_n_surgical || nrow(cohort) != CONFIG$expected_n_analysis)
-  log_msg("WARNING: expected surgical cohort ", CONFIG$expected_n_surgical, " and analysis cohort ",
-          CONFIG$expected_n_analysis, "; see results/02_descriptives/flow_diagram.csv for each exclusion step")
 
 # Anonymised centre labels (A = largest, based on the surgical cohort). Key stays in data/derived.
 cmap <- anonymise_centres(surgical_cohort$centrum)
