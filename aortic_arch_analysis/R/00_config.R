@@ -170,6 +170,8 @@ CODES <- list(
   # 1 = vascular complication, severity unknown (older registrations; reviewed):
   #     counts as missing for 'major vascular complication'
   vasc_compl_opname     = c(0, 1, 10, 20, -1),
+  # cerebral perfusion (recorded for acute surgery 2018-2021 in some extracts; optional)
+  cerebrale_perfusie_aanv = c(0, 10, 11, 12, 13, 20, 90, -1),
   mort_status           = BIN,
   overl30d              = BIN,
   overl120d             = BIN,
@@ -197,6 +199,7 @@ RANGES <- list(
   ECC_duur         = c(0, 1000),
   AoX_duur         = c(0, 600),
   circ_arrest_duur = c(0, 300),   # handbook max 150; 150-300 kept but flagged
+  cerebrale_perfusie_duur = c(0, 600),
   opnameduur       = c(0, 365),
   overltijd_dag    = c(0, 20 * 366)
 )

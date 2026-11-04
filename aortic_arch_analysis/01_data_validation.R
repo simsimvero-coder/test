@@ -237,6 +237,22 @@ dv[is.na(aorta_desc), desc_inv := NA_integer_]
 dv[is.na(aotachir_benadering), hybrid_fet := NA_integer_]
 dv[is.na(chir_benadering), sternotomy := NA_integer_]
 dv[is.na(ECC), ecc_any := NA_integer_]
+# Selective cerebral perfusion (optional columns; absent -> missing)
+if (!"cerebrale_perfusie_aanv" %in% names(dv)) dv[, cerebrale_perfusie_aanv := NA_real_]
+if (!"cerebrale_perfusie_duur" %in% names(dv)) dv[, cerebrale_perfusie_duur := NA_real_]
+dv[, sacp_cat := factor(fcase(cerebrale_perfusie_aanv == 0, "None",
+                              cerebrale_perfusie_aanv == 10, "Antegrade, side not specified",
+                              cerebrale_perfusie_aanv %in% c(11, 12), "Antegrade unilateral",
+                              cerebrale_perfusie_aanv == 13, "Antegrade bilateral",
+                              cerebrale_perfusie_aanv == 20, "Retrograde",
+                              cerebrale_perfusie_aanv == 90, "Other"),
+                        c("Antegrade unilateral", "Antegrade bilateral", "Antegrade, side not specified",
+                          "None", "Retrograde", "Other"))]
+dv[, sacp_group := factor(fcase(cerebrale_perfusie_aanv %in% 10:13, "Antegrade",
+                                cerebrale_perfusie_aanv == 0, "None",
+                                cerebrale_perfusie_aanv %in% c(20, 90), "Retrograde/other"),
+                          c("Antegrade", "None", "Retrograde/other"))]
+dv[, sacp_min := cerebrale_perfusie_duur]
 
 # Hypothermia (Yan et al. 2013 consensus)
 dv[, hypo5 := cut(temp_min, c(-Inf, 14, 20, 24, 28, 34, Inf),
