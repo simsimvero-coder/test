@@ -228,7 +228,9 @@ if (nrow(sc) < 30) {
 
 # ---- E. Practice and outcome per patient, without centre effect in the estimate ----------------
 # Logistic regression (crude, and adjusted for the primary covariates and year); the centre is
-# used only for the confidence intervals (CR2 cluster-robust, Satterthwaite).
+# used only for the confidence intervals: cluster-robust (CR1) standard errors with a
+# t-distribution on (number of centres - 1) degrees of freedom (fast; CR2 is too slow for
+# the 270 models here).
 log_msg("Practice vs outcome without centre effect")
 PR <- c(temp_1C = "Minimum temperature (per 1 C warmer)", deep = "Deep hypothermia <=20 C (yes vs no)",
         arrest = "Circulatory arrest (yes vs no)", aox_30 = "Cross-clamp time (per 30 min)",
@@ -238,8 +240,9 @@ dp <- copy(imps[[1]])[, `:=`(temp_1C = temp_min, deep = as.integer(temp_min <= 2
                             ca_10 = fifelse(circ_arrest_b == 1 & ca_min > 0, ca_min / 10, NA_real_))]
 cr2_or <- function(f, x, t) {
   m <- glm(f, binomial, x)
-  r <- clubSandwich::coef_test(m, vcov = "CR2", cluster = x$centrum, test = "Satterthwaite"); r <- r[r$Coef == t, ]
-  data.table(or = exp(r$beta), lower = exp(r$beta - qt(.975, r$df_Satt) * r$SE), upper = exp(r$beta + qt(.975, r$df_Satt) * r$SE), p = r$p_Satt)
+  se <- sqrt(sandwich::vcovCL(m, cluster = x$centrum, type = "HC1")[t, t]); b <- coef(m)[[t]]
+  df <- uniqueN(x$centrum) - 1
+  data.table(or = exp(b), lower = exp(b - qt(.975, df) * se), upper = exp(b + qt(.975, df) * se), p = 2 * pt(-abs(b / se), df))
 }
 pure <- list()
 for (grp in c("All", "Acute", "Non-acute")) for (p in names(PR)) for (v in UIT) {
