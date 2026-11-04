@@ -32,7 +32,7 @@ log_msg <- function(...) {
 
 # Outputs of the adjusted analyses go to results/<missing_method>/<sub>;
 # descriptive and population outputs (01, 02, 03, 07) are shared.
-METHOD_SUBS <- c("04_outcomes", "05_organ_protection", "06_survival", "08_sensitivity", "11_centre_practice", "publication")
+METHOD_SUBS <- c("04_outcomes", "05_organ_protection", "06_survival", "08_sensitivity", "11_centre_practice", "13_volume_outcome", "publication")
 MISSING_METHODS <- c("imputation", "complete_case")
 res_path <- function(sub, method = CONFIG$missing_method) {
   if (sub %in% METHOD_SUBS) file.path(CONFIG$results_dir, method, sub) else file.path(CONFIG$results_dir, sub)
