@@ -99,7 +99,8 @@ stopifnot(all(verify$abs_difference < 0.002))
 d[, E_total := lam_at(seq_len(.N), t_years)]
 smr_group <- function(dd, label) cbind(group = label, smr_ci(sum(dd$status), sum(dd$E_total)), person_years = sum(dd$t_years))
 intervals <- list(c(0, 30 / 365.25, "0-30 days"), c(30 / 365.25, 1, "30 days-1 year"),
-                  c(1, 5, "1-5 years"), c(5, Inf, ">5 years"))
+                  c(1, 5, "1-5 years"), c(5, Inf, ">5 years"),
+                  c(0, 1, "0-1 year (cumulative)"), c(0, 5, "0-5 years (cumulative)"))
 smr_int <- function(dd, label) rbindlist(lapply(intervals, function(iv) {
   a <- as.numeric(iv[1]); b <- as.numeric(iv[2])
   idx <- which(dd$t_years > a)
