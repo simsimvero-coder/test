@@ -190,6 +190,25 @@ if (nrow(sc) < 30) {
              "sacp_per10 + temp_min", "^sacp_per10$|^temp_min$")
   }
   write_out(rbindlist(sacp_rows), SUB, "sacp_models")
+  # Any selective cerebral perfusion vs none: crude (logistic) and adjusted (M1 + year + centre)
+  if (sc[sacp_group == "None", .N] >= 10 && sc[sacp_group != "None", .N] >= 10) {
+    for (d in seq_along(imps)) imps[[d]][, scp_any := fifelse(is.na(sacp_group), NA_integer_, as.integer(sacp_group != "None"))]
+    any_rows <- rbindlist(lapply(c(names(OUTS), "stroke_any", "gi"), function(v) {
+      if (!v %in% names(cohort)) return(NULL)
+      x <- sc[!is.na(get(v))][, scp_any := as.integer(sacp_group != "None")]
+      g <- summary(glm(as.formula(paste(v, "~ scp_any")), binomial, x))$coefficients["scp_any", ]
+      f <- build_formula(v, c("scp_any", COVARS_M1), specs)
+      dl <- complete_for(lapply(imps, function(d) d[urgency2 == "Acute" & bronrij %in% x$bronrij]), f)
+      a <- safe(exp_table(fit_pooled(f, dl)$pooled, "scp_any"), paste("scp_any", v))
+      data.table(outcome = v, scp_events = sum(x[scp_any == 1][[v]] == 1), scp_n = sum(x$scp_any == 1),
+                 none_events = sum(x[scp_any == 0][[v]] == 1), none_n = sum(x$scp_any == 0),
+                 or_crude = exp(g[1]), lower_crude = exp(g[1] - 1.96 * g[2]), upper_crude = exp(g[1] + 1.96 * g[2]), p_crude = g[4],
+                 or_adjusted = if (is.null(a)) NA_real_ else a$ratio, lower_adjusted = if (is.null(a)) NA_real_ else a$ratio_lower,
+                 upper_adjusted = if (is.null(a)) NA_real_ else a$ratio_upper, p_adjusted = if (is.null(a)) NA_real_ else a$p,
+                 n_adjusted = nrow(dl[[1]]))
+    }))
+    write_out(any_rows, SUB, "sacp_any_vs_none")
+  }
 }
 
 log_msg("Done.")
