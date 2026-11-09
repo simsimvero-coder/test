@@ -118,7 +118,7 @@ All rows with `incl_cohort` indicating inclusion, after which the **surgical sel
 
 * included: open or hybrid arch surgery (`aotachir_benadering` 10 = open, 30 = combined open + endovascular) **with cardiopulmonary bypass** (`ECC` 10/20/30);
 * excluded: no ECC or ECC unknown; endovascular-only aortic repair (`aotachir_benadering` 20/21); percutaneous approach (`chir_benadering` 50). Registrations coded `aotachir_benadering` = 0 (no aortic surgery coded) are excluded (decision of the investigators); the number excluded is shown in the flow diagram. The code contains no target cohort size. Registrations with **unknown aortic approach are kept** when they meet all other criteria (as in the original analysis);
-* not excluded: chronic dissection (code 30) and infection (code 40). These codes exist only from handbook v22.2.0 (operations from 1 July 2022); before that the same patients were coded as aneurysm (10) or other (90). Excluding them would apply a different rule before and after mid-2022 and create an artificial drop in volume and a case-mix shift. Code 30 is therefore analysed as aneurysm and code 40 as other in all years; their numbers per year are reported (`pathology_codes_30_40_by_year`), and exclusion is a sensitivity analysis (§5.11);
+* excluded: chronic dissection (code 30) or infection (code 40) in any of `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path` (investigators' decision). These codes exist only from handbook v22.2.0 (operations from 1 July 2022); before that the same patients were coded as aneurysm (10) or other (90) and cannot be identified, so the exclusion applies in practice from mid-2022. Their numbers per year are reported (`pathology_codes_30_40_by_year`) and this is discussed as a limitation;
 * this gives the **surgical cohort**, used for the national volume (total counts, Figure 1);
 * records that cannot be classified as acute or non-acute (§4.3) are then excluded, giving the **analysis cohort**, used for all clinical analyses and for the acute and non-acute volume series.
 
@@ -133,7 +133,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 ### 4.3 Derived variables
 
-* **Pathology** (from `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`, by precedence): acute dissection (20 in any segment) > aneurysm (10) > other (90/91). Chronic dissection (30) is grouped with aneurysm and infection (40) with other (§4.1). Acute aortic dissection is a strong determinant of risk and practice.
+* **Pathology** (from `aorta_asc_path`, `aortaboog_path`, `aorta_desc_path`, by precedence): acute dissection (20 in any segment) > aneurysm (10) > other (90/91). Patients with chronic dissection (30) or infection (40) in any segment are excluded from the cohort (§4.1). Acute aortic dissection is a strong determinant of risk and practice.
 * **Calendar year**: `jaar` centred at 2018. Era: 2013–2016, 2017–2020, 2021–2024 (for description only).
 * **Urgency**: four levels (adjustment variable).
 * **Acute versus non-acute (study definition)**: **Acute**: `urgentie` 30 (emergency) or 40 (salvage), *or* acute dissection (code 20) in `aorta_asc_path`, `aortaboog_path` or `aorta_desc_path`. **Non-acute**: `urgentie` 10 (elective) or 20 (urgent) without an acute classification, *or* aneurysm (code 10) in any segment without an acute classification, also when urgency is unknown. **Not classifiable**: no acute-dissection or aneurysm code and no usable urgency code. Conflicts: acute dissection is always acute (also with `urgentie` 10/20); `urgentie` 30/40 is always acute (also with aneurysm code 10). Note that `urgentie` 20 (urgent) belongs to the non-acute group. Patients who are not classifiable are excluded from the analysis cohort (§4.1) and counted in the flow diagram. The classification is based on observed data and is not imputed.
@@ -249,7 +249,6 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 4. Excluding 2024, and excluding salvage operations.
 4b. **All temporal trends re-estimated for operations from 2015 onwards** (case mix, volume, early outcomes, failure to rescue, length of stay, organ-protection practice, Cox year effect).
 5. Alternative definitions of acute: emergency/salvage only; non-elective (`urgentie` 20/30/40).
-5a. Exclusion of patients with chronic dissection (30) or infection (40) codes (recorded from July 2022 only).
 6. Raw instead of `*_clean` versions of `klepchir`, `aortachir` and `circ_arrest`.
 7. The major complication composite extended to include prolonged ventilation and stroke without a deficit (FTR sensitivity).
 8. In-hospital death as the FTR numerator.

@@ -65,16 +65,16 @@ CONFIG <- list(
   # ---- surgical cohort selection (re-applied explicitly in 02) ----------------
   # Open or hybrid arch surgery with cardiopulmonary bypass (ECC 10/20/30);
   # excluded: endovascular-only aortic repair (aotachir_benadering 20/21),
-  # percutaneous approach (chir_benadering 50); chronic dissection (code 30) and
-  # infection (code 40) only if exclude_chronic_infection = TRUE (see below). Records with unknown aortic approach
+  # percutaneous approach (chir_benadering 50), chronic dissection (code 30) and
+  # infection (code 40) in any aortic segment (see exclude_chronic_infection below). Records with unknown aortic approach
   # are KEPT (as in the original analysis) when they meet all other criteria;
   # set keep_unknown_approach = FALSE to exclude them. Counted in the flow diagram.
   keep_unknown_approach = TRUE,
-  # Chronic dissection (30) and infection (40) only exist as pathology codes from handbook
-  # v22.2.0 (operations from 1 July 2022); before that the same patients were coded as
-  # aneurysm or other. To keep one rule for all years they are NOT excluded: code 30 is
-  # analysed as aneurysm and code 40 as other. Exclusion is a sensitivity analysis (08).
-  exclude_chronic_infection = FALSE,
+  # Chronic dissection (30) and infection (40) are excluded (investigators' decision).
+  # These codes exist only from handbook v22.2.0 (operations from 1 July 2022); before
+  # that the same patients were coded as aneurysm or other and cannot be identified.
+  # Their numbers per year are reported (pathology_codes_30_40_by_year).
+  exclude_chronic_infection = TRUE,
   # aotachir_benadering = 0 ("no aortic surgery coded"): excluded (investigators' decision).
   exclude_no_aortic_approach = TRUE,
 

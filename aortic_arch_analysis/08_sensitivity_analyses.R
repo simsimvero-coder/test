@@ -77,9 +77,11 @@ for (v in c("comp_primary", "d30", "dzh", "major_compl")) {
       pooled_or(f1, lapply(dl, function(d) d[year >= CONFIG$trend_sens_start])))
   add("Excluding 2024", v, pooled_or(f1, lapply(dl, function(d) d[year != 2024])),
       n = sum(dl[[1]]$year != 2024), events = sum(dl[[1]][year != 2024][[v]] == 1))
-  ex <- function(d) d[!(p_chronic %in% TRUE | p_infect %in% TRUE)]
-  add("Excluding chronic dissection/infection codes (30/40, recorded from July 2022)", v,
-      pooled_or(f1, lapply(dl, ex)))
+  if (!CONFIG$exclude_chronic_infection) {
+    ex <- function(d) d[!(p_chronic %in% TRUE | p_infect %in% TRUE)]
+    add("Excluding chronic dissection/infection codes (30/40, recorded from July 2022)", v,
+        pooled_or(f1, lapply(dl, ex)))
+  }
   add("Excluding salvage operations", v, pooled_or(f1, lapply(dl, function(d) d[urg4 != "Salvage"])),
       n = sum(dl[[1]]$urg4 != "Salvage"), events = sum(dl[[1]][urg4 != "Salvage"][[v]] == 1))
   # 5. acute = emergency/salvage (comparison term)

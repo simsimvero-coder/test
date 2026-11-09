@@ -36,12 +36,12 @@ if (CONFIG$exclude_no_aortic_approach)
   step <- drop_step(step, step$aotachir_benadering %in% 0, "no aortic surgery coded (aotachir_benadering 0)")
 if (!CONFIG$keep_unknown_approach)
   step <- drop_step(step, is.na(step$aotachir_benadering), "aortic surgical approach unknown")
+write_out(step[, .(n = .N, chronic_dissection_code30 = sum(p_chronic %in% TRUE), infection_code40 = sum(p_infect %in% TRUE)),
+               by = year][order(year)], SUB, "pathology_codes_30_40_by_year")
 if (CONFIG$exclude_chronic_infection) {
   step <- drop_step(step, step$p_chronic %in% TRUE, "chronic dissection (code 30) in any aortic segment")
   step <- drop_step(step, step$p_infect %in% TRUE, "infection (code 40) in any aortic segment")
 }
-write_out(step[, .(n = .N, chronic_dissection_code30 = sum(p_chronic %in% TRUE), infection_code40 = sum(p_infect %in% TRUE)),
-               by = year][order(year)], SUB, "pathology_codes_30_40_by_year")
 n_unknown_kept <- sum(is.na(step$aotachir_benadering))
 n_dup <- step[drop_duplicate == TRUE, .N]
 step <- step[drop_duplicate == FALSE]
