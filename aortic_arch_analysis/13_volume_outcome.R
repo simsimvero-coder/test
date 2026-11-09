@@ -19,7 +19,15 @@
 #      percentile; its 95% interval contains every k within 3.84 deviance units.
 #      A threshold is only reported as such if the hinge model fits better than a
 #      model without volume (likelihood-ratio test).
+#      The likelihood-ratio p-value and the profile interval treat patients as
+#      independent and k as known, so they are anti-conservative (volume varies over
+#      15 centres only). They are reported as descriptive; inference on the threshold
+#      comes from (e).
 #   d. sensitivity: random intercept for centre instead of CR2 (linear).
+#   e. centre-level cluster bootstrap of the hinge model (whole centres resampled with
+#      replacement, k re-estimated in every replicate) for in-hospital and 30-day
+#      mortality with same-group volume: percentile intervals for k and for the OR per
+#      10 operations below k, and how often the hinge beats a straight line.
 # Exploratory; 15 centres, so centre-level volume varies over few clusters.
 # Output: results/<method>/13_volume_outcome/*
 # =============================================================================
@@ -117,7 +125,9 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) for (vv in c("vol
                                   p_slope_cr2 = slope$p, lr_vs_no_volume = lr,
                                   p_lr_vs_no_volume = pchisq(lr, 2, lower.tail = FALSE),   # 2 df: slope + estimated threshold
                                   lr_vs_linear = deviance(m_lin) - min(dev),
-                                  threshold_supported = pchisq(lr, 2, lower.tail = FALSE) < 0.05 & slope$or < 1)
+                                  threshold_at_grid_edge = kbest %in% range(ks),
+                                  threshold_supported = pchisq(lr, 2, lower.tail = FALSE) < 0.05 & slope$or < 1 &
+                                    !(kbest %in% range(ks)) & (deviance(m_lin) - min(dev)) > 3.84)
 }
 write_out(rbindlist(desc), SUB, "mortality_by_volume_band")
 write_out(rbindlist(lin), SUB, "volume_linear_models")
@@ -134,4 +144,46 @@ if (nrow(cv)) {
          title = "Volume-outcome relation (restricted cubic spline)") + theme_pub()
   save_fig(p, SUB, "volume_outcome_curves", 9, 8)
 }
+# ---- e. cluster bootstrap of the threshold (centres resampled) ---------------------------------
+B <- as.integer(Sys.getenv("ARCH_VOLUME_BOOT", "200"))
+set.seed(CONFIG$seed)
+hinge_fit <- function(y, X, vol, ks) {
+  dev <- vapply(ks, function(k) suppressWarnings(glm.fit(cbind(X, pmin(vol, k)), y, family = binomial()))$deviance, numeric(1))
+  i <- which.min(dev)
+  fh <- suppressWarnings(glm.fit(cbind(X, pmin(vol, ks[i])), y, family = binomial()))
+  dl <- suppressWarnings(glm.fit(cbind(X, vol), y, family = binomial()))$deviance
+  c(k = ks[i], or10 = exp(10 * tail(fh$coefficients, 1)), lr_vs_linear = dl - dev[i], edge = as.numeric(i %in% c(1, length(ks))))
+}
+boot <- list(); boot_reps <- list()
+for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) for (v in c("dzh", "d30")) {
+  per <- PERIODS[[pn]]
+  d <- d0[urgency2 == gr & year >= per[1] & year <= per[2] & !is.na(get(v))]
+  d <- d[complete.cases(d[, .(age, female, logit_es2, prior_cs, year_c, centrum)])]
+  if (sum(d[[v]] == 1) < 30) next
+  log_msg("  bootstrap ", gr, " / ", pn, " / ", v, " (", B, " replicates)")
+  X <- model.matrix(as.formula(paste("~", rhs)), d); y <- d[[v]]; vol <- d$vol_group
+  ks <- unique(round(quantile(vol, seq(.10, .90, by = .02))))
+  est <- hinge_fit(y, X, vol, ks)
+  idx <- split(seq_len(nrow(d)), as.character(d$centrum))
+  reps <- t(vapply(seq_len(B), function(b) {
+    rows <- unlist(idx[sample(names(idx), length(idx), replace = TRUE)], use.names = FALSE)
+    out <- tryCatch(hinge_fit(y[rows], X[rows, , drop = FALSE], vol[rows], ks), error = function(e) rep(NA_real_, 4))
+    out
+  }, numeric(4)))
+  colnames(reps) <- c("k", "or10", "lr_vs_linear", "edge")
+  ok <- stats::complete.cases(reps) & is.finite(reps[, "or10"])
+  r <- reps[ok, , drop = FALSE]
+  boot_reps[[length(boot_reps) + 1]] <- data.table(group = gr, period = pn, outcome = v, r)
+  boot[[length(boot) + 1]] <- data.table(group = gr, period = pn, volume = "same-group volume", outcome = v,
+    n = nrow(d), events = sum(y == 1), centres = length(idx), replicates_ok = nrow(r),
+    threshold = est[["k"]], threshold_boot_low = quantile(r[, "k"], .025), threshold_boot_high = quantile(r[, "k"], .975),
+    or_per_10_below_threshold = est[["or10"]],
+    or_boot_low = quantile(r[, "or10"], .025), or_boot_high = quantile(r[, "or10"], .975),
+    share_reps_or_below_1 = mean(r[, "or10"] < 1),
+    share_reps_threshold_at_grid_edge = mean(r[, "edge"] == 1),
+    share_reps_hinge_better_than_linear = mean(r[, "lr_vs_linear"] > 3.84 & r[, "edge"] == 0))
+}
+write_out(rbindlist(boot), SUB, "volume_threshold_bootstrap")
+write_out(rbindlist(boot_reps), SUB, "volume_threshold_bootstrap_replicates")
+
 log_msg("Done.")

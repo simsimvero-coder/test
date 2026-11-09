@@ -189,8 +189,8 @@ dv[, path5 := fcase(p_acute, "Acute dissection",
                     p_other, "Other",
                     !is.na(p_acute), "None recorded",
                     default = NA_character_)]
-# Chronic dissection and infection are excluded from the analysis cohort (02);
-# within the cohort, path3 is therefore aneurysm / acute dissection / other.
+# path3: chronic dissection (code 30, from July 2022) is grouped with aneurysm and
+# infection (code 40) with other, so the categories are comparable over all years.
 dv[, path3 := factor(fcase(path5 == "Acute dissection", "Acute dissection",
                            path5 %in% c("Aneurysm", "Chronic dissection"), "Aneurysm",
                            path5 %in% c("Infection", "Other", "None recorded"), "Other"),

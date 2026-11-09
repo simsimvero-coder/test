@@ -76,6 +76,9 @@ toon("15c. Volume-uitkomst: spline", mm("13_volume_outcome", "volume_spline_test
 toon("15d. Volume-uitkomst: drempel", mm("13_volume_outcome", "volume_threshold_models.csv"),
      c("group", "period", "volume", "outcome", "threshold", "threshold_ci_low", "threshold_ci_high",
        "or_per_10_below_threshold", "lower", "upper", "p_lr_vs_no_volume", "threshold_supported"))
+toon("15e. Volume-uitkomst: drempel, cluster-bootstrap (centra)", mm("13_volume_outcome", "volume_threshold_bootstrap.csv"),
+     c("group", "period", "outcome", "threshold", "threshold_boot_low", "threshold_boot_high",
+       "or_per_10_below_threshold", "or_boot_low", "or_boot_high", "share_reps_hinge_better_than_linear"))
 
 sink()
 message("\nOverzicht ook opgeslagen in: ", out_file)
