@@ -42,10 +42,10 @@ write_out(sv[status == 0, .(n_alive = .N, median_fu_years = as.numeric(median(t_
 
 # ---- 2. Kaplan-Meier --------------------------------------------------------------------------
 km_fits <- list(
-  overall = survfit(Surv(t_days, status) ~ 1, data = sv),
-  urgency = survfit(Surv(t_days, status) ~ urgency2, data = sv),
-  pathology = survfit(Surv(t_days, status) ~ path3, data = sv),
-  era = survfit(Surv(t_days, status) ~ era, data = sv))
+  overall = survfit(Surv(t_days, status) ~ 1, data = sv, conf.type = "log-log"),
+  urgency = survfit(Surv(t_days, status) ~ urgency2, data = sv, conf.type = "log-log"),
+  pathology = survfit(Surv(t_days, status) ~ path3, data = sv, conf.type = "log-log"),
+  era = survfit(Surv(t_days, status) ~ era, data = sv, conf.type = "log-log"))
 km_tab <- rbindlist(lapply(names(km_fits), function(n) cbind(analysis = n, km_at(km_fits[[n]], TIMES))))
 km_tab[, time_label := c("30 days", "1 year", "3 years", "5 years", "10 years")[match(round(time, 2), round(TIMES, 2))]]
 write_out(km_tab, SUB, "km_survival_estimates")
@@ -56,10 +56,11 @@ lr <- rbindlist(lapply(c("urgency2", "path3", "era"), function(v) {
 write_out(lr, SUB, "logrank_tests")
 # 1-year mortality by operation year (KM; handles censoring)
 km1 <- rbindlist(lapply(sort(unique(sv$year)), function(y) {
-  s <- summary(survfit(Surv(t_days, status) ~ 1, data = sv[year == y]), times = 365.25, extend = TRUE)
+  s <- summary(survfit(Surv(t_days, status) ~ 1, data = sv[year == y], conf.type = "log-log"), times = 365.25, extend = TRUE)
   data.table(year = y, n = nrow(sv[year == y]), mortality_1y = 1 - s$surv, lower = 1 - s$upper, upper = 1 - s$lower,
              n_risk_1y = s$n.risk)
 }))
+km1[n_risk_1y < KM_MIN_RISK, `:=`(mortality_1y = NA_real_, lower = NA_real_, upper = NA_real_)]
 write_out(km1, SUB, "one_year_mortality_by_year_km")
 
 # Plot data: curves on a grid with risk tables
@@ -143,7 +144,7 @@ write_out(cox_pw[grepl("interval", term)], SUB, "cox_piecewise_hazard_ratios")
 
 # ---- 6. RMST -----------------------------------------------------------------------------------
 rmst <- rbindlist(lapply(CONFIG$rmst_tau_years, function(tau) {
-  sf <- survfit(Surv(t_years, status) ~ urgency2, data = sv)
+  sf <- survfit(Surv(t_years, status) ~ urgency2, data = sv, conf.type = "log-log")
   max_fu <- sv[, .(m = max(t_years)), by = urgency2]
   if (any(max_fu$m < tau)) return(data.table(tau_years = tau, note = "tau exceeds follow-up in a group"))
   r <- rmst_by(sf, tau)
@@ -160,9 +161,9 @@ lm_prep <- function(d) d[t_days > LM][, `:=`(t_lm = (t_days - LM) / 365.25)]
 lm_d <- lm_prep(sv)
 write_out(data.table(item = c("alive and in follow-up beyond day 30", "deaths after day 30", "excluded (died or censored <= 30 d)"),
                      n = c(nrow(lm_d), sum(lm_d$status), nrow(sv) - nrow(lm_d))), SUB, "landmark_population")
-lm_fits <- list(urgency = survfit(Surv(t_lm * 365.25, status) ~ urgency2, data = lm_d),
-                pathology = survfit(Surv(t_lm * 365.25, status) ~ path3, data = lm_d),
-                era = survfit(Surv(t_lm * 365.25, status) ~ era, data = lm_d))
+lm_fits <- list(urgency = survfit(Surv(t_lm * 365.25, status) ~ urgency2, data = lm_d, conf.type = "log-log"),
+                pathology = survfit(Surv(t_lm * 365.25, status) ~ path3, data = lm_d, conf.type = "log-log"),
+                era = survfit(Surv(t_lm * 365.25, status) ~ era, data = lm_d, conf.type = "log-log"))
 lm_tab <- rbindlist(lapply(names(lm_fits), function(n) cbind(analysis = n, km_at(lm_fits[[n]], c(365.25, 5 * 365.25, 10 * 365.25)))))
 write_out(lm_tab, SUB, "landmark30_km_estimates")
 imps_lm <- lapply(imps_s, lm_prep)
@@ -180,7 +181,7 @@ cond <- rbindlist(lapply(s_vals, function(s) {
   rbindlist(lapply(c("All", levels(sv$urgency2)), function(g) {
     d <- sv[t_days > s & (g == "All" | urgency2 == g)]
     if (nrow(d) < 20) return(NULL)
-    sf <- survfit(Surv(t_days - s, status) ~ 1, data = d)
+    sf <- survfit(Surv(t_days - s, status) ~ 1, data = d, conf.type = "log-log")
     r <- km_at(sf, c(365.25, 5 * 365.25))
     data.table(survived_days = s, group = g, n_at_s = nrow(d), additional_years = c(1, 5),
                cond_surv = r$surv, lower = r$lower, upper = r$upper, n_risk = r$n_risk)

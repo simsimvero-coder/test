@@ -119,7 +119,7 @@ add(paste("Primary composite with", alt), "comp_primary",
 
 # 9. Failure to rescue with the extended complication definition (in-hospital death)
 dl <- lapply(imps, function(d) d[major_compl_ext == 1 & !is.na(dzh)])
-f_ftr <- build_formula("dzh", c(COVARS_M1, "n_compl_new"), specs)
+f_ftr <- build_formula("dzh", c(COVARS_M1, "n_compl_ext"), specs)
 add("FTR: extended complication set (broader set + ventilation >24 h, stroke without deficit)", "ftr_dzh",
     pooled_or(f_ftr, dl))
 

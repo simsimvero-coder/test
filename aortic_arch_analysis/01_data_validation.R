@@ -304,6 +304,7 @@ MAJOR_NEW <- c("stroke_def", "renal", "reintub", "gi", "vasc_major")
 dv[, major_compl_new := composite(MAJOR_NEW)]
 dv[, n_compl_new := rowSums(as.matrix(.SD) == 1, na.rm = TRUE), .SDcols = MAJOR_NEW]
 dv[, major_compl_ext := composite(c(MAJOR_NEW, "vent24", "stroke_nodef"))]
+dv[, n_compl_ext := rowSums(as.matrix(.SD) == 1, na.rm = TRUE), .SDcols = c(MAJOR_NEW, "vent24", "stroke_nodef")]
 
 # 1-year mortality: binary only when follow-up >= 365 days or death within 365 days
 dv[, d1y := fifelse(!is.na(time_d) & !is.na(status),

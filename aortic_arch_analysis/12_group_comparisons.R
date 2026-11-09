@@ -26,8 +26,8 @@ coh <- cohort[!is.na(urgency2)]
 coh[, period := factor(fifelse(year <= 2018, "2013-2018", "2019-2024"), c("2013-2018", "2019-2024"))]
 coh[, hypo3 := factor(fcase(temp_min <= 20, "Deep (<=20 C)", temp_min <= 28, "Moderate (20.1-28 C)",
                             temp_min > 28, "Above 28 C"), c("Deep (<=20 C)", "Moderate (20.1-28 C)", "Above 28 C"))]
-coh[circ_arrest_b != 1, ca_min := NA]
-coh[, discharge_free := fifelse(dzh == 0 & major_compl == 0, 1L, fifelse(is.na(dzh) | is.na(major_compl), NA_integer_, 0L))]
+coh[!(circ_arrest_b %in% 1), ca_min := NA]
+coh[, discharge_free := fcase(dzh %in% 1 | major_compl %in% 1, 0L, dzh %in% 0 & major_compl %in% 0, 1L, default = NA_integer_)]
 fmt_p <- function(p) ifelse(is.na(p), "", ifelse(p < 0.001, "<0.001", sprintf("%.3f", p)))
 
 # ---- generic two-group comparison table ---------------------------------------------------

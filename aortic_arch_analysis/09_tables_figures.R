@@ -31,9 +31,9 @@ t1 <- rd("02_descriptives", "table1_baseline_by_urgency")
 setnames(t1, c("characteristic", "Overall", "Non-acute", "Acute", "missing", "smd"),
          c("Characteristic", "Overall", "Non-acute", "Acute", "Missing (n)", "SMD"), skip_absent = TRUE)
 write_out(t1, SUB, "Table1_baseline_characteristics")
-chk("Table 1 N (overall) + not classifiable = cohort size",
-    as.integer(t1$Overall[1]) + sum(is.na(cohort$urgency2)) == nrow(cohort),
-    sprintf("%s + %d vs %d", t1$Overall[1], sum(is.na(cohort$urgency2)), nrow(cohort)))
+chk("Table 1 N (overall) = analysis cohort size",
+    as.integer(t1$Overall[1]) == nrow(cohort),
+    sprintf("%s vs %d", t1$Overall[1], nrow(cohort)))
 
 # Table 2
 t2 <- copy(organ$t2)
@@ -312,7 +312,7 @@ report <- c(
           flow[step == "Records in extract", n], nrow(surg), nrow(cohort), uniqueN(cohort$centrum),
           min(cohort$year), max(cohort$year)),
   sprintf("* Acute (study definition): %d (%.1f%% of classifiable); not classifiable: %d; acute aortic dissection: %d (%.1f%%).",
-          sum(cohort$acute == 1, na.rm = TRUE), 100 * mean(cohort$acute, na.rm = TRUE), sum(is.na(cohort$acute)),
+          sum(cohort$acute == 1, na.rm = TRUE), 100 * mean(cohort$acute, na.rm = TRUE), nrow(surg) - nrow(cohort),
           sum(cohort$acute_dissection == 1, na.rm = TRUE), 100 * mean(cohort$acute_dissection, na.rm = TRUE)),
   "", "## Volume", "",
   sprintf("* %s: %s model; IRR per year %s (%s), i.e. %+.1f%% per year; non-linearity p = %s.",

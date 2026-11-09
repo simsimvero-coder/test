@@ -196,6 +196,7 @@ if (nrow(sc) < 30) {
     any_rows <- rbindlist(lapply(c(names(OUTS), "stroke_any", "gi", "d1y"), function(v) {
       if (!v %in% names(cohort)) return(NULL)
       x <- sc[!is.na(get(v))][, scp_any := as.integer(sacp_group != "None")]
+      if (v == "d1y") x <- x[year <= CONFIG$d1y_last_year]
       g <- summary(glm(as.formula(paste(v, "~ scp_any")), binomial, x))$coefficients["scp_any", ]
       f <- build_formula(v, c("scp_any", COVARS_M1), specs)
       dl <- complete_for(lapply(imps, function(d) d[urgency2 == "Acute" & bronrij %in% x$bronrij]), f)
@@ -211,7 +212,7 @@ if (nrow(sc) < 30) {
     # survival in the first year: Kaplan-Meier and Cox (crude; adjusted + year, stratified by centre)
     s1 <- sc[!is.na(time_d) & !is.na(status)][, `:=`(scp_any = as.integer(sacp_group != "None"),
                                                     t1 = pmin(pmax(time_d, 0.5), 365.25), e1 = as.integer(status == 1 & time_d <= 365.25))]
-    km <- summary(survfit(Surv(t1, e1) ~ scp_any, s1), times = 365.25)
+    km <- summary(survfit(Surv(t1, e1) ~ scp_any, s1, conf.type = "log-log"), times = 365.25)
     c0 <- summary(coxph(Surv(t1, e1) ~ scp_any, s1))
     s1a <- s1[complete.cases(s1[, .(age, female, logit_es2, prior_cs, year_c)])]
     c1 <- summary(coxph(as.formula(paste("Surv(t1, e1) ~ scp_any + year_c +", paste(covar_terms(COVARS_M1, specs), collapse = " + "),
@@ -238,7 +239,7 @@ PR <- c(temp_1C = "Minimum temperature (per 1 C warmer)", deep = "Deep hypotherm
 UIT <- intersect(c("comp_primary", "dzh", "d30", "d1y", "stroke_def", "stroke_any", "renal", "gi", "major_compl"), names(cohort))
 dp <- copy(imps[[1]])[, `:=`(temp_1C = temp_min, deep = as.integer(temp_min <= 20), arrest = circ_arrest_b, aox_30 = aox_min / 30,
                             ca_10 = fifelse(circ_arrest_b == 1 & ca_min > 0, ca_min / 10, NA_real_))]
-cr2_or <- function(f, x, t) {
+cr1_or <- function(f, x, t) {
   m <- glm(f, binomial, x)
   se <- sqrt(sandwich::vcovCL(m, cluster = x$centrum, type = "HC1")[t, t]); b <- coef(m)[[t]]
   df <- uniqueN(x$centrum) - 1
@@ -247,11 +248,12 @@ cr2_or <- function(f, x, t) {
 pure <- list()
 for (grp in c("All", "Acute", "Non-acute")) for (p in names(PR)) for (v in UIT) {
   x <- dp[!is.na(get(v)) & !is.na(get(p))]
+  if (v == "d1y") x <- x[year <= CONFIG$d1y_last_year]
   if (grp != "All") x <- x[urgency2 == grp]
   x <- x[complete.cases(x[, .(age, female, logit_es2, prior_cs, year_c, centrum)])]
   if (sum(x[[v]] == 1) < 20) next
-  u <- safe(cr2_or(as.formula(paste(v, "~", p)), x, p), paste(p, v))
-  a <- safe(cr2_or(as.formula(paste(v, "~", p, "+ year_c +", paste(covar_terms(COVARS_M1, specs), collapse = " + "))), x, p), paste(p, v))
+  u <- safe(cr1_or(as.formula(paste(v, "~", p)), x, p), paste(p, v))
+  a <- safe(cr1_or(as.formula(paste(v, "~", p, "+ year_c +", paste(covar_terms(COVARS_M1, specs), collapse = " + "))), x, p), paste(p, v))
   if (is.null(u) || is.null(a)) next
   pure[[length(pure) + 1]] <- data.table(group = grp, practice = PR[[p]], outcome = v, n = nrow(x), events = sum(x[[v]] == 1),
                                          or_crude = u$or, lower_crude = u$lower, upper_crude = u$upper, p_crude = u$p,

@@ -4,18 +4,20 @@
 # Run after run_all.R, from the project folder:   source("toon_resultaten.R")
 # =============================================================================
 
-M <- Sys.getenv("ARCH_MISSING", "complete_case")
+M <- Sys.getenv("ARCH_TOON_METHOD", "complete_case")
 options(width = 250)
-out_file <- file.path("results", "overzicht_resultaten.txt")
+RES <- Sys.getenv("ARCH_RESULTS", "results")
+out_file <- file.path(RES, "overzicht_resultaten.txt")
 toon <- function(titel, f, kol = NULL, rij = NULL) {
-  pad <- file.path("results", f)
+  pad <- file.path(RES, f)
   cat("\n\n==== ", titel, " ====\n", sep = "")
   if (!file.exists(pad)) { cat("(niet beschikbaar: ", f, ")\n", sep = ""); return(invisible()) }
   x <- read.csv(pad, check.names = FALSE)
   if (!is.null(rij)) x <- x[eval(rij, x), , drop = FALSE]
   if (!is.null(kol)) x <- x[, intersect(kol, names(x)), drop = FALSE]
   num <- vapply(x, is.numeric, logical(1))
-  x[num] <- lapply(x[num], function(z) signif(z, 3))
+  rnd <- num & vapply(x, function(z) is.numeric(z) && any(abs(z - round(z)) > 1e-9, na.rm = TRUE), logical(1))
+  x[rnd] <- lapply(x[rnd], function(z) signif(z, 3))
   print(x, right = FALSE, row.names = FALSE)
 }
 mm <- function(sub, f) file.path(M, sub, f)
