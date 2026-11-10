@@ -22,8 +22,8 @@ toon <- function(titel, f, kol = NULL, rij = NULL) {
 }
 mm <- function(sub, f) file.path(M, sub, f)
 
+while (sink.number() > 0) sink()
 sink(out_file, split = TRUE)
-on.exit(while (sink.number() > 0) sink(), add = TRUE)
 cat("Overzicht resultaten -", format(Sys.time()), "- methode:", M, "\n")
 
 toon("1. Cohort (flowchart)", "02_descriptives/flow_diagram.csv")
