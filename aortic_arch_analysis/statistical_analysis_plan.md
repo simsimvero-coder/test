@@ -55,7 +55,7 @@
 | A4 | **`*_clean` versions** of `klepchir`, `aortachir` and `circ_arrest`; the cleaning rules are unknown. | The cleaned versions are used for the primary analysis, raw versus cleaned values are cross-tabulated, and the raw versions are used in a sensitivity analysis. |
 | A5 | **`pathologie_groep` and `klasse`** are derived variables whose definitions are unknown. `klasse` may encode arch extent (hemiarch or total arch), but this is unverified. | A pathology group is derived independently from the segment pathology codes (§4.3) and cross-tabulated against `pathologie_groep`. `klasse` is described only and is not used in any model. |
 | A6 | **The definition of "acute"** is not in the handbook. | Study definition provided by the investigators (§4.3). Alternatives in sensitivity analyses: emergency/salvage only (`urgentie` 30/40), and non-elective (`urgentie` 20/30/40). Urgency is also reported in four levels. |
-| A7 | **Changes to the handbook over time.** Version 22.2.0 (operations from 1 July 2022) added `ECMO_opname`, `postop_MI` (replacing "perioperative MI", which had a different definition) and `delier`, and split the pathology codes (chronic dissection 30 and infection 40 were added; "other" moved from 90 to 91). | Each variable's missingness is computed by year. Variables that are structurally missing in earlier years are analysed only for the years in which they were recorded, and **are not tested for trends across the definitional break**. Aneurysm and chronic dissection are combined to keep pathology comparable over time. |
+| A7 | **Changes to the handbook over time.** Version 22.2.0 (operations from 1 July 2022) added `ECMO_opname`, `postop_MI` (replacing "perioperative MI", which had a different definition) and `delier`, and split the pathology codes (chronic dissection 30 and infection 40 were added; "other" moved from 90 to 91). | Each variable's missingness is computed by year. Variables that are structurally missing in earlier years are analysed only for the years in which they were recorded, and **are not tested for trends across the definitional break**. Chronic dissection (30) and infection (40) are excluded (§4.1); because these codes exist only from mid-2022, this exclusion applies in practice from then on. |
 | A8 | **`circ_arrest_duur`** is defined as "minutes of DHCA", while `circ_arrest` explicitly includes arrest with antegrade cerebral perfusion. It is unclear whether the duration includes periods of cerebral perfusion. | Duration is reported only among patients with arrest, and the definitional uncertainty is noted. |
 | A9 | **`eGFR`**: the estimating formula is unknown. `kreatinine` is the last preoperative creatinine in µmol/L (missing by design when the patient is on dialysis). | `eGFR` is used as provided. The extract has no dialysis indicator, so patients on dialysis cannot be identified. |
 | A10 | **Censoring date.** Without the status date, the date of administrative censoring is unknown, so loss to follow-up cannot be distinguished from administrative censoring. | Median follow-up is estimated with the reverse Kaplan–Meier method. Follow-up times of patients alive at last contact are shown by operation year to reveal incomplete follow-up. |
@@ -152,7 +152,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 ### 5.2 National volume (Q2)
 
-* Annual counts overall, acute and non-acute. Rates per million inhabitants use CBS population figures supplied in `data/external/population_nl.csv` (CBS servers are not reachable from the analysis environment).
+* Annual counts overall, acute and non-acute. Rates per million inhabitants use CBS population figures supplied in `data/external/cbs_03759ned/` (CBS StatLine 03759ned) (CBS servers are not reachable from the analysis environment).
 * Poisson GLM: count ~ year + offset(log population). Overdispersion is assessed with the Pearson χ²/df statistic and a likelihood ratio test of the negative binomial against the Poisson model (boundary-corrected p-value). The negative binomial model is used if overdispersion is present.
 * Non-linearity: linear trend versus a natural spline with 2 df (with only 12 data points, more flexible models are not justified), compared by likelihood ratio test and AIC.
 * The result is reported as the incidence rate ratio (IRR) per year, that is, the annual percentage change. Whether the trend differs by urgency is tested with a year × urgency interaction.
@@ -172,13 +172,13 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 **Model set:** M0 (year + centre), M1 (primary), M2 (M1 + operative complexity), M3 (year + logit EuroSCORE II + centre).
 
-**Non-linearity in year.** The linear year effect is the prespecified primary estimand. Non-linearity is tested by a likelihood ratio test of a natural spline with 3 df against the linear term. Adjusted, standardised risks by year (g-computation over the observed cohort, using the spline model) are plotted, with 95% simulation intervals.
+**Non-linearity in year.** The linear year effect is the prespecified primary estimand. Non-linearity is tested with a restricted cubic spline in year (4 knots at fixed positions) against the linear term, by a Wald test of the non-linear coefficients (pooled D1 statistic under imputation). Adjusted, standardised risks by year (g-computation over the observed cohort, using the spline model) are plotted, with 95% simulation intervals.
 
-**Sparse events.** Events per model parameter (EPV) are computed. If EPV < 10, a reduced model (year, age, sex, urgency, pathology) is used and flagged.
+**Sparse events.** Events per model parameter (EPV) are computed. If EPV < 10, a reduced model (year, age, sex, logit EuroSCORE II) is used and flagged.
 
 **Trends per group (Q5).** For every outcome (primary composite, in-hospital and 30-day mortality, major complication, FTR, each individual complication; 1-year mortality up to 2023), the adjusted OR per year is estimated separately in the acute and the non-acute group, from 2013 and from 2015 (four estimates per outcome; Table 4). The centre fixed-effects model with CR2 inference is repeated per group and start year for the main endpoints.
 
-**Acute versus non-acute (Q5).** The adjusted OR for acute versus non-acute (primary: adjusted for age, sex, eGFR, LVEF, previous cardiac surgery and endocarditis, without pathology because pathology is part of the definition; secondary: also adjusted for pathology). An acute × year interaction tests whether the trends differ, and stratified models are also fitted.
+**Acute versus non-acute (Q5).** The adjusted OR for acute versus non-acute (adjusted for the primary covariates M1 and year; because EuroSCORE II contains an urgency weight, this estimate is conservative, and a model with age, sex and redo without EuroSCORE II is reported as sensitivity analysis). An acute × year interaction tests whether the trends differ, and stratified models are also fitted.
 
 **Centre variation (Q7).** The random intercept SD with a profile-likelihood 95% CI, the latent-scale ICC (σ²/(σ² + π²/3)) and the median odds ratio. Caterpillar plots of the centre conditional modes, and funnel plots of the observed/expected ratio against the expected number of events, where the expected count comes from M1 fixed effects without the centre effect. Centres are **anonymised (A–O)** in every output.
 
@@ -198,7 +198,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 * Hypothermia category: a cumulative-logit (proportional odds) mixed model (`ordinal::clmm`) with a centre random intercept. The proportional odds assumption is checked with `nominal_test` on the corresponding fixed-effects `clm`.
 * Arrest use: a mixed logistic model. Arrest duration among patients with arrest: a linear mixed model of log(duration).
 * **Within- versus between-centre change**: a centre fixed-effects model (year + centre dummies) estimates the pure within-centre trend, with CR2 cluster-robust inference and Satterthwaite df, which is appropriate for 15 clusters. Centre-specific slopes (BLUPs) are plotted.
-* Each practice model is reported unadjusted and adjusted for case mix (age, sex, urgency, pathology, descending aorta involvement, hybrid repair).
+* Each practice model is reported unadjusted and adjusted for case mix (the primary covariates M1: age, sex, logit EuroSCORE II, redo).
 
 ### 5.6 Long-term survival (Q9)
 
@@ -213,7 +213,7 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 ### 5.7 Population-referenced survival (Q10)
 
-* Requires a Dutch life table by sex, single year of age and calendar year (CBS StatLine 37360ned, death probability `qx`), supplied as `data/external/lifetable_nl.csv`. If the file is absent, this module documents the gap and stops without producing estimates.
+* Requires a Dutch life table by sex, single year of age and calendar year (CBS StatLine 37360ned, death probability `qx`), supplied in `data/external/cbs_37360ned/`. If the file is absent, this module documents the gap and stops without producing estimates.
 * Expected hazard: h*(t) = −log(1 − q<sub>sex, age(t), year(t)</sub>), with attained age(t) = `leeftijd` + 0.5 + t/365.25 and calendar year(t) = `jaar` + 0.5 + t/365.25 (because there are no dates). Ages above the table maximum use the highest age group. Years beyond the table use the last available year (documented).
 * **Ederer II** relative survival in intervals (monthly in year 1, yearly to year 10), with observed survival from the actuarial life-table method and expected survival averaged over the patients at risk at the start of each interval. **Pohar-Perme** net survival is a sensitivity analysis, because Ederer II does not estimate net survival when excess hazard varies with age.
 * **SMR** = observed deaths / expected deaths over follow-up, with exact Poisson CIs, overall and by follow-up interval (0–30 days, 30 days–1 year, 1–5 years, > 5 years), urgency, sex, age group and era.
@@ -265,4 +265,4 @@ Each excluded row is counted, by `excl_reden` for the upstream exclusions and by
 
 ## 6. Software and reproducibility
 
-R (version recorded in `results/session_info.txt`); packages `lme4`, `survival`, `mice`, `ordinal`, `clubSandwich`, `sandwich`, `data.table`, `ggplot2`, `patchwork`, `writexl`. A fixed random seed. `run_all.R` runs scripts 01–09 in order from a clean session. Raw data are read-only, and derived data are written to `data/derived/` (excluded from version control).
+R (version recorded in `results/session_info.txt`); packages `lme4`, `survival`, `mice`, `ordinal`, `clubSandwich`, `sandwich`, `data.table`, `ggplot2`, `patchwork`, `writexl`. A fixed random seed. `run_all.R` runs all scripts (00–09 and 11–13) in order, each in a clean R session, and stops at the first error. Raw data are read-only, and derived data are written to `data/derived/` (excluded from version control).

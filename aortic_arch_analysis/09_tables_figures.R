@@ -283,7 +283,7 @@ if (has("04_outcomes", "primary_model_binned_residuals")) {
   pb <- ggplot(br, aes(mean_fitted, mean_resid)) + geom_hline(yintercept = 0) +
     geom_line(aes(y = se), linetype = 2, colour = "grey50") + geom_line(aes(y = -se), linetype = 2, colour = "grey50") +
     geom_point(colour = PAL[1]) + labs(x = "Mean fitted probability (bin)", y = "Mean residual",
-                                       title = "Binned residuals, primary model (30-day mortality)") + theme_pub()
+                                       title = "Binned residuals, primary model (primary composite)") + theme_pub()
   save_fig(pb, SUB, "FigureS4_binned_residuals", 6, 4)
 }
 

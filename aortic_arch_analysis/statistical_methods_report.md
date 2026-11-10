@@ -60,13 +60,13 @@ With 15 centres, the centre variance is estimated imprecisely. It is therefore r
 
 * A **restricted cubic spline** for year (4 knots fixed in advance at 2014, 2017, 2020 and 2023) is compared with the linear term using a **pooled multivariate Wald test** (the D1 statistic of Li, Raghunathan and Rubin, 1991) on the two non-linear coefficients. Fixing the knots in advance avoids searching for the best-fitting shape.
 * **Standardised risks by year** use g-computation: for each year, every patient's predicted risk is computed with year set to that value (keeping their own covariates and centre), and the predictions are averaged. Intervals come from simulating the fixed effects from their sampling distribution in each imputed dataset and pooling the draws. Centre effects are held at their conditional modes, which slightly understates uncertainty.
-* **Multiplicity.** The primary endpoint is not adjusted. The nine secondary year trends are Holm-adjusted (family-wise error control), and exploratory analyses (interactions, subgroup trends) are BH-adjusted (false discovery rate). Interpretation focuses on effect sizes and CIs.
+* **Multiplicity.** The primary endpoint is not adjusted. The secondary year trends (30-day, in-hospital and 1-year mortality, stroke with and without deficit, renal failure, gastrointestinal complication, prolonged ventilation, reintubation, ICU readmission, major complication) are Holm-adjusted (family-wise error control), and exploratory analyses (interactions, subgroup trends) are BH-adjusted (false discovery rate). Interpretation focuses on effect sizes and CIs.
 
 ### 3.4 Sparse events
 
 **Events per parameter (EPV)** is computed for each outcome.
 
-* EPV < 10: a prespecified reduced model is used (year, age, sex, urgency, pathology).
+* EPV < 10: a prespecified reduced model is used (year, age, sex, logit EuroSCORE II).
 * EPV still < 5 after reduction: descriptive results only.
 
 The number of centres with zero events is reported for each outcome. Outcomes recorded only from mid-2022 (ECMO, postoperative MI, delirium) are expected to fall into these categories.
@@ -143,7 +143,7 @@ A linear mixed model of log(LOS) among patients discharged alive gives ratios of
 * **Depth of hypothermia**: a cumulative-logit (proportional odds) mixed model with a centre random intercept (`ordinal::clmm`). The proportional odds assumption is tested with `nominal_test` on the fixed-effects model. If it fails, the binary model for deep hypothermia (≤ 20 °C) is the reference result.
 * **Use of arrest**: a mixed logistic model (random intercept, and intercept + slope), with the median odds ratio and ICC.
 * **Arrest duration**: a linear mixed model of log(minutes), giving a ratio per year. Durations over 150 min are kept, flagged, and excluded in a sensitivity analysis.
-* Every practice model is reported **unadjusted** (the national trend in practice) and **adjusted for case mix** (age, sex, urgency, pathology, descending aorta involvement, frozen elephant trunk), that is, the trend in practice for comparable patients.
+* Every practice model is reported **unadjusted** (the national trend in practice) and **adjusted for case mix** (the primary covariates M1: age, sex, logit EuroSCORE II, redo), that is, the trend in practice for comparable patients.
 
 ---
 
@@ -284,4 +284,4 @@ A finding is **uncertain** if it fails any of these: in particular, if it depend
 
 ## Exploratory: centre volume and mortality (13_volume_outcome.R)
 
-Exposure: the number of operations in the same group (acute or non-acute) in that centre in that calendar year; sensitivity: total centre-year volume. Outcomes: in-hospital mortality, 30-day mortality, primary composite. Periods 2013–2024 and 2018–2024. Adjustment: age, sex, logit EuroSCORE II, redo, year. Models: (a) linear in volume with CR2 cluster-robust inference by centre; (b) restricted cubic spline with an HTZ Wald test of (non-)linearity; (c) a hinge ("threshold") model, risk linear up to volume k and flat above, k chosen by profile likelihood. The likelihood-ratio p-value and profile interval of (c) assume independent patients and a known k, so they are anti-conservative with 15 centres and are reported descriptively only. Inference on the threshold uses (e) a centre-level cluster bootstrap (whole centres resampled, k re-estimated; default 200 replicates): percentile intervals for k and for the OR per 10 operations below k, and the share of replicates in which the hinge fits better than a straight line. Volume is a centre characteristic; with 15 centres it is confounded with all other centre differences, so the results describe associations, not the effect of changing a centre's volume.
+Exposure: the number of operations in the same group (acute or non-acute) in that centre in that calendar year; sensitivity: total centre-year volume. Outcomes: in-hospital mortality, 30-day mortality, primary composite. Periods 2013–2024 and 2018–2024. Adjustment: age, sex, logit EuroSCORE II, redo, year. Models: (a) linear in volume with CR2 cluster-robust inference by centre; (b) restricted cubic spline with an HTZ Wald test of (non-)linearity; (c) a hinge ("threshold") model, risk linear up to volume k and flat above, k chosen by profile likelihood. The likelihood-ratio p-value and profile interval of (c) assume independent patients and a known k, so they are anti-conservative with 15 centres and are reported descriptively only. Inference on the threshold uses (e) a centre-level cluster bootstrap (whole centres resampled, k re-estimated; default 500 replicates; replicates whose k lies at the edge of the grid or outside the replicate's volume range are excluded from the interval for k): percentile intervals for k and for the OR per 10 operations below k, and the share of replicates in which the hinge fits better than a straight line. Volume is a centre characteristic; with 15 centres it is confounded with all other centre differences, so the results describe associations, not the effect of changing a centre's volume.

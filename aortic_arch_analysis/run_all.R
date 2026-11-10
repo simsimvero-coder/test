@@ -31,7 +31,7 @@ if (!length(methods)) stop("ARCH_METHODS must contain imputation and/or complete
 steps <- c(lapply(shared, function(s) list(script = s, method = methods[1])),
            unlist(lapply(methods, function(m)
              lapply(adjusted, function(s) list(script = s, method = m))), recursive = FALSE),
-           if (length(methods) == 2) list(list(script = "10_compare_missing_data_methods.R", method = "imputation")))
+           if (length(methods) == 2 && file.exists("10_compare_missing_data_methods.R")) list(list(script = "10_compare_missing_data_methods.R", method = "imputation")))
 
 # Optional resume point (see top); removed afterwards so a later run starts from the beginning
 start_at <- if (exists("START", envir = globalenv())) get("START", envir = globalenv()) else ""

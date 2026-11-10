@@ -145,14 +145,15 @@ if (nrow(cv)) {
   save_fig(p, SUB, "volume_outcome_curves", 9, 8)
 }
 # ---- e. cluster bootstrap of the threshold (centres resampled) ---------------------------------
-B <- as.integer(Sys.getenv("ARCH_VOLUME_BOOT", "200"))
+B <- as.integer(Sys.getenv("ARCH_VOLUME_BOOT", "500"))
 set.seed(CONFIG$seed)
 hinge_fit <- function(y, X, vol, ks) {
   dev <- vapply(ks, function(k) suppressWarnings(glm.fit(cbind(X, pmin(vol, k)), y, family = binomial()))$deviance, numeric(1))
   i <- which.min(dev)
   fh <- suppressWarnings(glm.fit(cbind(X, pmin(vol, ks[i])), y, family = binomial()))
   dl <- suppressWarnings(glm.fit(cbind(X, vol), y, family = binomial()))$deviance
-  c(k = ks[i], or10 = exp(10 * tail(fh$coefficients, 1)), lr_vs_linear = dl - dev[i], edge = as.numeric(i %in% c(1, length(ks))))
+  edge <- i %in% c(1, length(ks)) || ks[i] <= min(vol) || ks[i] >= max(vol)
+  c(k = ks[i], or10 = exp(10 * tail(fh$coefficients, 1)), lr_vs_linear = dl - dev[i], edge = as.numeric(edge))
 }
 boot <- list(); boot_reps <- list()
 for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) for (v in c("dzh", "d30")) {
@@ -176,12 +177,14 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) for (v in c("dzh"
   boot_reps[[length(boot_reps) + 1]] <- data.table(group = gr, period = pn, outcome = v, r)
   boot[[length(boot) + 1]] <- data.table(group = gr, period = pn, volume = "same-group volume", outcome = v,
     n = nrow(d), events = sum(y == 1), centres = length(idx), replicates_ok = nrow(r),
-    threshold = est[["k"]], threshold_boot_low = quantile(r[, "k"], .025), threshold_boot_high = quantile(r[, "k"], .975),
+    threshold = est[["k"]],
+    threshold_boot_low = if (any(r[, "edge"] == 0)) quantile(r[r[, "edge"] == 0, "k"], .025) else NA_real_,
+    threshold_boot_high = if (any(r[, "edge"] == 0)) quantile(r[r[, "edge"] == 0, "k"], .975) else NA_real_,
     or_per_10_below_threshold = est[["or10"]],
     or_boot_low = quantile(r[, "or10"], .025), or_boot_high = quantile(r[, "or10"], .975),
     share_reps_or_below_1 = mean(r[, "or10"] < 1),
     share_reps_threshold_at_grid_edge = mean(r[, "edge"] == 1),
-    share_reps_hinge_better_than_linear = mean(r[, "lr_vs_linear"] > 3.84 & r[, "edge"] == 0))
+    share_reps_hinge_better_than_linear = mean(r[, "lr_vs_linear"] > 3.84 & r[, "edge"] == 0 & r[, "or10"] < 1))
 }
 write_out(rbindlist(boot), SUB, "volume_threshold_bootstrap")
 write_out(rbindlist(boot_reps), SUB, "volume_threshold_bootstrap_replicates")

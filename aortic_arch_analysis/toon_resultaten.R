@@ -17,12 +17,13 @@ toon <- function(titel, f, kol = NULL, rij = NULL) {
   if (!is.null(kol)) x <- x[, intersect(kol, names(x)), drop = FALSE]
   num <- vapply(x, is.numeric, logical(1))
   rnd <- num & vapply(x, function(z) is.numeric(z) && any(abs(z - round(z)) > 1e-9, na.rm = TRUE), logical(1))
-  x[rnd] <- lapply(x[rnd], function(z) signif(z, 3))
+  x[rnd] <- lapply(x[rnd], function(z) ifelse(abs(z) >= 100, round(z, 1), signif(z, 3)))
   print(x, right = FALSE, row.names = FALSE)
 }
 mm <- function(sub, f) file.path(M, sub, f)
 
 sink(out_file, split = TRUE)
+on.exit(while (sink.number() > 0) sink(), add = TRUE)
 cat("Overzicht resultaten -", format(Sys.time()), "- methode:", M, "\n")
 
 toon("1. Cohort (flowchart)", "02_descriptives/flow_diagram.csv")
