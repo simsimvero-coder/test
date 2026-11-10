@@ -82,8 +82,9 @@ fit_counts <- function(d, label) {
                     annual_pct_change = 100 * (exp(b) - 1),
                     # quasi-Poisson-type interval: SE inflated by sqrt(max(1, dispersion)),
                     # because the NB test has little power with 12 annual points
-                    irr_lower_dispersion_scaled = exp(b - 1.96 * se * sqrt(max(1, disp))),
-                    irr_upper_dispersion_scaled = exp(b + 1.96 * se * sqrt(max(1, disp))),
+                    irr_lower_dispersion_scaled = exp(b - 1.96 * se * if (use_nb) 1 else sqrt(max(1, disp))),
+                    irr_upper_dispersion_scaled = exp(b + 1.96 * se * if (use_nb) 1 else sqrt(max(1, disp))),
+                    p_trend_dispersion_scaled = 2 * pnorm(-abs(b / (se * if (use_nb) 1 else sqrt(max(1, disp))))),
                     p_trend = 2 * pnorm(-abs(b / se)),
                     aic_linear = AIC(m_lin), aic_spline = AIC(m_ns), p_nonlinear = p_nl)
   # fitted values (linear model) with CI on the response (rate) scale

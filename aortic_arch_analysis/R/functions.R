@@ -565,7 +565,7 @@ rederive <- function(d) {
                            urg4 %in% c("Emergency", "Salvage"), "Emergency/salvage"),
                      c("Elective", "Urgent", "Emergency/salvage"))]
   d[, nonelective := as.integer(urg4 != "Elective")]
-  d[, emerg_salv := as.integer(urg4 %in% c("Emergency", "Salvage"))]
+  d[, emerg_salv := fifelse(is.na(urg4), NA_integer_, as.integer(urg4 %in% c("Emergency", "Salvage")))]
   # urgency2 / acute (acute vs non-acute) are kept as observed: not re-derived from imputed values
   d[, acute_dissection := as.integer(path3 == "Acute dissection")]
   d[, logit_es2 := qlogis(pmin(pmax(euroscore2 / 100, 1e-4), 1 - 1e-4))]
