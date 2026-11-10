@@ -1,6 +1,22 @@
+# =============================================================================
+# 14_volume_elbow.R
+# Volume-outcome threshold by the "elbow of the curve" (method as in the HVS AV
+# VSARR registry study, Eur J Cardiothorac Surg): centre-level analysis.
+# Early outcomes: risk-adjusted in-hospital and 30-day mortality per centre against
+# the centre's mean annual case volume (operations in the group per year of registry
+# participation), restricted cubic spline with 3 knots, weights 1/variance.
+# Long-term: adjusted HR per centre versus all other centres (Cox), variance = SE^2,
+# same spline. Centres with >= 30 cases; sensitivity: small centres merged (1-10,
+# 11-20, 21-29 cases). Adjustment: EuroSCORE II only, and age, sex, EuroSCORE II,
+# redo and year. Elbow: volume beyond which the slope is no longer significantly
+# negative, and the point of maximum curvature. Per-centre values are used only as
+# data points; no centre is named or ranked.
+# Output: results/<method>/13_volume_outcome/elbow/*
+# =============================================================================
 source("R/00_config.R"); source("R/functions.R")
+start_log("14_volume_elbow")
 suppressMessages({ library(data.table); library(survival); library(ggplot2) })
-OUTDIR <- file.path(CONFIG$results_dir, "complete_case", "13_volume_outcome", "elbow")
+OUTDIR <- file.path(res_path("13_volume_outcome"), "elbow")
 dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
 d0    <- copy(analysis_datasets()[[1]])
 specs <- load_derived("specs.rds")
@@ -143,4 +159,4 @@ fwrite(rbindlist(hr_rows), file.path(OUTDIR, "hr_per_centre.csv"))
 options(width = 250)
 print(rbindlist(early)[, lapply(.SD, function(z) if (is.numeric(z)) signif(z, 3) else z)], row.names = FALSE)
 print(rbindlist(late)[, lapply(.SD, function(z) if (is.numeric(z)) signif(z, 3) else z)], row.names = FALSE)
-message("Klaar. Resultaten en figuren in: ", OUTDIR)
+log_msg("Done. Output in ", OUTDIR)

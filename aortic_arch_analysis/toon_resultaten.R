@@ -80,6 +80,12 @@ toon("15d. Volume-uitkomst: drempel", mm("13_volume_outcome", "volume_threshold_
 toon("15e. Volume-uitkomst: drempel, cluster-bootstrap (centra)", mm("13_volume_outcome", "volume_threshold_bootstrap.csv"),
      c("group", "period", "outcome", "threshold", "threshold_boot_low", "threshold_boot_high",
        "or_per_10_below_threshold", "or_boot_low", "or_boot_high", "share_reps_hinge_better_than_linear"))
+toon("15f. Volume-uitkomst: elbow, vroege uitkomsten", mm("13_volume_outcome", "elbow/elbow_early_outcomes.csv"),
+     c("adjustment", "group", "period", "outcome", "centres", "n_units", "p_overall", "p_nonlinear",
+       "elbow_last_significant_slope", "elbow_max_curvature"))
+toon("15g. Volume-uitkomst: elbow, lange-termijnoverleving", mm("13_volume_outcome", "elbow/elbow_long_term_survival.csv"),
+     c("adjustment", "group", "period", "centres", "n_units", "p_overall", "p_nonlinear",
+       "elbow_last_significant_slope", "elbow_max_curvature"))
 
 sink()
 message("\nOverzicht ook opgeslagen in: ", out_file)
