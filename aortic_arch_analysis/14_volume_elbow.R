@@ -54,7 +54,7 @@ early <- list(); early_curves <- list(); late <- list(); late_curves <- list(); 
 for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
   per <- PERIODS[[pn]]
   dg  <- d0[urgency2 == gr & year >= per[1] & year <= per[2]]
-  yrs <- dg[, .(n = .N, years = uniqueN(year)), by = centrum]
+  yrs <- merge(dg[, .(n = .N), by = centrum], d0[year >= per[1] & year <= per[2], .(years = uniqueN(year)), by = centrum], by = "centrum")
   yrs[, vol := n / years]
   for (v in c("dzh", "d30")) {
     d <- dg[!is.na(get(v))]
