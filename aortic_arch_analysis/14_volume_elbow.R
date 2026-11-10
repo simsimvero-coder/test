@@ -5,7 +5,8 @@ dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
 d0    <- copy(analysis_datasets()[[1]])
 specs <- load_derived("specs.rds")
 d0[, centrum := as.character(centrum)]
-rhs   <- paste(c("year_c", covar_terms(COVARS_M1, specs)), collapse = " + ")
+ADJ <- list("EuroSCORE II" = "logit_es2",
+            "age, sex, EuroSCORE II, redo, year" = paste(c("year_c", covar_terms(COVARS_M1, specs)), collapse = " + "))
 MIN_CASES <- 30
 PERIODS <- list("2013-2024" = c(2013, 2024), "2018-2024" = c(2018, 2024))
 
@@ -51,7 +52,8 @@ merge_small <- function(cd, outcome_cols) {
 }
 
 early <- list(); early_curves <- list(); late <- list(); late_curves <- list(); hr_rows <- list()
-for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
+for (an in names(ADJ)) for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
+  rhs <- ADJ[[an]]; tag <- if (an == "EuroSCORE II") "es2" else "full"
   per <- PERIODS[[pn]]
   dg  <- d0[urgency2 == gr & year >= per[1] & year <= per[2]]
   yrs <- merge(dg[, .(n = .N), by = centrum], d0[year >= per[1] & year <= per[2], .(years = uniqueN(year)), by = centrum], by = "centrum")
@@ -69,9 +71,9 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
       cc[, `:=`(crude_rate = obs / n_total, adj_rate = overall * obs / exp)]
       cc[, `:=`(w_adj = 1 / ((overall / exp)^2 * var_o),
                 w_crude = n_total / pmax(crude_rate * (1 - crude_rate), 1 / n_total))]
-      for (sc in c("adjusted", "crude")) {
+      for (sc in if (an == names(ADJ)[1]) c("adjusted", "crude") else "adjusted") {
         f <- fit_curve(cc, if (sc == "adjusted") "adj_rate" else "crude_rate", if (sc == "adjusted") "w_adj" else "w_crude")
-        lab <- data.table(group = gr, period = pn, outcome = v, scale = sc, centres = sens)
+        lab <- data.table(adjustment = if (sc == "crude") "none" else an, group = gr, period = pn, outcome = v, scale = sc, centres = sens)
         early[[length(early) + 1]] <- cbind(lab, f$summary)
         early_curves[[length(early_curves) + 1]] <- cbind(lab, f$curve)
         if (sens == "centres >= 30 cases" && sc == "adjusted") {
@@ -82,8 +84,8 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
             geom_vline(xintercept = f$summary$elbow_last_significant_slope, linetype = 2) +
             scale_size_continuous(name = "Weight (1/variance)") +
             labs(x = "Annual case volume of the centre", y = "Risk-adjusted mortality (%)",
-                 title = paste(gr, pn, if (v == "dzh") "in-hospital mortality" else "30-day mortality")) + theme_bw()
-          ggsave(file.path(OUTDIR, paste0("early_", v, "_", gsub("-", "", gr), "_", gsub("-", "_", pn), ".png")), p, width = 7, height = 4.5, dpi = 300)
+                 title = paste(gr, pn, if (v == "dzh") "in-hospital mortality" else "30-day mortality"), subtitle = paste("Adjusted for", an)) + theme_bw()
+          ggsave(file.path(OUTDIR, paste0("early_", v, "_", tag, "_", gsub("-", "", gr), "_", gsub("-", "_", pn), ".png")), p, width = 7, height = 4.5, dpi = 300)
         }
       }
     }
@@ -98,7 +100,7 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
   }))
   hr <- merge(hr, yrs[, .(centrum, vol)], by = "centrum")
   hr[, `:=`(hr = exp(log_hr), lower = exp(log_hr - 1.96 * se), upper = exp(log_hr + 1.96 * se), variance = se^2, w = 1 / se^2)]
-  hr_rows[[length(hr_rows) + 1]] <- cbind(group = gr, period = pn, hr)
+  hr_rows[[length(hr_rows) + 1]] <- cbind(adjustment = an, group = gr, period = pn, hr)
   for (sens in c("centres >= 30 cases", "small centres merged")) {
     hh <- if (sens == "centres >= 30 cases") hr[n_total >= MIN_CASES] else {
       small <- hr[n_total < MIN_CASES]
@@ -116,7 +118,7 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
       }
     }
     f <- fit_curve(hh, "log_hr", "w")
-    lab <- data.table(group = gr, period = pn, outcome = "overall survival (HR vs all other centres)", centres = sens)
+    lab <- data.table(adjustment = an, group = gr, period = pn, outcome = "overall survival (HR vs all other centres)", centres = sens)
     s <- copy(f$summary)
     late[[length(late) + 1]] <- cbind(lab, s)
     late_curves[[length(late_curves) + 1]] <- cbind(lab, f$curve[, .(vol, hr = exp(fit), lower = exp(lower), upper = exp(upper), slope, slope_lower, slope_upper)])
@@ -128,8 +130,8 @@ for (gr in c("Acute", "Non-acute")) for (pn in names(PERIODS)) {
         geom_vline(xintercept = f$summary$elbow_last_significant_slope, linetype = 2) +
         scale_y_log10() + scale_size_continuous(name = "Weight (1/variance)") +
         labs(x = "Annual case volume of the centre", y = "Adjusted HR for death (vs all other centres)",
-             title = paste(gr, pn, "long-term survival")) + theme_bw()
-      ggsave(file.path(OUTDIR, paste0("late_survival_", gsub("-", "", gr), "_", gsub("-", "_", pn), ".png")), p, width = 7, height = 4.5, dpi = 300)
+             title = paste(gr, pn, "long-term survival"), subtitle = paste("Adjusted for", an)) + theme_bw()
+      ggsave(file.path(OUTDIR, paste0("late_survival_", tag, "_", gsub("-", "", gr), "_", gsub("-", "_", pn), ".png")), p, width = 7, height = 4.5, dpi = 300)
     }
   }
 }
