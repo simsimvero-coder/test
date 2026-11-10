@@ -136,7 +136,7 @@ pw <- lapply(imps_s, function(d) {
   as.data.table(s)
 })
 f_pw <- as.formula(paste("Surv(tstart, t_years, status) ~",
-                         paste(c("acute:interval", "acute_dissection:interval", "year_c:interval",
+                         paste(c("acute:interval", "year_c:interval",
                                  covar_terms(COVARS_M1, specs)),
                                collapse = " + "), "+ strata(centrum)"))
 cox_pw <- pool_cox(f_pw, pw, "piecewise Cox (0-30 d, 30 d-1 y, >1 y)")

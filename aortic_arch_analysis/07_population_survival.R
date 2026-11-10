@@ -98,18 +98,18 @@ stopifnot(all(verify$abs_difference < 0.002))
 # ---- 4. SMR ----------------------------------------------------------------------------------------
 d[, E_total := lam_at(seq_len(.N), t_years)]
 smr_group <- function(dd, label) cbind(group = label, smr_ci(sum(dd$status), sum(dd$E_total)), person_years = sum(dd$t_years))
-intervals <- list(c(0, 30 / 365.25, "0-30 days"), c(30 / 365.25, 1, "30 days-1 year"),
-                  c(1, 5, "1-5 years"), c(5, Inf, ">5 years"),
-                  c(0, 1, "0-1 year (cumulative)"), c(0, 5, "0-5 years (cumulative)"))
+intervals <- list(list(0, 30 / 365.25, "0-30 days"), list(30 / 365.25, 1, "30 days-1 year"),
+                  list(1, 5, "1-5 years"), list(5, Inf, ">5 years"),
+                  list(0, 1, "0-1 year (cumulative)"), list(0, 5, "0-5 years (cumulative)"))
 smr_int <- function(dd, label) rbindlist(lapply(intervals, function(iv) {
-  a <- as.numeric(iv[1]); b <- as.numeric(iv[2])
+  a <- iv[[1]]; b <- iv[[2]]
   idx <- which(dd$t_years > a)
   if (!length(idx)) return(NULL)
   ii <- dd$row[idx]; tt <- dd$t_years[idx]
   e <- sum(lam_at(ii, pmin(tt, b)) - lam_at(ii, rep(a, length(ii))))
   o <- sum(dd$status[idx] == 1 & tt <= b)
   py <- sum(pmin(tt, b) - a)
-  cbind(group = label, interval = iv[3], smr_ci(o, e), person_years = py,
+  cbind(group = label, interval = iv[[3]], smr_ci(o, e), person_years = py,
         excess_per_1000py = 1000 * (o - e) / py,
         excess_lower = 1000 * ((if (o == 0) 0 else qchisq(.025, 2 * o) / 2) - e) / py,
         excess_upper = 1000 * (qchisq(.975, 2 * (o + 1)) / 2 - e) / py)
