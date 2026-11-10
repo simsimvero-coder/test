@@ -87,5 +87,42 @@ toon("15g. Volume-uitkomst: elbow, lange-termijnoverleving", mm("13_volume_outco
      c("adjustment", "group", "period", "centres", "n_units", "p_overall", "p_nonlinear",
        "elbow_last_significant_slope", "elbow_max_curvature"))
 
+toon("16. Acuut vs niet-acuut (gecorrigeerde OR)", mm("04_outcomes", "acute_vs_nonacute_or.csv"))
+toon("17. Acuut x jaar", mm("04_outcomes", "acute_vs_nonacute_year_interaction.csv"))
+toon("18. Gestandaardiseerd risico per jaar", mm("04_outcomes", "standardised_risk_by_year.csv"),
+     c("outcome", "year", "risk", "lower", "upper"), quote(outcome %in% c("comp_primary", "dzh", "d30")))
+toon("19. Variatie tussen centra (MOR/ICC)", mm("04_outcomes", "centre_variation.csv"))
+toon("20. FTR-ontleding per jaar", mm("04_outcomes", "ftr_decomposition_by_year.csv"),
+     c("definition", "year", "n", "p_complication", "ftr", "mort_no_compl"))
+toon("21. Sensitiviteit jaartrend", mm("08_sensitivity", "sensitivity_year_effect.csv"),
+     c("analysis", "outcome", "term", "or", "lower", "upper", "p", "n"), quote(outcome %in% c("comp_primary", "dzh", "d30")))
+toon("22. Cox-modellen", mm("06_survival", "cox_models.csv"), c("model", "term", "ratio", "ratio_lower", "ratio_upper", "p"),
+     quote(term %in% c("year_c", "acute")))
+toon("23. Cox stapsgewijs", mm("06_survival", "cox_piecewise_hazard_ratios.csv"), c("term", "ratio", "ratio_lower", "ratio_upper", "p"))
+toon("24. Landmark 30 dagen", mm("06_survival", "landmark30_cox.csv"), c("model", "term", "ratio", "ratio_lower", "ratio_upper", "p"),
+     quote(term %in% c("year_c", "acute")))
+toon("25. Voorwaardelijke overleving", mm("06_survival", "conditional_survival.csv"))
+toon("26. RMST", mm("06_survival", "rmst_by_acute_status.csv"))
+toon("27. Excess hazard", "07_population/excess_hazard_regression.csv", c("term", "excess_hazard_ratio", "lower", "upper", "p"))
+toon("28. Ontbrekende gegevens", "02_descriptives/missing_overall.csv")
+toon("29. Code 30/40 per jaar", "02_descriptives/pathology_codes_30_40_by_year.csv")
+toon("30. Case-mix trend per jaar", "02_descriptives/characteristics_trend_per_year.csv",
+     c("label", "type", "n", "estimate", "lower", "upper", "p", "p_holm"))
+toon("31. Sensitiviteit werkwijze", mm("08_sensitivity", "sensitivity_practice.csv"))
+toon("32. Convergentie modellen", mm("04_outcomes", "model_convergence_diagnostics.csv"),
+     c("outcome", "model", "n_fits", "n_failed", "n_convergence_warning", "n_singular", "n_events", "nobs"))
+toon("33. 1-jaarssterfte ruw per groep", mm("15_additional", "one_year_mortality_crude.csv"))
+toon("34. 1-jaarssterfte: sensitiviteit jaartrend", mm("15_additional", "sensitivity_one_year_mortality.csv"))
+toon("35. Ontbrekend per jaar", mm("15_additional", "missing_by_year.csv"))
+toon("36. Ontbrekend per centrum (anoniem)", mm("15_additional", "missing_by_centre_anonymised.csv"))
+toon("37. Paper 2: volume aanvullend", mm("15_additional", "volume_additional_analyses.csv"))
+toon("38. Paper 3: correctie operatieve complexiteit (OR, 95% BI)", mm("15_additional", "practice_outcome_operative_complexity_wide.csv"))
+toon("39. Paper 3: zonder centra met >50% ontbrekende temperatuur", mm("15_additional", "practice_outcome_excluding_centres_missing_temperature.csv"),
+     c("group", "practice", "outcome", "adjustment", "centres", "or", "lower", "upper", "p", "n"))
+toon("40. Paper 3: stilstand in categorieen (vs <20 min)", mm("15_additional", "arrest_duration_categories.csv"))
+toon("41. Paper 3: stilstand spline-toets", mm("15_additional", "arrest_duration_spline_tests.csv"))
+toon("42. Paper 3: stilstand x temperatuur", mm("15_additional", "arrest_duration_by_temperature_interaction.csv"))
+toon("43. Paper 3: stilstand -> nierfalen -> sterfte", mm("15_additional", "arrest_renal_death_attenuation.csv"))
+
 sink()
 message("\nOverzicht ook opgeslagen in: ", out_file)

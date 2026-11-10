@@ -23,7 +23,7 @@ if (length(missing)) stop("Install the missing R packages first: ", paste(missin
 shared   <- c("00_check_environment.R", "01_data_validation.R", "02_cohort_descriptives.R", "03_volume_trends.R",
               "07_population_survival.R", "12_group_comparisons.R")
 adjusted <- c("04_clinical_outcomes.R", "05_organ_protection.R", "06_survival_analysis.R",
-              "08_sensitivity_analyses.R", "11_centre_practice_outcomes.R", "13_volume_outcome.R", "14_volume_elbow.R", "09_tables_figures.R")
+              "08_sensitivity_analyses.R", "11_centre_practice_outcomes.R", "13_volume_outcome.R", "14_volume_elbow.R", "15_additional_analyses.R", "09_tables_figures.R")
 # Adjusted analyses run twice: multiple imputation and complete-case analysis
 # ARCH_METHODS selects the methods (default: complete case only; see R/00_config.R)
 methods <- intersect(c("imputation", "complete_case"), methods)
