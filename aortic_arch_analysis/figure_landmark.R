@@ -1,6 +1,6 @@
-# Figure: 30-day landmark analysis, acute versus non-acute (NEJM style).
-# Panel A: survival during the first 30 days. Panel B: survival among 30-day survivors,
-# with time restarted at day 30. Adjusted hazard ratios are read from the output of
+# Figure: 30-day landmark analysis, acute versus non-acute (NEJM style), in one graph.
+# Days 0-30 on the left; at day 30 (vertical line) the Kaplan-Meier curves restart at 100%
+# among 30-day survivors. The time axis is stretched before day 30 so both parts are readable. Adjusted hazard ratios are read from the output of
 # 06_survival_analysis.R; curves and numbers at risk are computed from the cohort.
 source("R/00_config.R"); source("R/functions.R")
 suppressMessages({ library(data.table); library(survival); library(ggplot2); library(patchwork) })
@@ -39,73 +39,79 @@ risk_at <- function(fit, times, scale) {
   data.table(t = s$time / scale, n = s$n.risk, grp = factor(sub("^grp=", "", as.character(s$strata)), levels = names(COLS)))
 }
 
-# ---- A: first 30 days (administrative censoring at day 30) ----
+# first 30 days (administrative censoring at day 30) ----
 a <- copy(sv)[, `:=`(ta = pmin(t_days, LM), sa = as.integer(status == 1 & t_days <= LM))]
 fitA <- survfit(Surv(ta, sa) ~ grp, data = a, conf.type = "log-log")
 pA_lr <- 1 - pchisq(survdiff(Surv(ta, sa) ~ grp, data = a)$chisq, 1)
 kmA <- km_df(fitA, 1); rkA <- risk_at(fitA, c(0, 10, 20, 30), 1)
 
-# ---- B: landmark at day 30 ----
+# landmark at day 30
 b <- sv[t_days > LM][, tb := (t_days - LM) / 365.25]
 fitB <- survfit(Surv(tb, status) ~ grp, data = b, conf.type = "log-log")
 pB_lr <- 1 - pchisq(survdiff(Surv(tb, status) ~ grp, data = b)$chisq, 1)
 kmB <- km_df(fitB, 1); XMAX <- min(10, floor(max(kmB$t)))
-kmB <- kmB[t <= XMAX]; rkB <- risk_at(fitB, seq(0, XMAX, 2), 1)
+kmB <- kmB[t <= XMAX]
 endB <- summary(fitB, times = 5, extend = TRUE)
 est5 <- data.table(grp = sub("^grp=", "", as.character(endB$strata)), surv = endB$surv, lower = endB$lower,
                    upper = endB$upper, n_risk = endB$n.risk)
+
+W1 <- 2.6   # plotting width of days 0-30, in "years" units of the landmark part
+xA <- function(d) d / LM * W1
+xB <- function(y) W1 + y
+yrs <- seq(2, 10, 2); yrs <- yrs[yrs - LM / 365.25 <= XMAX]
+kmA[, x := xA(t)]; kmB[, x := xB(t)]
+rkA <- rkA[t == 0][, x := xA(t)]
+rkB0 <- risk_at(fitB, c(0, yrs - LM / 365.25), 1); rkB0[, x := xB(t)]
+rk <- rbind(rkA[, .(x, n, grp)], rkB0[, .(x, n, grp)])
+ylo <- max(0, floor(10 * min(kmB$lower, kmA$lower, na.rm = TRUE) - .5) / 10)
+XR <- xB(XMAX) + 1.6
+
+step_rib <- function(km) km[order(grp, x), {
+  n <- .N
+  if (n < 2) NULL else list(x = c(rbind(x[-n], x[-1])), lower = rep(lower[-n], each = 2), upper = rep(upper[-n], each = 2))
+}, by = grp]
+ends <- function(km) { e <- km[, .SD[.N], by = grp][order(surv)]
+  if (diff(e$surv) < .03) { m <- mean(e$surv); e$surv <- c(m - .015, m + .015) }; e }
+eB <- ends(kmB)
+txt <- paste0("Days 0–30: ", gsub("\n", " ", hr_txt(hr_early)), "; log-rank ", fmt_p(pA_lr),
+              "\nAfter day 30: ", gsub("\n", " ", hr_txt(hr_lm)), "; log-rank ", fmt_p(pB_lr))
 
 th <- theme_classic(base_size = 9, base_family = FONT) +
   theme(text = element_text(colour = ink), axis.text = element_text(colour = ink, size = 8),
         axis.line = element_line(linewidth = .4, colour = ink), axis.ticks = element_line(linewidth = .4, colour = ink),
         panel.grid.major.y = element_line(colour = grid_col, linewidth = .3), legend.position = "none",
-        plot.tag = element_text(face = "bold", size = 12), plot.title = element_text(size = 9, face = "bold"),
-        plot.margin = margin(6, 10, 2, 6))
-step_rib <- function(km) km[order(grp, t), {
-  n <- .N
-  if (n < 2) NULL else list(t = c(rbind(t[-n], t[-1])), lower = rep(lower[-n], each = 2), upper = rep(upper[-n], each = 2))
-}, by = grp]
-curve <- function(km, xlim, xbr, ylim, xlab, title, tag, txt) {
-  ggplot(km, aes(t, surv, colour = grp, fill = grp)) +
-    geom_ribbon(data = step_rib(km), aes(x = t, ymin = lower, ymax = upper, fill = grp), inherit.aes = FALSE, alpha = .12) +
-    geom_step(linewidth = .7) +
-    annotate("text", x = xlim[2] * .03, y = ylim[1] + diff(ylim) * .08, label = txt, hjust = 0, vjust = 0,
-             size = 2.6, family = FONT, colour = ink, lineheight = 1.05) +
-    scale_colour_manual(values = COLS) + scale_fill_manual(values = COLS) +
-    scale_x_continuous(limits = xlim, breaks = xbr, expand = c(0, 0)) +
-    scale_y_continuous(limits = ylim, breaks = seq(ylim[1], ylim[2], .1), labels = function(x) 100 * x, expand = c(0, 0)) +
-    coord_cartesian(clip = "off") + labs(x = xlab, y = "Survival (%)", title = title, tag = tag) + th
-}
-legend_lab <- function(p, km, x) {
-  e <- km[, .SD[.N], by = grp][order(surv)]
-  gap <- .028
-  if (nrow(e) == 2 && diff(e$surv) < gap) { m <- mean(e$surv); e$surv <- c(m - gap / 2, m + gap / 2) }
-  p + geom_text(data = e, aes(x = x, y = surv, label = grp), hjust = 0, size = 2.9, fontface = "bold", family = FONT)
-}
-risk_tab <- function(rk, xlim, xbr) {
-  ggplot(rk, aes(t, grp, label = formatC(n, big.mark = ",", format = "d"), colour = grp)) +
-    geom_text(size = 2.6, family = FONT) + scale_colour_manual(values = COLS) +
-    scale_y_discrete(limits = rev(names(COLS))) +
-    scale_x_continuous(limits = xlim, breaks = xbr, expand = c(0, 0)) + coord_cartesian(clip = "off") +
-    labs(x = NULL, y = NULL, title = "No. at risk") + theme_void(base_size = 9, base_family = FONT) +
-    theme(axis.text.y = element_text(colour = ink, size = 8, hjust = 1),
-          plot.title = element_text(size = 8, face = "bold", hjust = 0), legend.position = "none",
-          plot.margin = margin(0, 10, 4, 6), axis.text.y.left = element_text(colour = ink, size = 8, hjust = 1, margin = margin(r = 16)))
-}
+        plot.margin = margin(14, 8, 2, 6))
+brks <- c(xA(c(0, 10, 20, 30)), xB(yrs - LM / 365.25))
+labs_x <- c("0", "10", "20", "30", as.character(yrs))
+p <- ggplot() +
+  annotate("rect", xmin = 0, xmax = W1, ymin = ylo, ymax = 1, fill = "#F3F6F4") +
+  geom_ribbon(data = step_rib(kmA), aes(x, ymin = lower, ymax = upper, fill = grp), alpha = .14) +
+  geom_ribbon(data = step_rib(kmB), aes(x, ymin = lower, ymax = upper, fill = grp), alpha = .14) +
+  geom_step(data = kmA, aes(x, surv, colour = grp), linewidth = .7) +
+  geom_step(data = kmB, aes(x, surv, colour = grp), linewidth = .7) +
+  geom_vline(xintercept = W1, linetype = "22", linewidth = .45, colour = ink) +
+  annotate("text", x = W1 / 2, y = 1.012, label = "Days 0–30", vjust = 0, size = 2.7, fontface = "bold", family = FONT) +
+  annotate("text", x = W1 + .15, y = 1.012, label = "Landmark at day 30: survival among 30-day survivors",
+           hjust = 0, vjust = 0, size = 2.7, fontface = "bold", family = FONT) +
+  geom_text(data = eB, aes(max(kmB$x) + .12, surv, label = sprintf("%s", grp), colour = grp), hjust = 0, size = 2.8, fontface = "bold", family = FONT) +
+  annotate("text", x = W1 + .3, y = ylo + (1 - ylo) * .05, label = txt, hjust = 0, vjust = 0, size = 2.5, family = FONT, lineheight = 1.1) +
+  scale_colour_manual(values = COLS) + scale_fill_manual(values = COLS) +
+  scale_x_continuous(limits = c(0, XR), breaks = brks, labels = labs_x, expand = c(0, 0)) +
+  scale_y_continuous(limits = c(ylo, 1.035), breaks = seq(ylo, 1, .1), labels = function(x) 100 * x, expand = c(0, 0)) +
+  coord_cartesian(clip = "off") +
+  labs(x = "Time since surgery (days 0–30, then years)", y = "Survival (%)") + th
 
-xA <- c(0, LM); xbA <- seq(0, LM, 10)
-pA <- curve(kmA, c(0, LM * 1.4), xbA, c(.7, 1), "Days since surgery", "Days 0–30", "A",
-            paste0(hr_txt(hr_early), "\nLog-rank ", fmt_p(pA_lr)))
-pA <- legend_lab(pA, kmA, LM * 1.02)
-xB <- c(0, XMAX * 1.2); xbB <- seq(0, XMAX, 2)
-pB <- curve(kmB, xB, xbB, c(.4, 1), "Years since day 30", "Among 30-day survivors (landmark at day 30)", "B",
-            paste0(hr_txt(hr_lm), "\nLog-rank ", fmt_p(pB_lr)))
-pB <- legend_lab(pB, kmB, max(kmB$t) + XMAX * .015)
+rt <- ggplot(rk, aes(x, grp, label = formatC(n, big.mark = ",", format = "d"), colour = grp)) +
+  geom_text(size = 2.5, family = FONT) + scale_colour_manual(values = COLS) +
+  scale_y_discrete(limits = rev(names(COLS))) +
+  scale_x_continuous(limits = c(0, XR), expand = c(0, 0)) + coord_cartesian(clip = "off") +
+  labs(x = NULL, y = NULL, title = "No. at risk") + theme_void(base_size = 9, base_family = FONT) +
+  theme(axis.text.y.left = element_text(colour = ink, size = 8, hjust = 1, margin = margin(r = 14)),
+        plot.title = element_text(size = 8, face = "bold", hjust = 0), legend.position = "none",
+        plot.margin = margin(0, 8, 4, 6))
 
-fig <- (pA + pB + plot_layout(widths = c(1, 1.9))) /
-       (risk_tab(rkA, c(0, LM * 1.4), xbA) + risk_tab(rkB, xB, xbB) + plot_layout(widths = c(1, 1.9))) +
-       plot_layout(heights = c(4, 1))
-W <- 180; H <- 105
+fig <- p / rt + plot_layout(heights = c(5, 1))
+W <- 180; H <- 115
 ggsave(file.path(OUT, "Figure_landmark30.pdf"), fig, width = W, height = H, units = "mm", device = cairo_pdf)
 ggsave(file.path(OUT, "Figure_landmark30.svg"), fig, width = W, height = H, units = "mm", device = grDevices::svg)
 ggsave(file.path(OUT, "Figure_landmark30.png"), fig, width = W, height = H, units = "mm", dpi = 600)
