@@ -73,8 +73,9 @@ step_rib <- function(km) km[order(grp, x), {
 ends <- function(km) { e <- km[, .SD[.N], by = grp][order(surv)]
   if (diff(e$surv) < .03) { m <- mean(e$surv); e$surv <- c(m - .015, m + .015) }; e }
 eB <- ends(kmB)
-txt <- paste0("Days 0–30: ", gsub("\n", " ", hr_txt(hr_early)), "; log-rank ", fmt_p(pA_lr),
-              "\nAfter day 30: ", gsub("\n", " ", hr_txt(hr_lm)), "; log-rank ", fmt_p(pB_lr))
+hr_line <- function(r) sprintf("adjusted HR %.2f (95%% CI, %.2f\u2013%.2f), %s", r$ratio, r$ratio_lower, r$ratio_upper, fmt_p(r$p))
+txt <- paste0("Days 0\u201330: ", hr_line(hr_early), "; log-rank ", fmt_p(pA_lr),
+              "\nAfter day 30: ", hr_line(hr_lm), "; log-rank ", fmt_p(pB_lr))
 
 th <- theme_classic(base_size = 9, base_family = FONT) +
   theme(text = element_text(colour = ink), axis.text = element_text(colour = ink, size = 8),
