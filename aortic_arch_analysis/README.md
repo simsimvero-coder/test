@@ -71,6 +71,8 @@ The adjusted analyses (scripts 04, 05, 06, 08, 09) are run as a **complete-case 
   * `consistency_checks_tables_figures_models.csv`.
 * `01_validation/`, `02_descriptives/`, `03_volume/`, `07_population/`: shared results, as CSV.
 * `imputation/` and `complete_case/`: each holds `04_outcomes/`, `05_organ_protection/`, `06_survival/`, `08_sensitivity/`, `publication/` and `analysis_report.md`.
+* `complete_case/16_paper1_extra/` (script 16): year x acute interaction, year trends overall and per group (from 2013 and 2015), acute vs non-acute odds ratios, standardised risk per year and group, perfusion practice per year and group, failure-to-rescue decomposition, complete vs incomplete covariate data, centre practice profile, piecewise and landmark hazard ratios.
+* `complete_case/figures_paper1/` (script 17): Figures 1–10 and S1 for paper 1 (PNG, TIFF, PDF, SVG), drawn directly from the output of scripts 02, 03, 07 and 16.
 * `comparison_missing_data/`: `MI_vs_CC_comparison.xlsx`, `MI_vs_CC_summary.md`, forest plot.
 * `session_info.txt`, `logs/`.
 

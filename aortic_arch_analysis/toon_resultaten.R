@@ -124,5 +124,21 @@ toon("41. Paper 3: stilstand spline-toets", mm("15_additional", "arrest_duration
 toon("42. Paper 3: stilstand x temperatuur", mm("15_additional", "arrest_duration_by_temperature_interaction.csv"))
 toon("43. Paper 3: stilstand -> nierfalen -> sterfte", mm("15_additional", "arrest_renal_death_attenuation.csv"))
 
+toon("44. Paper 1: interactie jaar x acuut (BH)", mm("16_paper1_extra", "A_year_by_acute_interaction.csv"),
+     c("outcome", "n", "events", "ratio_of_or", "lower", "upper", "p", "p_bh"))
+toon("45. Paper 1: jaartrend totaal (Holm)", mm("16_paper1_extra", "B_year_trends_overall_and_by_group.csv"),
+     c("outcome", "n", "events", "or_per_year", "lower", "upper", "p", "p_holm"), quote(group == "All"))
+toon("46. Paper 1: jaartrend per groep (vanaf 2013 en 2015)", mm("16_paper1_extra", "B_year_trends_overall_and_by_group.csv"),
+     c("outcome", "group", "from", "n", "events", "or_per_year", "lower", "upper", "p", "p_bh"), quote(group != "All"))
+toon("47. Paper 1: FTR-trend", mm("16_paper1_extra", "B_failure_to_rescue_trend.csv"))
+toon("48. Paper 1: acuut vs niet-acuut (OR)", mm("16_paper1_extra", "C_acute_vs_nonacute_or.csv"),
+     c("outcome", "n", "events", "or_acute", "lower", "upper", "p"))
+toon("49. Paper 1: FTR per groep (incl. % sterfte zonder ernstige complicatie)", mm("16_paper1_extra", "G_ftr_by_group.csv"))
+toon("50. Paper 1: volledig vs onvolledig (covariaten)", mm("16_paper1_extra", "H_complete_vs_incomplete.csv"))
+toon("51. Paper 1: % volledig per jaar en groep", mm("16_paper1_extra", "H_pct_complete_by_year_and_group.csv"))
+toon("52. Paper 1: ontbrekende modelcovariaten", mm("16_paper1_extra", "H_missing_model_covariates.csv"))
+toon("53. Paper 1: hazard ratios acuut (stapsgewijs, landmark)", mm("16_paper1_extra", "J_hazard_ratios_acute.csv"))
+toon("54. Paper 1: log-rank (dag 0-30, na dag 30)", mm("16_paper1_extra", "J_logrank.csv"))
+
 sink()
 message("\nOverzicht ook opgeslagen in: ", out_file)
