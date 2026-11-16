@@ -1,5 +1,7 @@
 # =============================================================================
-# 18_volume_outcome_2018.R
+# volume.R  (standalone; not part of run_all.R)
+# Run from the project folder after the main pipeline has created data/derived:
+#   source("volume.R")
 # Paper 2: volume-outcome relation for open aortic arch surgery, 2018-2024
 # (period with complete classification and registration). Same cohort and group
 # definitions as the rest of the pipeline (analysis cohort; acute / non-acute).
@@ -27,15 +29,23 @@
 #   major complication, failure to rescue (adjusted for number of complications).
 #   7. Long-term survival: Cox models (robust SE by centre; gamma frailty
 #      sensitivity), linear, spline and tertiles.
+#   8. Practice by threshold: centres below versus at/above the volume threshold X
+#      (centre mean annual volume in the same group) compared on perfusion practice
+#      (nadir temperature, deep hypothermia, circulatory arrest and its duration, CPB
+#      and cross-clamp time), procedure, case mix and outcomes. X = the supported elbow
+#      threshold for in-hospital mortality; if none is supported, the median centre
+#      volume is used and flagged. Override with Sys.setenv(ARCH_VOLUME_THRESHOLD = "x")
+#      (one value) or "acute,nonacute" (two values). Patient-level tests (Wilcoxon/chi-square)
+#      and centre-adjusted regressions with CR2 standard errors (15 centres).
 # Adjustment throughout: age (spline), sex, logit EuroSCORE II, previous cardiac
 # surgery, calendar year. 15 centres: all centre-level inference is limited.
-# Output: results/<method>/18_volume_2018/*
+# Output: results/volume/*.csv, figures, and overzicht_volume.txt (summary also shown in the console)
 # =============================================================================
 source("R/00_config.R"); source("R/functions.R")
 suppressMessages({ library(data.table); library(survival); library(ggplot2) })
-start_log("18_volume_outcome_2018")
+start_log("volume")
 log_msg("Missing-data method: ", method_label())
-SUB <- "18_volume_2018"
+SUB <- "volume"
 P0 <- 2018; P1 <- max(CONFIG$study_years)
 B_BOOT <- as.integer(Sys.getenv("ARCH_VOLUME_BOOT", "500"))
 set.seed(CONFIG$seed)
@@ -253,6 +263,67 @@ for (gr in c("Acute", "Non-acute")) for (vv in c("vol_group", "vol_mean")) {
 write_out(rbindlist(cox_rows, fill = TRUE), SUB, "long_term_survival_cox")
 KMT <- rbindlist(cox_curves); write_out(KMT[n_risk >= KM_MIN_RISK], SUB, "km_by_volume_tertile")
 
+
+# ---- 8. Practice by threshold: centres < X versus >= X ------------------------------------------------
+thr_env <- as.numeric(strsplit(Sys.getenv("ARCH_VOLUME_THRESHOLD", ""), ",")[[1]])
+pick_x <- function(gr) {
+  if (length(thr_env) == 2) return(list(x = thr_env[if (gr == "Acute") 1 else 2], source = "set by user"))
+  if (length(thr_env) == 1 && !is.na(thr_env)) return(list(x = thr_env, source = "set by user"))
+  t <- TH[group == gr & outcome == "dzh" & volume == VOLS[["vol_mean"]]]
+  if (nrow(t) && isTRUE(t$threshold_supported)) return(list(x = t$elbow, source = "supported elbow, in-hospital mortality"))
+  list(x = median(cm[urgency2 == gr, vol_mean]), source = "median centre volume (no supported threshold)")
+}
+PRAC_CONT <- c(temp_min = "Nadir temperature (C)", ca_min = "Circulatory arrest duration (min, arrest patients)",
+               ecc_min = "Cardiopulmonary bypass time (min)", aox_min = "Cross-clamp time (min)",
+               age = "Age (years)", euroscore2 = "EuroSCORE II (%)")
+PRAC_BIN  <- c(deep = "Deep hypothermia (<=20 C)", circ_arrest_b = "Circulatory arrest",
+               root_inv = "Aortic root involved", desc_inv = "Descending aorta involved",
+               hybrid_fet = "Combined open + endovascular (incl. FET)", conc_valve = "Concomitant valve surgery",
+               acute_dissection = "Acute aortic dissection", female = "Female sex", prior_cs = "Previous cardiac surgery",
+               dzh = "In-hospital mortality", d30 = "30-day mortality", comp_primary = "Primary composite",
+               major_compl = "Major complication", ftr = "Failure to rescue")
+d0[, deep := fifelse(is.na(temp_min), NA_integer_, as.integer(temp_min <= 20))]
+if (!"acute_dissection" %in% names(d0) && "path3" %in% names(d0)) d0[, acute_dissection := as.integer(path3 == "Acute dissection")]
+cmp_rows <- list(); xinfo <- list()
+for (gr in c("Acute", "Non-acute")) {
+  px <- pick_x(gr); X <- px$x
+  d <- d0[urgency2 == gr]; d[, side := factor(fifelse(vol_mean >= X, "high", "low"), c("low", "high"))]
+  cen <- unique(d[, .(centrum_chr, vol_mean, side)])
+  xinfo[[gr]] <- data.table(group = gr, threshold = X, threshold_source = px$source,
+                            centres_below = sum(cen$side == "low"), centres_above = sum(cen$side == "high"),
+                            patients_below = sum(d$side == "low"), patients_above = sum(d$side == "high"))
+  if (min(table(cen$side)) < 2) { log_msg("  ", gr, ": fewer than 2 centres on one side of X = ", round(X, 1), "; comparison skipped"); next }
+  for (vname in intersect(names(PRAC_CONT), names(d))) {
+    dd <- d[!is.na(get(vname))]; if (vname == "ca_min") dd <- dd[circ_arrest_b == 1 & ca_min > 0]
+    if (uniqueN(dd$side) < 2) next
+    s <- dd[, .(n = .N, median = as.numeric(median(get(vname))), q1 = as.numeric(quantile(get(vname), .25)), q3 = as.numeric(quantile(get(vname), .75))), by = side]
+    pw <- suppressWarnings(wilcox.test(as.formula(paste(vname, "~ side")), dd)$p.value)
+    m <- lm(as.formula(paste(vname, "~ side")), dd)
+    r <- clubSandwich::coef_test(m, vcov = "CR2", cluster = dd$centrum, test = "Satterthwaite"); r <- r[r$Coef == "sidehigh", ]
+    cmp_rows[[length(cmp_rows) + 1]] <- data.table(group = gr, threshold = X, variable = PRAC_CONT[[vname]], type = "median [IQR]",
+      below = sprintf("%.1f [%.1f-%.1f]", s[side == "low", median], s[side == "low", q1], s[side == "low", q3]),
+      above = sprintf("%.1f [%.1f-%.1f]", s[side == "high", median], s[side == "high", q1], s[side == "high", q3]),
+      n_below = s[side == "low", n], n_above = s[side == "high", n], p_patient = pw,
+      difference_mean = r$beta, p_centre_adjusted_cr2 = r$p_Satt)
+  }
+  for (vname in intersect(names(PRAC_BIN), names(d))) {
+    dd <- d[!is.na(get(vname))]; if (uniqueN(dd$side) < 2 || sum(dd[[vname]] == 1) < 5) next
+    s <- dd[, .(n = .N, k = sum(get(vname) == 1)), by = side]
+    pc <- suppressWarnings(chisq.test(table(dd$side, dd[[vname]]))$p.value)
+    rhs_v <- if (vname %in% c("dzh", "d30", "comp_primary", "major_compl", "ftr")) paste("+", rhs_for(vname)) else ""
+    m <- glm(as.formula(paste(vname, "~ side", rhs_v)), binomial, dd)
+    r <- tryCatch(cr2_term(m, dd, "sidehigh"), error = function(e) data.table(or = NA_real_, lower = NA_real_, upper = NA_real_, p = NA_real_))
+    cmp_rows[[length(cmp_rows) + 1]] <- data.table(group = gr, threshold = X, variable = PRAC_BIN[[vname]],
+      type = if (rhs_v == "") "n (%); OR high vs low, unadjusted" else "n (%); OR high vs low, case-mix adjusted",
+      below = sprintf("%d (%.1f)", s[side == "low", k], 100 * s[side == "low", k] / s[side == "low", n]),
+      above = sprintf("%d (%.1f)", s[side == "high", k], 100 * s[side == "high", k] / s[side == "high", n]),
+      n_below = s[side == "low", n], n_above = s[side == "high", n], p_patient = pc,
+      or_high_vs_low = r$or, or_lower = r$lower, or_upper = r$upper, p_centre_adjusted_cr2 = r$p)
+  }
+}
+write_out(rbindlist(xinfo), SUB, "threshold_used_for_comparison")
+CMP <- rbindlist(cmp_rows, fill = TRUE); write_out(CMP, SUB, "practice_below_vs_above_threshold")
+
 # ---- Figures --------------------------------------------------------------------------------------
 GC <- c("Acute" = "#1B5E4B", "Non-acute" = "#5FAE88")
 if (nrow(CV)) {
@@ -271,4 +342,33 @@ if (nrow(KMT)) {
     scale_y_continuous(labels = scales::percent) + labs(x = "Years after surgery", y = "Survival") + theme_pub()
   save_fig(p, SUB, "survival_by_volume_tertile", 9, 4.5)
 }
-log_msg("Done.")
+# ---- Summary in the console and in results/volume/overzicht_volume.txt --------------------------------
+OUTD <- out_dir(SUB)
+show <- function(title, f, cols = NULL) {
+  x <- fread(file.path(OUTD, f)); if (!is.null(cols)) x <- x[, intersect(cols, names(x)), with = FALSE]
+  num <- names(x)[vapply(x, is.numeric, logical(1))]
+  x[, (num) := lapply(.SD, function(z) ifelse(abs(z) >= 100, round(z, 1), signif(z, 3))), .SDcols = num]
+  cat("\n==== ", title, " ====\n", sep = ""); print(x, row.names = FALSE)
+}
+options(width = 250)
+while (sink.number() > 0) sink()
+sink(file.path(OUTD, "overzicht_volume.txt"), split = TRUE)
+cat("Volume-outcome, ", P0, "-", P1, " - ", format(Sys.time()), "\n", sep = "")
+show("1. Volumetertielen (centra)", "tertile_definitions.csv")
+show("2. Uitkomst per volumetertiel", "outcomes_by_volume_tertile.csv",
+     c("group", "outcome", "tertile", "n", "events", "pct", "or_vs_T1", "lower", "upper", "p", "or_per_tertile", "p_trend"))
+show("3. Lineair (OR per 10 operaties/jaar)", "linear_models.csv",
+     c("group", "outcome", "volume", "n", "events", "vol_median", "or_per_10", "lower", "upper", "p_cr2", "or_per_10_ri", "ri_p"))
+show("4. Spline / niet-lineariteit", "spline_tests.csv",
+     c("group", "outcome", "volume", "knots", "knot_values", "p_overall_cr2", "p_nonlinear_cr2", "p_nonlinear_lr", "aic_spline", "aic_linear"))
+show("5. Drempel (elbow + hinge, cluster-bootstrap) en NNT", "thresholds_elbow_hinge_bootstrap.csv",
+     c("group", "outcome", "volume", "elbow", "elbow_low", "elbow_high", "curve_decreasing", "share_reps_decreasing",
+       "std_risk_at_10", "std_risk_at_elbow", "nnt_10_vs_elbow", "hinge_threshold", "hinge_low", "hinge_high",
+       "hinge_or_per_10_below", "share_reps_hinge_better_than_linear", "p_overall_cr2", "p_nonlinear_cr2", "threshold_supported"))
+show("6. Binnen- vs tussen-centrum", "within_between_centre.csv")
+show("7. Overleving lange termijn (Cox)", "long_term_survival_cox.csv")
+show("8a. Gebruikte drempel X per groep", "threshold_used_for_comparison.csv")
+show("8b. Centra < X versus >= X: perfusie, operatie, case-mix, uitkomst", "practice_below_vs_above_threshold.csv",
+     c("group", "variable", "below", "above", "p_patient", "difference_mean", "or_high_vs_low", "or_lower", "or_upper", "p_centre_adjusted_cr2"))
+sink()
+log_msg("Done. Results in ", OUTD)
