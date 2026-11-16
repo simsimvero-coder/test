@@ -140,5 +140,19 @@ toon("52. Paper 1: ontbrekende modelcovariaten", mm("16_paper1_extra", "H_missin
 toon("53. Paper 1: hazard ratios acuut (stapsgewijs, landmark)", mm("16_paper1_extra", "J_hazard_ratios_acute.csv"))
 toon("54. Paper 1: log-rank (dag 0-30, na dag 30)", mm("16_paper1_extra", "J_logrank.csv"))
 
+toon("55. Paper 2 (2018-2024): volumetertielen", mm("18_volume_2018", "tertile_definitions.csv"))
+toon("56. Paper 2: uitkomst per volumetertiel", mm("18_volume_2018", "outcomes_by_volume_tertile.csv"),
+     c("group", "outcome", "tertile", "n", "events", "pct", "or_vs_T1", "lower", "upper", "p", "or_per_tertile", "p_trend"))
+toon("57. Paper 2: lineair (OR per 10 operaties/jaar)", mm("18_volume_2018", "linear_models.csv"),
+     c("group", "outcome", "volume", "n", "events", "vol_median", "or_per_10", "lower", "upper", "p_cr2", "or_per_10_ri", "ri_p"))
+toon("58. Paper 2: spline / niet-lineariteit", mm("18_volume_2018", "spline_tests.csv"),
+     c("group", "outcome", "volume", "knots", "knot_values", "p_overall_cr2", "p_nonlinear_cr2", "p_nonlinear_lr", "aic_spline", "aic_linear"))
+toon("59. Paper 2: drempel (elbow + hinge, cluster-bootstrap), NNT", mm("18_volume_2018", "thresholds_elbow_hinge_bootstrap.csv"),
+     c("group", "outcome", "volume", "elbow", "elbow_low", "elbow_high", "curve_decreasing", "share_reps_decreasing",
+       "std_risk_at_10", "std_risk_at_elbow", "nnt_10_vs_elbow", "hinge_threshold", "hinge_low", "hinge_high",
+       "hinge_or_per_10_below", "share_reps_hinge_better_than_linear", "p_overall_cr2", "p_nonlinear_cr2", "threshold_supported"))
+toon("60. Paper 2: binnen- vs tussen-centrum", mm("18_volume_2018", "within_between_centre.csv"))
+toon("61. Paper 2: overleving lange termijn (Cox)", mm("18_volume_2018", "long_term_survival_cox.csv"))
+
 sink()
 message("\nOverzicht ook opgeslagen in: ", out_file)
