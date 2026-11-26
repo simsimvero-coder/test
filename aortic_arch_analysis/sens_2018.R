@@ -35,7 +35,7 @@ safe <- function(expr, what) tryCatch(expr, error = function(e) { log_msg("  ski
 sub_d <- function(d, v, g) { d <- d[year >= START & year <= end_of(v) & !is.na(get(v))]; if (is.null(g)) d else d[acute == g] }
 row_of <- function(fit, term) {
   if (is.null(fit)) return(data.table(or = NA_real_, lower = NA_real_, upper = NA_real_, p = NA_real_))
-  p <- fit$pooled[fit$pooled$term == term]
+  tt <- term; p <- fit$pooled[fit$pooled$term == tt]
   data.table(or = exp(p$estimate), lower = exp(p$lower), upper = exp(p$upper), p = p$p)
 }
 
