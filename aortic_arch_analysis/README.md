@@ -30,6 +30,8 @@ aortic_arch_analysis/
 ├── 08_sensitivity_analyses.R  prespecified sensitivity analyses
 ├── 09_tables_figures.R        Tables 1-3, figures, supplement workbook, consistency checks, report
 ├── 10_compare_missing_data_methods.R   multiple imputation vs complete case (only when imputation is switched on)
+├── review_checks.R            standalone, after run_all.R: review checks for paper 1 (acute vs non-acute without EuroSCORE II,
+│                              flow counts, arrest-duration missingness, valve coding, extended adjustment, survival/SMR CIs)
 ├── run_all.R                  runs everything in fresh R sessions (04-09 once per missing-data method)
 ├── run_complete_case.R        same, complete-case analysis only (no imputation; much faster)
 ├── data/external/             CBS 37360ned (life tables) and 03759ned (population): public, CC BY 4.0

@@ -88,7 +88,10 @@ t1_rows <- function(d, group) {
   }
   row_cont <- function(v, label, f = fmt_med) {
     vals <- vapply(sets, function(s) f(d[[v]][s]), character(1))
-    data.table(characteristic = label, t(vals), missing = sum(is.na(d[[v]])), smd = smd(d[[v]], g))
+    # arrest duration: missing counted only among patients with circulatory arrest
+    # (patients without arrest have no duration and are not missing)
+    miss <- if (v == "ca_min") sum(d$circ_arrest_b %in% 1 & is.na(d[[v]])) else sum(is.na(d[[v]]))
+    data.table(characteristic = label, t(vals), missing = miss, smd = smd(d[[v]], g))
   }
   row_fac <- function(v, label) {
     f <- d[[v]]

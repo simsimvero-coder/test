@@ -48,7 +48,10 @@ compare_table <- function(d, g, levs) {
     x <- d[[v]]
     p <- tryCatch(wilcox.test(x[a], x[b])$p.value, error = function(e) NA_real_)
     rows[[length(rows) + 1]] <- data.table(characteristic = paste0(CONT[[v]], ", median [IQR]"),
-                                           g1 = fmt_med(x[a]), g2 = fmt_med(x[b]), missing = sum(is.na(x)), p = fmt_p(p))
+                                           g1 = fmt_med(x[a]), g2 = fmt_med(x[b]),
+                                           # arrest duration: missing only among patients with circulatory arrest
+                                           missing = if (v == "ca_min") sum(d$circ_arrest_b %in% 1 & is.na(x)) else sum(is.na(x)),
+                                           p = fmt_p(p))
     if (v == "age") rows[[length(rows) + 1]] <- data.table(characteristic = "Age, years, mean (SD)",
                                                           g1 = fmt_mean(x[a]), g2 = fmt_mean(x[b]), missing = sum(is.na(x)),
                                                           p = fmt_p(tryCatch(t.test(x[a], x[b])$p.value, error = function(e) NA_real_)))
