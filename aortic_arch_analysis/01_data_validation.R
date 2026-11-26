@@ -237,13 +237,6 @@ dv[is.na(aorta_desc), desc_inv := NA_integer_]
 dv[is.na(aotachir_benadering), hybrid_fet := NA_integer_]
 dv[is.na(chir_benadering), sternotomy := NA_integer_]
 dv[is.na(ECC), ecc_any := NA_integer_]
-# Aortic valve surgery is valve surgery: a recorded aortic valve procedure (aklepchir = 1)
-# with concomitant valve surgery coded 0 or missing is counted as valve surgery.
-# The number of records changed is logged and written to the validation output.
-valve_fix <- dv[aortic_valve %in% 1 & !(conc_valve %in% 1), .N]
-dv[aortic_valve %in% 1 & !(conc_valve %in% 1), conc_valve := 1L]
-log_msg("Valve surgery set to 1 because aortic valve surgery was recorded: ", valve_fix, " records")
-write_out(data.table(rule = "conc_valve set to 1 when aklepchir = 1", n_records = valve_fix), SUB, "valve_recode")
 # Selective cerebral perfusion (optional columns; absent -> missing)
 if (!"cerebrale_perfusie_aanv" %in% names(dv)) dv[, cerebrale_perfusie_aanv := NA_real_]
 if (!"cerebrale_perfusie_duur" %in% names(dv)) dv[, cerebrale_perfusie_duur := NA_real_]
