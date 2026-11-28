@@ -50,8 +50,10 @@ if (grepl("\\.csv$", data_bestand, ignore.case = TRUE)) {
   raw <- read.csv(data_bestand, check.names = FALSE, stringsAsFactors = FALSE,
                   na.strings = c("", "NA", "NULL", "-", "."))
 } else {
+  # Alles als tekst inlezen: kolommen met gemengde datums/tekst gaan anders deels verloren.
+  # Excel-datums komen dan binnen als serienummer ("44927"); die zet parse_datum() om.
   raw <- readxl::read_excel(data_bestand, sheet = excel_sheet, .name_repair = "minimal",
-                            na = c("", "NA", "NULL", "-", "."))
+                            col_types = "text", na = c("", "NA", "NULL", "-", "."))
 }
 raw <- as.data.frame(raw)
 
@@ -78,12 +80,25 @@ parse_datum <- function(x) {
   if (inherits(x, "Date")) return(x)
   if (inherits(x, "POSIXt")) return(as.Date(x))
   if (is.numeric(x)) return(as.Date(x, origin = "1899-12-30"))   # Excel serienummer
-  x <- trimws(as.character(x))
+  x <- tolower(trimws(as.character(x)))
   out <- as.Date(rep(NA_character_, length(x)))
-  for (f in c("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%y", "%d.%m.%Y")) {
-    nieuw <- as.Date(x, format = f)
+  # 1) Excel-serienummers als tekst, bv. "44927" of "44927.5"
+  serie <- grepl("^[0-9]{5}(\\.[0-9]+)?$", x)
+  out[serie] <- as.Date(floor(as.numeric(x[serie])), origin = "1899-12-30")
+  # 2) Tekstdatums: tijd eraf, maandnamen -> nummer, scheidingstekens -> "-"
+  y <- sub("[ t]+[0-9]{1,2}:[0-9]{2}.*$", "", x)
+  maanden <- c("januari|jan" = "01", "februari|feb" = "02", "maart|mrt|maa|mar" = "03",
+               "april|apr" = "04", "mei|may" = "05", "juni|jun" = "06", "juli|jul" = "07",
+               "augustus|aug" = "08", "september|sept|sep" = "09", "oktober|okt|oct" = "10",
+               "november|nov" = "11", "december|dec" = "12")
+  for (m in names(maanden)) y <- gsub(paste0("\\b(", m, ")\\.?\\b"), maanden[[m]], y)
+  y <- gsub("[ /.]+", "-", y)
+  for (f in c("%d-%m-%Y", "%Y-%m-%d", "%d-%m-%y")) {
+    nieuw <- suppressWarnings(as.Date(y, format = f))
     out[is.na(out)] <- nieuw[is.na(out)]
   }
+  # onwaarschijnlijke datums (typefouten) -> NA
+  out[!is.na(out) & (out < as.Date("1990-01-01") | out > as.Date("2035-12-31"))] <- NA
   out
 }
 parse_num <- function(x) suppressWarnings(as.numeric(gsub(",", ".", gsub("[<>\\s]", "", as.character(x), perl = TRUE))))
@@ -105,7 +120,14 @@ ja <- function(x) {
 
 # Datums
 datum_cols <- grep("datum", names(raw), value = TRUE)
+raw_datum_tekst <- raw$interv_datum
 raw[datum_cols] <- lapply(raw[datum_cols], parse_datum)
+cat("\nOperatiedatum ingelezen voor", sum(!is.na(raw$interv_datum)), "van", nrow(raw), "operaties",
+    "| bereik:", format(min(raw$interv_datum, na.rm = TRUE)), "t/m", format(max(raw$interv_datum, na.rm = TRUE)), "\n")
+if (any(is.na(raw$interv_datum))) {
+  cat("LET OP - operatiedatum niet herkend; voorbeelden van de waarden in Excel:\n")
+  print(head(unique(raw_datum_tekst[is.na(raw$interv_datum)]), 15))
+}
 
 # Tekstkolommen die eigenlijk numeriek zijn (bv. decimale komma) omzetten
 for (v in names(raw)) {
@@ -243,7 +265,10 @@ cat("Type ingreep:\n"); print(table(d$ingreep, d$periode, useNA = "ifany"))
 
 na  <- d %>% filter(periode == "na_jun2022")
 voor <- d %>% filter(periode == "voor_jun2022")
-cat("N totaal:", nrow(d), "| na juni 2022:", nrow(na), "| voor juni 2022:", nrow(voor), "\n")
+cat("N totaal:", nrow(d), "| na juni 2022:", nrow(na), "| voor juni 2022:", nrow(voor),
+    "| datum onbekend:", sum(is.na(d$periode)), "\n")
+if (nrow(na) < 5) stop("Er zijn (bijna) geen operaties na ", format(cutoff_datum),
+                       " gevonden. Controleer de melding over de operatiedatum hierboven en stuur die door.")
 
 ###############################################################################
 # 3. TABEL 1 (baseline per periode)
