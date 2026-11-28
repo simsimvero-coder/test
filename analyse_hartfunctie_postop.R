@@ -37,6 +37,7 @@ suppressPackageStartupMessages({
 })
 select <- dplyr::select   # MASS maskeert anders dplyr::select
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+out_pad <- normalizePath(out_dir)   # volledig pad, ook na source(chdir = TRUE)
 schrijf <- function(x, naam) write.csv(x, file.path(out_dir, paste0(naam, ".csv")), row.names = FALSE)
 
 ###############################################################################
@@ -675,4 +676,43 @@ if (run_mice) {
 }
 
 writeLines(capture.output(sessionInfo()), file.path(out_dir, "sessionInfo.txt"))
-cat("\nKlaar. Resultaten staan in:", normalizePath(out_dir), "\n")
+
+###############################################################################
+# 8. RESULTATEN DIRECT TONEN (console + RStudio-tabbladen + PDF-figuren)
+###############################################################################
+toon_resultaten <- function(open_tabs = TRUE, open_pdf = TRUE) {
+  lees <- function(f) { f <- file.path(out_pad, paste0(f, ".csv"))
+    if (file.exists(f)) read.csv(f, check.names = FALSE) else NULL }
+  rond <- function(x) { num <- sapply(x, is.numeric)
+    x[num] <- lapply(x[num], function(v) ifelse(abs(v) < 0.001 & v != 0, signif(v, 2), round(v, 3))); x }
+  tabellen <- list(
+    "4a Pre vs post (na jun 2022), ongecorrigeerd" =
+      function(x) x[, c("parameter", "n_paar", "pre_mean", "post_mean", "delta_mean", "ci_laag", "ci_hoog", "p_ttest", "p_holm")],
+    "4b Afwijkende functie pre vs post" = identity,
+    "4c Verandering gecorrigeerd (dag ref_dag_tte)" =
+      function(x) x[x$model %in% c("A_tijd", "B_tijd_lft_gesl_es2"),
+                    c("parameter", "model", "n", "adj_delta", "ci_laag", "ci_hoog", "p_delta", "tijd_per_verdubbeling", "tijd_p")],
+    "4d Absolute post-op waarden gecorrigeerd" = identity,
+    "5a Uitkomsten na vs voor jun 2022" = identity,
+    "5b Uitkomsten IPTW" = identity,
+    "5c Echo-verandering na vs voor jun 2022" = identity,
+    "6a Effect AoX (per 30 min) op kamerfunctie" = identity,
+    "6b Mediatie AoX" =
+      function(x) x[, intersect(c("analyse", "n", "ACME", "ACME_ci_l", "ACME_ci_h", "ACME_p", "ADE", "ADE_p", "prop_gemedieerd"), names(x))],
+    "7f Multiple imputation (model B)" = identity)
+  bestanden <- c("4a_paired_pre_post_na2022", "4b_afwijkend_pre_post_na2022",
+                 "4c_gecorrigeerde_verandering_na2022", "4d_absolute_postop_waarden_gecorrigeerd",
+                 "5a_uitkomsten_na_vs_voor_jun2022", "5b_uitkomsten_IPTW", "5c_echo_verandering_na_vs_voor",
+                 "6a_AoX_effect_op_kamerfunctie", "6b_mediatie_AoX", "7f_multiple_imputation_model_B")
+  old <- options(width = 200); on.exit(options(old))
+  for (i in seq_along(bestanden)) {
+    x <- lees(bestanden[i]); if (is.null(x) || !nrow(x)) next
+    x <- rond(tabellen[[i]](x)); titel <- names(tabellen)[i]
+    cat("\n==================", titel, "==================\n"); print(x, row.names = FALSE)
+    if (open_tabs && interactive() && Sys.getenv("RSTUDIO") == "1") utils::View(x, title = substr(titel, 1, 25))
+  }
+  if (open_pdf && interactive()) for (f in list.files(out_pad, "\\.pdf$", full.names = TRUE)) browseURL(f)
+  cat("\nAlle tabellen en figuren staan in:", out_pad, "\n")
+}
+toon_resultaten()
+cat("Klaar. Later opnieuw bekijken zonder alles te herberekenen: toon_resultaten()\n")
