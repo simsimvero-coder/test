@@ -18,8 +18,8 @@
 ###############################################################################
 
 ## ======================= INSTELLINGEN v2 ===================================
-n_boot      <- 2000          # bootstrap voor BI's van de verandering
-n_boot_med  <- 500           # bootstrap voor mediatie (lavaan); hoger = trager
+n_boot      <- 1000          # bootstrap voor BI's van de verandering
+n_boot_med  <- 0             # 0 = snelle Monte Carlo-BI (aanbevolen); >0 = bootstrap (zeer traag)
 prior_sd_zwak       <- 1.5   # zwak-informatieve prior op log-OR (95%: OR 0,05-19)
 prior_sd_sceptisch  <- 0.35  # sceptische prior op log-OR (95%: OR 0,5-2)
 ## ===========================================================================
@@ -338,6 +338,7 @@ cat("\nTAPSE-waarden (mm) ter controle:\n"); print(summary(dc$pre_tapse)); print
 ###############################################################################
 # B. VERANDERING IN HET HELE COHORT
 ###############################################################################
+cat("\n>> Bezig met B. verandering pre->post (met bootstrap) ...\n"); flush.console()
 cov_sets <- list(
   hoofd       = "es2",
   plus_lft_gs = c("es2", "leeftijd_operatie", "geslacht"),
@@ -405,6 +406,7 @@ schrijf(mm_v2, "B2_mixed_model_hele_cohort")
 ###############################################################################
 # C. AORTAKLEMTIJD (hele cohort, alleen on-pump)
 ###############################################################################
+cat("\n>> Bezig met C. aortaklemtijd ...\n"); flush.console()
 op <- dc %>% filter(!is.na(aox_duur), aox_duur > 0)
 res_C <- list()
 for (p in alle_v2) {
@@ -431,20 +433,36 @@ tab_C <- bind_rows(res_C); schrijf(tab_C, "C_klemtijd_hele_cohort")
 ###############################################################################
 # D. MEDIATIE MET LAVAAN + FIML
 ###############################################################################
+cat("\n>> Bezig met D. mediatie ...\n"); flush.console()
 tab_D <- NULL
 if (heeft("lavaan")) {
   dm <- op %>% transmute(aox = aox30, es2, per, tdub, log_icu, daoh30, tnt = log_post_hstnt,
                          across(any_of(c(paste0("pre_", prim_par), paste0("post_", prim_par),
                                          paste0("delta_", prim_par)))))
+  # Snel: één FIML-fit per model met standaard-SE's; BI van het indirecte effect via
+  # Monte Carlo (Preacher & Selig 2012). Optioneel bootstrap (n_boot_med > 0, traag).
   run_med <- function(model, lbl) {
+    cat("  mediatie:", lbl, "\n"); flush.console()
     fit <- tryCatch(suppressWarnings(lavaan::sem(model, data = dm, missing = "fiml", fixed.x = FALSE,
-                    se = "bootstrap", bootstrap = n_boot_med)),
+                    se = if (n_boot_med > 0) "bootstrap" else "standard", bootstrap = max(n_boot_med, 1))),
                     error = function(e) { message(lbl, ": ", conditionMessage(e)); NULL })
     if (is.null(fit)) return(NULL)
     pe <- lavaan::parameterEstimates(fit, boot.ci.type = "perc")
     pe <- pe[pe$label %in% c("a", "b", "c", "ind", "tot"), ]
-    data.frame(analyse = lbl, pad = pe$label, schatting = pe$est, ci_laag = pe$ci.lower,
-               ci_hoog = pe$ci.upper, p = pe$pvalue, n_gebruikt = lavaan::lavInspect(fit, "nobs"))
+    out <- data.frame(analyse = lbl, pad = pe$label, schatting = pe$est, ci_laag = pe$ci.lower,
+                      ci_hoog = pe$ci.upper, p = pe$pvalue, n_gebruikt = lavaan::lavInspect(fit, "nobs"),
+                      methode = if (n_boot_med > 0) "bootstrap" else "Monte Carlo")
+    if (n_boot_med == 0) {                     # Monte Carlo BI voor ind en tot
+      cf <- lavaan::coef(fit); V <- lavaan::vcov(fit)
+      sim <- MASS::mvrnorm(20000, cf[c("a", "b", "c")], V[c("a", "b", "c"), c("a", "b", "c")])
+      for (k in c("ind", "tot")) {
+        v <- if (k == "ind") sim[, 1] * sim[, 2] else sim[, 3] + sim[, 1] * sim[, 2]
+        j <- out$pad == k
+        out$ci_laag[j] <- quantile(v, .025); out$ci_hoog[j] <- quantile(v, .975)
+        out$p[j] <- min(1, 2 * min(mean(v > 0), mean(v < 0)))
+      }
+    }
+    out
   }
   res_D <- list()
   for (p in prim_par[sapply(prim_par, function(p) all(paste0(c("pre_", "post_", "delta_"), p) %in% names(dm)))]) {
@@ -468,6 +486,7 @@ if (heeft("lavaan")) {
 ###############################################################################
 # E. KLINISCHE UITKOMSTEN NA vs VOOR JUNI 2022
 ###############################################################################
+cat("\n>> Bezig met E. klinische uitkomsten ...\n"); flush.console()
 # Firth-logistische regressie (betrouwbaar bij weinig events). Gebruikt logistf als
 # dat geïnstalleerd is (profiel-likelihood BI); anders een eigen implementatie (Wald-BI).
 firth_eigen <- function(f, data) {
