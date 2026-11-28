@@ -485,6 +485,90 @@ for (def in names(definities)) for (y in uitk_M4) {
 tab_M4 <- bind_rows(res_M4); schrijf(tab_M4, "M4_klinische_myocarduitkomsten")
 
 ###############################################################################
+# M5. TIMING VAN DE ECHO'S (gevoeligheidsanalyses)
+###############################################################################
+cat("\n>> Bezig met M5. timing echo's ...\n"); flush.console()
+dc$pre_afstand <- abs(dc$pre_dagen)                 # dagen tussen pre-op TTE en OK
+dc$tpre <- log2(dc$pre_afstand + 1)
+
+## M5a. Verdeling van de timing per techniek
+mq <- function(x) sprintf("%.0f [%.0f-%.0f]", median(x, na.rm = TRUE), quantile(x, .25, na.rm = TRUE), quantile(x, .75, na.rm = TRUE))
+tab_M5a <- bind_rows(lapply(c("ITT", "AT"), function(def) {
+  tv <- definities[[def]]
+  bind_rows(lapply(c("pre_afstand", "post_dagen"), function(v) {
+      dd <- dc[!is.na(dc[[v]]) & !is.na(dc[[tv]]), ]
+      tibble(definitie = def, tijd = ifelse(v == "pre_afstand", "pre-op TTE -> OK (dagen)", "OK -> post-op TTE (dagen)"),
+        n_cp = sum(dd[[tv]] == "cardioplegie"), cardioplegie = mq(dd[[v]][dd[[tv]] == "cardioplegie"]),
+        n_kh = sum(dd[[tv]] == "kloppend_hart"), kloppend_hart = mq(dd[[v]][dd[[tv]] == "kloppend_hart"]),
+        pct_binnen_venster_cp = 100 * mean(if (v == "pre_afstand") dd[[v]][dd[[tv]] == "cardioplegie"] <= 90
+                                           else dd[[v]][dd[[tv]] == "cardioplegie"] <= 10),
+        pct_binnen_venster_kh = 100 * mean(if (v == "pre_afstand") dd[[v]][dd[[tv]] == "kloppend_hart"] <= 90
+                                           else dd[[v]][dd[[tv]] == "kloppend_hart"] <= 10),
+        p_wilcoxon = tryCatch(suppressWarnings(wilcox.test(dd[[v]] ~ dd[[tv]])$p.value), error = function(e) NA))
+    }))
+}))
+schrijf(tab_M5a, "M5a_timing_echo_per_techniek")
+# venster: pre <= 90 dagen; post <= 10 dagen
+
+## Varianten van het hoofdmodel
+varianten <- list(
+  hoofdmodel        = list(extra = character(0), filter = function(x) rep(TRUE, nrow(x))),
+  plus_tijd_pre_TTE = list(extra = "tpre",       filter = function(x) rep(TRUE, nrow(x))),
+  pre_TTE_le90d     = list(extra = character(0), filter = function(x) !is.na(x$pre_afstand) & x$pre_afstand <= 90),
+  post_TTE_dag1_10  = list(extra = character(0), filter = function(x) !is.na(x$post_dagen) & x$post_dagen >= 1 & x$post_dagen <= 10),
+  post_TTE_dag2_10  = list(extra = character(0), filter = function(x) !is.na(x$post_dagen) & x$post_dagen >= 2 & x$post_dagen <= 10),
+  pre90_en_post1_10 = list(extra = character(0), filter = function(x) !is.na(x$pre_afstand) & x$pre_afstand <= 90 &
+                                                                  !is.na(x$post_dagen) & x$post_dagen >= 1 & x$post_dagen <= 10))
+
+## M5b. Verschil kloppend hart - cardioplegie (zoals M1) per variant
+res_M5b <- list()
+for (def in c("ITT", "AT")) for (p in echo_par) for (vn in names(varianten)) {
+  tv <- definities[[def]]; dl <- paste0("delta_", p); pre <- paste0("pre_", p); va <- varianten[[vn]]
+  dd <- dc[va$filter(dc), ]
+  dd <- dd[complete.cases(dd[, c(dl, pre, "tdub", "es2", tv, va$extra)]), ]; dd$tech <- dd[[tv]]
+  if (nrow(dd) < 10 || min(table(dd$tech)) < 3) next
+  m <- lm(as.formula(paste(dl, "~ tech +", paste(c(pre, "tdub", "es2", va$extra), collapse = " + "))), dd)
+  tt <- tidy(m, conf.int = TRUE) %>% filter(term == "techkloppend_hart"); gh <- gunstig_hoger[[p]]
+  pg <- pnorm(0, tt$estimate, tt$std.error)
+  res_M5b[[length(res_M5b) + 1]] <- tibble(definitie = def, parameter = p, variant = vn,
+    n_cp = sum(dd$tech == "cardioplegie"), n_kh = sum(dd$tech == "kloppend_hart"),
+    verschil_kh_min_cp = tt$estimate, ci_laag = tt$conf.low, ci_hoog = tt$conf.high, p = tt$p.value,
+    P_kh_gunstiger = if (gh) 1 - pg else pg)
+}
+tab_M5b <- bind_rows(res_M5b); schrijf(tab_M5b, "M5b_echo_verschil_timing_varianten")
+
+## M5c. Herstelt het hart even snel bij beide technieken? (interactie techniek x tijd tot post-op TTE)
+res_M5c <- list()
+for (def in c("ITT", "AT")) for (p in echo_par) {
+  tv <- definities[[def]]; dl <- paste0("delta_", p); pre <- paste0("pre_", p)
+  dd <- dc[complete.cases(dc[, c(dl, pre, "tdub", "es2", tv)]), ]; dd$tech <- dd[[tv]]
+  if (nrow(dd) < 15 || min(table(dd$tech)) < 5) next
+  m <- lm(as.formula(paste(dl, "~ tech * tdub +", pre, "+ es2")), dd)
+  tr <- as.data.frame(summary(emtrends(m, ~ tech, var = "tdub")))
+  res_M5c[[length(res_M5c) + 1]] <- tibble(definitie = def, parameter = p, techniek = as.character(tr$tech),
+    herstel_per_verdubbeling_dagen = tr$tdub.trend, ci_laag = tr$lower.CL, ci_hoog = tr$upper.CL,
+    p_interactie = tidy(m) %>% filter(term == "techkloppend_hart:tdub") %>% pull(p.value))
+}
+tab_M5c <- bind_rows(res_M5c); schrijf(tab_M5c, "M5c_herstel_over_tijd_per_techniek")
+
+## M5d. Klemtijd x techniek (zoals M3) per variant, voor LVEF, GLS en RV S'
+res_M5d <- list()
+for (def in c("ITT", "AT")) for (p in c("lvef", "gls", "rv_s")) for (vn in names(varianten)) {
+  tv <- definities[[def]]; dl <- paste0("delta_", p); pre <- paste0("pre_", p); va <- varianten[[vn]]
+  dd <- dc[va$filter(dc), ]
+  dd <- dd[complete.cases(dd[, c(dl, pre, "tdub", "es2", "aox30", tv, va$extra)]), ]; dd$tech <- dd[[tv]]
+  if (nrow(dd) < 15 || min(table(dd$tech)) < 5) next
+  m <- lm(as.formula(paste(dl, "~ aox30 * tech +", paste(c(pre, "tdub", "es2", va$extra), collapse = " + "))), dd)
+  tr <- as.data.frame(summary(emtrends(m, ~ tech, var = "aox30")))
+  res_M5d[[length(res_M5d) + 1]] <- tibble(definitie = def, parameter = p, variant = vn,
+    n_cp = sum(dd$tech == "cardioplegie"), n_kh = sum(dd$tech == "kloppend_hart"),
+    aox_effect_cp = tr$aox30.trend[1], cp_ci = sprintf("%.2f tot %.2f", tr$lower.CL[1], tr$upper.CL[1]),
+    aox_effect_kh = tr$aox30.trend[2], kh_ci = sprintf("%.2f tot %.2f", tr$lower.CL[2], tr$upper.CL[2]),
+    p_interactie = tidy(m) %>% filter(term == "aox30:techkloppend_hart") %>% pull(p.value))
+}
+tab_M5d <- bind_rows(res_M5d); schrijf(tab_M5d, "M5d_klemtijd_x_techniek_timing_varianten")
+
+###############################################################################
 # FIGUREN
 ###############################################################################
 pdf(file.path(out_dir, "fig_v3_myocard.pdf"), width = 8, height = 5.5)
@@ -515,6 +599,11 @@ toon(tab_M1, "M1. Echo: gecorrigeerde verandering per techniek (pre-waarde + tij
 toon(tab_M2, "M2. Biomarkers na OK: ratio geometrisch gemiddelde kloppend hart / cardioplegie")
 toon(tab_M3, "M3. Effect klemtijd per 30 min per techniek")
 toon(tab_M4, "M4. Klinische myocarduitkomsten (Firth + Bayes)")
+toon(tab_M5a, "M5a. Timing van de echo's per techniek (mediaan [IQR]; venster: pre <= 90 d, post <= 10 d)")
+toon(tab_M5b %>% filter(parameter %in% c("lvef", "gls", "rv_s", "la_strain")),
+     "M5b. Verschil kloppend hart - cardioplegie per timing-variant (alle parameters in CSV)")
+toon(tab_M5c, "M5c. Herstel per verdubbeling van tijd tot post-op TTE, per techniek")
+toon(tab_M5d, "M5d. Klemtijd (per 30 min) x techniek per timing-variant")
 if (nrow(tab_M4)) cat("Methode M4:", unique(sapply(list(firth(as.formula(paste(uitk_M4[1], "~ tech_itt + es2")), dc)), `[[`, "methode")), "\n")
 cat("\nITT = toegewezen, AT = ontvangen, PP = alleen wie de toegewezen techniek kreeg.\n")
 cat("Alle tabellen en figuren staan in:", out_pad, "\n")
