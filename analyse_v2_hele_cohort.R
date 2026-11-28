@@ -310,8 +310,9 @@ dc <- d %>% filter(!is.na(periode)) %>%
          log_icu = log1p(icu_los),
          n_compl = rowSums(across(all_of(compl_vars)), na.rm = TRUE),
          # DAOH-30: dagen levend en buiten het ziekenhuis in de eerste 30 dagen na OK
-         dood30 = ja(x30d_mortaliteit) == 1 |
-                  (!is.na(overleden_dagen_postop) & overleden_dagen_postop <= 30),
+         # alleen de 30-dagenmortaliteit-kolom (overleden_dagen_postop is niet betrouwbaar
+         # als levende patiënten daar een 0 of follow-up-duur hebben)
+         dood30 = ja(x30d_mortaliteit) == 1,
          daoh30 = ifelse(dood30, 0, pmax(0, 30 - pmin(in_hospital_los, 30))))
 
 rond <- function(x) { x <- as.data.frame(x); num <- sapply(x, is.numeric)
@@ -556,6 +557,8 @@ for (y in c("daoh30", "n_compl")) {
     P_na2022_gunstiger = if (is.na(po_b)) NA else { pg <- pnorm(0, po_b, po_se); if (y == "daoh30") 1 - pg else pg })
 }
 tab_E2 <- bind_rows(res_E2); schrijf(tab_E2, "E2_DAOH30_en_aantal_complicaties")
+cat("\nControle DAOH-30 (dagen levend en thuis, 0-30) per periode:\n")
+print(tapply(dc$daoh30, dc$periode, summary))
 
 ###############################################################################
 # RESULTATEN TONEN
@@ -571,7 +574,7 @@ toon(tab_B %>% filter(model != "hoofd") %>% select(parameter, model, n, adj_delt
      "B. Gevoeligheidsanalyses")
 toon(mm_v2, "B2. Mixed model (alle beschikbare echo's)")
 toon(tab_C, "C. Aortaklemtijd (per 30 min) -> verandering")
-toon(tab_D, "D. Mediatie (lavaan, FIML, bootstrap)")
+toon(tab_D, paste0("D. Mediatie (lavaan, FIML, ", if (n_boot_med > 0) "bootstrap" else "Monte Carlo", "-BI)"))
 toon(tab_E %>% select(-methode), "E1. Uitkomsten na vs voor jun 2022 (Firth + Bayes)")
 if (nrow(tab_E)) cat("Methode E1:", unique(tab_E$methode), "\n")
 toon(tab_E2, "E2. DAOH-30 en aantal complicaties")
