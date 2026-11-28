@@ -40,7 +40,7 @@ suppressPackageStartupMessages({
 select <- dplyr::select   # MASS maskeert anders dplyr::select
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 out_pad <- normalizePath(out_dir)   # volledig pad, ook na source(chdir = TRUE)
-schrijf <- function(x, naam) write.csv(x, file.path(out_dir, paste0(naam, ".csv")), row.names = FALSE)
+schrijf <- function(x, naam) if (!is.null(x) && NROW(x) > 0) write.csv(x, file.path(out_dir, paste0(naam, ".csv")), row.names = FALSE)
 
 ###############################################################################
 # 1. INLEZEN EN OPSCHONEN
@@ -95,6 +95,14 @@ to01 <- function(x) {
          ifelse(s %in% c("0", "nee", "n", "no", "false", "onwaar"), 0L, NA_integer_))
 }
 
+# ja(): 1 bij elke niet-lege waarde behalve nee/0 (bv. "hemiboog" telt als ja)
+ja <- function(x) {
+  if (is.null(x)) return(0L)
+  y <- to01(x); s <- tolower(trimws(as.character(x)))
+  y[is.na(y) & !is.na(x) & !(s %in% c("", "nee", "n", "no", "0", "geen"))] <- 1L
+  y[is.na(y)] <- 0L; y
+}
+
 # Datums
 datum_cols <- grep("datum", names(raw), value = TRUE)
 raw[datum_cols] <- lapply(raw[datum_cols], parse_datum)
@@ -133,10 +141,16 @@ echo_map <- c(lvef_mod = "lvef_mod_biplane", lvef_teich = "lvef_teich",
               mv_ea = "mv_e_a", e_eprime = "e_e_gemiddelde", la_vol = "la_volume_biplane",
               la_strain = "la_ed_reservoir_ls_as", lvot_d = "lvot_diameter",
               lvot_vti = "lvot_v1_vti")
+ontbreekt <- character(0)
 for (k in names(echo_map)) for (t in c("pre_", "post_")) {
   oud <- paste0(t, echo_map[[k]])
   if (oud %in% names(raw)) names(raw)[names(raw) == oud] <- paste0(t, k)
-  else warning("Echo-kolom niet gevonden: ", oud)
+  else ontbreekt <- c(ontbreekt, oud)
+}
+if (length(ontbreekt)) {
+  cat("\nLET OP - deze echo-kolommen zijn niet gevonden (worden overgeslagen):\n ",
+      paste(ontbreekt, collapse = ", "), "\nKolomnamen in je bestand na opschonen:\n")
+  print(names(raw))
 }
 # biomarkers: pre_hstnt, post_hstnt, pre_ck_mb, post_lactaat, ... (na schoon_naam)
 
@@ -191,13 +205,19 @@ d <- d %>%
     pre_rv_dysf  = as.integer(pre_tapse < 17 | pre_rv_s < 9.5),
     post_rv_dysf = as.integer(post_tapse < 17 | post_rv_s < 9.5),
     # Type ingreep
+    # Type ingreep (aortaboog-cohort): boog / overige aorta, met of zonder CABG/klep
+    bijkomend = ja(cabg) == 1 | ja(klepchir) == 1,
     ingreep = case_when(
-      aortachir == 1                                   ~ "Aorta(+/-)",
-      cabg == 1 & klepchir == 1                        ~ "CABG+klep",
-      cabg == 1 & (is.na(klepchir) | klepchir == 0)    ~ "Geisoleerde CABG",
-      klepchir == 1                                    ~ "Klep",
-      TRUE                                             ~ "Overig"),
-    ingreep = relevel(factor(ingreep), ref = "Geisoleerde CABG"),
+      ja(aortaboog) == 1 & bijkomend   ~ "Boog+CABG/klep",
+      ja(aortaboog) == 1               ~ "Boog",
+      ja(aortachir) == 1 & bijkomend   ~ "Aorta+CABG/klep",
+      ja(aortachir) == 1               ~ "Aorta overig",
+      ja(cabg) == 1 & ja(klepchir) == 1 ~ "CABG+klep",
+      ja(cabg) == 1                    ~ "CABG",
+      ja(klepchir) == 1                ~ "Klep",
+      TRUE                             ~ "Overig"),
+    ingreep = factor(ingreep),
+    ingreep = relevel(ingreep, ref = names(which.max(table(ingreep)))),   # grootste groep = referentie
     off_pump = as.integer(ecc == 0)
   )
 
@@ -216,6 +236,10 @@ alle_par <- c(lv_par, rv_par, dia_par, "lvmi")
 hoofd_par <- c("lvef", "gls", "tapse", "rv_s")   # primaire LV/RV functie-uitkomsten
 
 for (p in alle_par) d[[paste0("delta_", p)]] <- d[[paste0("post_", p)]] - d[[paste0("pre_", p)]]
+
+# Variabelen zonder variatie (bv. iedereen dezelfde ingreep) kunnen niet in een model
+varieert <- names(d)[sapply(d, function(x) length(unique(na.omit(x))) > 1)]
+cat("Type ingreep:\n"); print(table(d$ingreep, d$periode, useNA = "ifany"))
 
 na  <- d %>% filter(periode == "na_jun2022")
 voor <- d %>% filter(periode == "voor_jun2022")
@@ -398,7 +422,7 @@ dev.off()
 ###############################################################################
 # 5. NA JUNI 2022 vs VOOR JUNI 2022
 ###############################################################################
-adj_basis <- intersect(c("leeftijd_operatie", "geslacht", "euroscore2", "ingreep"), names(d))
+adj_basis <- intersect(c("leeftijd_operatie", "geslacht", "euroscore2", "ingreep"), varieert)
 
 ## 5a. Klinische uitkomsten (beschikbaar in beide periodes) ---------------------
 uitk_bin <- intersect(c("x30d_mortaliteit", "overleden_zkh", "compl_any", "compl_major",
@@ -438,7 +462,7 @@ schrijf(bind_rows(res_5a), "5a_uitkomsten_na_vs_voor_jun2022")   # pct_voor/na =
 ## 5b. Sensitiviteit: inverse probability of treatment weighting (IPTW) ----------
 if (heeft("WeightIt") && heeft("sandwich")) {
   ps_vars <- intersect(c("leeftijd_operatie", "geslacht", "euroscore2", "ingreep", "bmi",
-                         "diabetes", "chr_longziekte", "cardiochir_eerder"), names(d))
+                         "diabetes", "chr_longziekte", "cardiochir_eerder"), varieert)
   dw <- d[complete.cases(d[, ps_vars]), ]
   w <- WeightIt::weightit(reformulate(ps_vars, "periode"), data = dw, method = "glm",
                           estimand = "ATE", stabilize = TRUE)
@@ -502,8 +526,9 @@ for (p in hoofd_par) {
   for (spec in list(c("aox30"),                               # alleen AoX
                     c("aox30", "ingreep"),                    # + type ingreep
                     c("aox30", "ecc_zonder_klem"),            # klemtijd los van overige pomptijd
-                    c("aox30", "min_temp"))) {
-    spec <- intersect(spec, names(on_pump))
+                    c("aox30", "min_temp"),
+                    c("aox30", "circ_arrest_duur"))) {             # boogchirurgie: circulatiestilstand
+    spec <- intersect(spec, varieert)
     rhs <- c(spec, pre, aox_adj)
     dd <- on_pump[complete.cases(on_pump[, c(dl, rhs)]), ]; if (nrow(dd) < 25) next
     m <- lm(reformulate(rhs, dl), dd)
@@ -582,7 +607,7 @@ schrijf(bind_rows(res_6b), "6b_mediatie_AoX")
 ###############################################################################
 ## 7a. Determinanten van nieuwe post-op RV-dysfunctie en LV-dysfunctie ----------
 det_vars <- intersect(c("leeftijd_operatie", "geslacht", "euroscore2", "ingreep", "aox30",
-                        "min_temp", "tdub", "post_intubatie", "tklepchir", "mklepchir"), names(na))
+                        "min_temp", "tdub", "post_intubatie", "tklepchir", "mklepchir"), varieert)
 res_7a <- bind_rows(lapply(c("post_rv_dysf", "post_lv_dysf"), function(y) {
   pre <- sub("post_", "pre_", y)
   dd <- na %>% filter(.data[[pre]] == 0)               # alleen patiënten met normale pre-op functie
@@ -684,7 +709,7 @@ writeLines(capture.output(sessionInfo()), file.path(out_dir, "sessionInfo.txt"))
 ###############################################################################
 toon_resultaten <- function(open_tabs = TRUE, open_pdf = TRUE) {
   lees <- function(f) { f <- file.path(out_pad, paste0(f, ".csv"))
-    if (file.exists(f)) read.csv(f, check.names = FALSE) else NULL }
+    if (file.exists(f)) tryCatch(read.csv(f, check.names = FALSE), error = function(e) NULL) else NULL }
   rond <- function(x) { num <- sapply(x, is.numeric)
     x[num] <- lapply(x[num], function(v) ifelse(abs(v) < 0.001 & v != 0, signif(v, 2), round(v, 3))); x }
   tabellen <- list(
