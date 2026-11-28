@@ -3,8 +3,16 @@
 # Run from the project folder after the main pipeline has created data/derived:
 #   source("volume.R")
 # Paper 2: volume-outcome relation for open aortic arch surgery, 2018-2024
-# (period with complete classification and registration). Same cohort and group
-# definitions as the rest of the pipeline (analysis cohort; acute / non-acute).
+# (period with complete classification and registration). Same analysis cohort as
+# paper 1. Groups for paper 2 (default, ARCH_VOLUME_GROUPS = "strict"):
+#   Acute    = urgentie 30 (emergency) or 40 (salvage), or acute dissection (code 20)
+#              in any aortic segment (identical to the acute group of paper 1);
+#   Elective = urgentie 10 (elective) without a dissection code (20) in any segment.
+#              Chronic dissection (30) and infection (40) are already excluded from the
+#              cohort. Urgent operations (urgentie 20) and operations with unknown
+#              urgency belong to neither group and are left out of the group analyses;
+#              their number is reported (section 0).
+#   ARCH_VOLUME_GROUPS = "original" restores acute / non-acute as in paper 1.
 #
 # Methods follow the volume-outcome literature (Kawczynski et al., Eur Heart J 2023;
 # Heuts et al., Eur Respir J 2025; Govers et al., EJCTS 2026):
@@ -17,6 +25,9 @@
 #      random-intercept sensitivity; within/between-centre decomposition (Mundlak).
 #   4. Non-linearity: restricted cubic splines with 3 (primary) and 4 knots;
 #      CR2 Wald tests of any volume effect and of non-linearity; AIC vs linear.
+#      Davies test (segmented::davies.test) for a change in slope (breakpoint) of the
+#      volume term in the adjusted logistic model; it treats patients as independent,
+#      so it is a sensitivity check next to the cluster-robust spline tests.
 #   5. Threshold: (a) elbow method on the case-mix-standardised risk curve (point of
 #      maximum distance to the chord, as in Kawczynski/Heuts), (b) hinge model
 #      (risk falls linearly up to k, flat above), both with 95% intervals from a
@@ -35,7 +46,7 @@
 #      and cross-clamp time), procedure, case mix and outcomes. X = the supported elbow
 #      threshold for in-hospital mortality; if none is supported, the median centre
 #      volume is used and flagged. Override with Sys.setenv(ARCH_VOLUME_THRESHOLD = "x")
-#      (one value) or "acute,nonacute" (two values). Patient-level tests (Wilcoxon/chi-square)
+#      (one value) or "acute,elective" (two values). Patient-level tests (Wilcoxon/chi-square)
 #      and centre-adjusted regressions with CR2 standard errors (15 centres).
 # Adjustment throughout: age (spline), sex, logit EuroSCORE II, previous cardiac
 # surgery, calendar year. 15 centres: all centre-level inference is limited.
@@ -54,6 +65,13 @@ cohort <- load_derived("cohort.rds")
 surg   <- load_derived("surgical_cohort.rds")
 specs  <- load_derived("specs.rds")
 d0     <- copy(analysis_datasets()[[1]])
+GROUPS <- Sys.getenv("ARCH_VOLUME_GROUPS", "strict")
+GRPS   <- if (GROUPS == "original") c("Acute", "Non-acute") else c("Acute", "Elective")
+grp_of <- function(d) if (GROUPS == "original") as.character(d$urgency2) else
+  fcase(d$acute %in% 1L, "Acute", d$urgentie %in% 10 & !(d$seg_ad %in% TRUE), "Elective", default = NA_character_)
+cohort <- copy(cohort)[, grp := grp_of(cohort)]
+d0[, grp := grp_of(d0)]
+log_msg("Groups (", GROUPS, "): ", paste(names(table(cohort$grp, useNA = "ifany")), table(cohort$grp, useNA = "ifany"), sep = " = ", collapse = "; "))
 rhs    <- paste(c("year_c", covar_terms(COVARS_M1, specs)), collapse = " + ")
 OUTS   <- c(dzh = "In-hospital mortality", d30 = "30-day mortality", comp_primary = "Primary composite",
             d1y = "One-year mortality", major_compl = "Major complication",
@@ -66,23 +84,26 @@ safe   <- function(expr, what) tryCatch(expr, error = function(e) { log_msg("  s
 
 # ---- 1. Volume measures --------------------------------------------------------------------
 d0[, centrum_chr := as.character(centrum)]
-vg <- cohort[!is.na(urgency2), .N, by = .(centrum_chr = as.character(centrum), year, urgency2)]
+vg <- cohort[!is.na(grp), .N, by = .(centrum_chr = as.character(centrum), year, grp)]
 vt <- surg[, .(vol_total = .N), by = .(centrum_chr = as.character(centrum), year)]
-vp <- copy(vg)[, year := year + 1L][, .(centrum_chr, year, urgency2, vol_prev = N)]
-d0 <- merge(d0, vg[, .(centrum_chr, year, urgency2, vol_group = N)], by = c("centrum_chr", "year", "urgency2"), all.x = TRUE)
+vp <- copy(vg)[, year := year + 1L][, .(centrum_chr, year, grp, vol_prev = N)]
+d0 <- merge(d0, vg[, .(centrum_chr, year, grp, vol_group = N)], by = c("centrum_chr", "year", "grp"), all.x = TRUE)
 d0 <- merge(d0, vt, by = c("centrum_chr", "year"), all.x = TRUE)
-d0 <- merge(d0, vp, by = c("centrum_chr", "year", "urgency2"), all.x = TRUE)
+d0 <- merge(d0, vp, by = c("centrum_chr", "year", "grp"), all.x = TRUE)
 d0[is.na(vol_prev), vol_prev := 0]
-cm <- vg[year >= P0 & year <= P1, .(vol_mean = sum(N) / (P1 - P0 + 1)), by = .(centrum_chr, urgency2)]
-d0 <- merge(d0, cm, by = c("centrum_chr", "urgency2"), all.x = TRUE)
+cm <- vg[year >= P0 & year <= P1, .(vol_mean = sum(N) / (P1 - P0 + 1)), by = .(centrum_chr, grp)]
+d0 <- merge(d0, cm, by = c("centrum_chr", "grp"), all.x = TRUE)
 d0 <- d0[year >= P0 & year <= P1]
-write_out(cm[order(urgency2, -vol_mean)], SUB, "centre_mean_annual_volume")
+write_out(cm[order(grp, -vol_mean)], SUB, "centre_mean_annual_volume")
+G0 <- cohort[year >= P0 & year <= P1, .(n = .N), by = .(grp = fifelse(is.na(grp), "Neither group", grp),
+             paper1_group = as.character(urgency2), urgentie, dissection_code = seg_ad %in% TRUE)][order(grp, paper1_group, urgentie)]
+write_out(G0, SUB, "group_definition_counts")
 
 VOLS <- c(vol_group = "Centre-year volume, same group", vol_mean = "Centre mean annual volume 2018-2024",
           vol_total = "Centre-year volume, all arch surgery", vol_prev = "Previous-year volume, same group")
 
 model_data <- function(gr, v) {
-  d <- d0[urgency2 == gr & year <= end_of(v) & !is.na(get(v))]
+  d <- d0[grp == gr & year <= end_of(v) & !is.na(get(v))]
   d[complete.cases(d[, c(COVARS_M1, "year_c", "centrum", if (v == "ftr") "n_compl"), with = FALSE])]
 }
 cr2_term <- function(m, d, term) {
@@ -108,12 +129,12 @@ elbow <- function(x, y) {                       # maximum distance to the chord 
 
 # ---- 2. Descriptive: tertiles of centres -----------------------------------------------------
 tert <- cm[, .(centrum_chr, vol_mean, tertile = cut(rank(vol_mean, ties.method = "first"), 3, labels = c("T1 (low)", "T2", "T3 (high)"))),
-           by = urgency2]
-d0 <- merge(d0, tert[, .(centrum_chr, urgency2, tertile)], by = c("centrum_chr", "urgency2"), all.x = TRUE)
-write_out(tert[, .(centres = .N, vol_min = min(vol_mean), vol_max = max(vol_mean)), by = .(urgency2, tertile)][order(urgency2, tertile)],
+           by = grp]
+d0 <- merge(d0, tert[, .(centrum_chr, grp, tertile)], by = c("centrum_chr", "grp"), all.x = TRUE)
+write_out(tert[, .(centres = .N, vol_min = min(vol_mean), vol_max = max(vol_mean)), by = .(grp, tertile)][order(grp, tertile)],
           SUB, "tertile_definitions")
 tert_rows <- list()
-for (gr in c("Acute", "Non-acute")) for (v in names(OUTS)) {
+for (gr in GRPS) for (v in names(OUTS)) {
   d <- model_data(gr, v); if (sum(d[[v]] == 1) < 20) next
   crude <- d[, .(n = .N, events = sum(get(v) == 1), pct = 100 * mean(get(v) == 1)), by = tertile][order(tertile)]
   d[, tert_num := as.integer(tertile) - 1L]
@@ -128,7 +149,7 @@ write_out(rbindlist(tert_rows, fill = TRUE), SUB, "outcomes_by_volume_tertile")
 
 # ---- 3-4. Linear, spline, within/between ----------------------------------------------------------
 lin <- list(); spl <- list(); curves <- list(); wb <- list()
-for (gr in c("Acute", "Non-acute")) for (v in names(OUTS)) for (vv in names(VOLS)) {
+for (gr in GRPS) for (v in names(OUTS)) for (vv in names(VOLS)) {
   d <- model_data(gr, v); ev <- sum(d[[v]] == 1)
   if (ev < 20) { log_msg("  ", gr, "/", v, ": too few events (", ev, ")"); next }
   log_msg(gr, " / ", v, " / ", vv)
@@ -173,6 +194,22 @@ write_out(rbindlist(spl), SUB, "spline_tests")
 write_out(rbindlist(wb), SUB, "within_between_centre")
 CV <- rbindlist(curves); write_out(CV, SUB, "standardised_risk_curves")
 
+# ---- 4b. Davies test for a breakpoint in the volume slope ---------------------------------------------
+dav <- list()
+if (!requireNamespace("segmented", quietly = TRUE)) {
+  log_msg("  Davies test skipped: package 'segmented' not installed (install.packages(\"segmented\"))")
+} else for (gr in GRPS) for (v in names(OUTS)) for (vv in c("vol_group", "vol_mean")) {
+  d <- model_data(gr, v); ev <- sum(d[[v]] == 1); if (ev < 20) next
+  d[, vol := get(vv)]
+  nv <- uniqueN(d$vol); if (nv < 5) next
+  m <- glm(as.formula(paste(v, "~ vol +", rhs_for(v))), binomial, d)
+  r <- safe(segmented::davies.test(m, seg.Z = ~ vol, k = min(10L, nv - 2L)), paste("Davies", gr, v, vv))
+  if (is.null(r)) next
+  dav[[length(dav) + 1]] <- data.table(group = gr, outcome = v, volume = VOLS[[vv]], n = nrow(d), events = ev,
+    distinct_volumes = nv, best_breakpoint = unname(r$statistic), p_davies = r$p.value)
+}
+DV <- rbindlist(dav); if (nrow(DV)) write_out(DV, SUB, "davies_test_breakpoint")
+
 # ---- 5-6. Thresholds: elbow and hinge, with centre bootstrap; NNT ------------------------------------
 hinge_fit <- function(y, X, vol, ks) {
   dev <- vapply(ks, function(k) suppressWarnings(glm.fit(cbind(X, pmin(vol, k)), y, family = binomial()))$deviance, 0)
@@ -189,7 +226,7 @@ elbow_fit <- function(y, X, vol, kn, grid) {
   c(elbow = elbow(grid, std), r10 = std[which.min(abs(grid - 10))], decreasing = as.numeric(std[length(std)] < std[1]), std = std)
 }
 thr <- list(); reps_all <- list()
-for (gr in c("Acute", "Non-acute")) for (v in intersect(c("dzh", "d30", "d1y", "comp_primary"), names(OUTS))) for (vv in c("vol_group", "vol_mean")) {
+for (gr in GRPS) for (v in intersect(c("dzh", "d30", "d1y", "comp_primary"), names(OUTS))) for (vv in c("vol_group", "vol_mean")) {
   d <- model_data(gr, v); if (sum(d[[v]] == 1) < 30) next
   log_msg("  thresholds ", gr, " / ", v, " / ", vv, " (", B_BOOT, " bootstrap replicates)")
   X <- model.matrix(as.formula(paste("~", rhs)), d); y <- d[[v]]; vol <- d[[vv]]
@@ -231,8 +268,8 @@ write_out(rbindlist(reps_all), SUB, "thresholds_bootstrap_replicates")
 # ---- 7. Long-term survival (Cox) ---------------------------------------------------------------------
 sv <- d0[!is.na(time_d) & !is.na(status)][, t_years := pmax(time_d, .5) / 365.25]
 cox_rows <- list(); cox_curves <- list()
-for (gr in c("Acute", "Non-acute")) for (vv in c("vol_group", "vol_mean")) {
-  d <- sv[urgency2 == gr]; d <- d[complete.cases(d[, c(COVARS_M1, "year_c", "centrum"), with = FALSE])]
+for (gr in GRPS) for (vv in c("vol_group", "vol_mean")) {
+  d <- sv[grp == gr]; d <- d[complete.cases(d[, c(COVARS_M1, "year_c", "centrum"), with = FALSE])]
   d[, vol := get(vv)]; d[, vol10 := vol / 10]
   fl <- coxph(as.formula(paste("Surv(t_years, status) ~ vol10 +", rhs, "+ cluster(centrum)")), d)
   s <- summary(fl)$coefficients["vol10", ]
@@ -271,7 +308,7 @@ pick_x <- function(gr) {
   if (length(thr_env) == 1 && !is.na(thr_env)) return(list(x = thr_env, source = "set by user"))
   t <- TH[group == gr & outcome == "dzh" & volume == VOLS[["vol_mean"]]]
   if (nrow(t) && isTRUE(t$threshold_supported)) return(list(x = t$elbow, source = "supported elbow, in-hospital mortality"))
-  list(x = median(cm[urgency2 == gr, vol_mean]), source = "median centre volume (no supported threshold)")
+  list(x = median(cm[grp == gr, vol_mean]), source = "median centre volume (no supported threshold)")
 }
 PRAC_CONT <- c(temp_min = "Nadir temperature (C)", ca_min = "Circulatory arrest duration (min, arrest patients)",
                ecc_min = "Cardiopulmonary bypass time (min)", aox_min = "Cross-clamp time (min)",
@@ -280,14 +317,14 @@ PRAC_BIN  <- c(deep = "Deep hypothermia (<=20 C)", circ_arrest_b = "Circulatory 
                root_inv = "Aortic root involved", desc_inv = "Descending aorta involved",
                hybrid_fet = "Combined open + endovascular (incl. FET)", conc_valve = "Concomitant valve surgery",
                acute_dissection = "Acute aortic dissection", female = "Female sex", prior_cs = "Previous cardiac surgery",
-               dzh = "In-hospital mortality", d30 = "30-day mortality", comp_primary = "Primary composite",
+               dzh = "In-hospital mortality", d30 = "30-day mortality", d1y = "One-year mortality", comp_primary = "Primary composite",
                major_compl = "Major complication", ftr = "Failure to rescue")
 d0[, deep := fifelse(is.na(temp_min), NA_integer_, as.integer(temp_min <= 20))]
 if (!"acute_dissection" %in% names(d0) && "path3" %in% names(d0)) d0[, acute_dissection := as.integer(path3 == "Acute dissection")]
 cmp_rows <- list(); xinfo <- list()
-for (gr in c("Acute", "Non-acute")) {
+for (gr in GRPS) {
   px <- pick_x(gr); X <- px$x
-  d <- d0[urgency2 == gr]; d[, side := factor(fifelse(vol_mean >= X, "high", "low"), c("low", "high"))]
+  d <- d0[grp == gr]; d[, side := factor(fifelse(vol_mean >= X, "high", "low"), c("low", "high"))]
   cen <- unique(d[, .(centrum_chr, vol_mean, side)])
   xinfo[[gr]] <- data.table(group = gr, threshold = X, threshold_source = px$source,
                             centres_below = sum(cen$side == "low"), centres_above = sum(cen$side == "high"),
@@ -310,7 +347,7 @@ for (gr in c("Acute", "Non-acute")) {
     dd <- d[!is.na(get(vname))]; if (uniqueN(dd$side) < 2 || sum(dd[[vname]] == 1) < 5) next
     s <- dd[, .(n = .N, k = sum(get(vname) == 1)), by = side]
     pc <- suppressWarnings(chisq.test(table(dd$side, dd[[vname]]))$p.value)
-    rhs_v <- if (vname %in% c("dzh", "d30", "comp_primary", "major_compl", "ftr")) paste("+", rhs_for(vname)) else ""
+    rhs_v <- if (vname %in% c("dzh", "d30", "d1y", "comp_primary", "major_compl", "ftr")) paste("+", rhs_for(vname)) else ""
     m <- glm(as.formula(paste(vname, "~ side", rhs_v)), binomial, dd)
     r <- tryCatch(cr2_term(m, dd, "sidehigh"), error = function(e) data.table(or = NA_real_, lower = NA_real_, upper = NA_real_, p = NA_real_))
     cmp_rows[[length(cmp_rows) + 1]] <- data.table(group = gr, threshold = X, variable = PRAC_BIN[[vname]],
@@ -325,7 +362,7 @@ write_out(rbindlist(xinfo), SUB, "threshold_used_for_comparison")
 CMP <- rbindlist(cmp_rows, fill = TRUE); write_out(CMP, SUB, "practice_below_vs_above_threshold")
 
 # ---- Figures --------------------------------------------------------------------------------------
-GC <- c("Acute" = "#1B5E4B", "Non-acute" = "#5FAE88")
+GC <- setNames(c("#1B5E4B", "#5FAE88"), GRPS)
 if (nrow(CV)) {
   cvp <- CV[volume == VOLS[["vol_group"]] & outcome %in% c("dzh", "d30", "d1y")]
   ths <- TH[volume == VOLS[["vol_group"]] & outcome %in% c("dzh", "d30", "d1y")]
@@ -353,7 +390,8 @@ show <- function(title, f, cols = NULL) {
 options(width = 250)
 while (sink.number() > 0) sink()
 sink(file.path(OUTD, "overzicht_volume.txt"), split = TRUE)
-cat("Volume-outcome, ", P0, "-", P1, " - ", format(Sys.time()), "\n", sep = "")
+cat("Volume-outcome, ", P0, "-", P1, " - groups: ", paste(GRPS, collapse = " / "), " (", GROUPS, ") - ", format(Sys.time()), "\n", sep = "")
+show("0. Groepsindeling (operaties 2018-2024)", "group_definition_counts.csv")
 show("1. Volumetertielen (centra)", "tertile_definitions.csv")
 show("2. Uitkomst per volumetertiel", "outcomes_by_volume_tertile.csv",
      c("group", "outcome", "tertile", "n", "events", "pct", "or_vs_T1", "lower", "upper", "p", "or_per_tertile", "p_trend"))
@@ -361,6 +399,8 @@ show("3. Lineair (OR per 10 operaties/jaar)", "linear_models.csv",
      c("group", "outcome", "volume", "n", "events", "vol_median", "or_per_10", "lower", "upper", "p_cr2", "or_per_10_ri", "ri_p"))
 show("4. Spline / niet-lineariteit", "spline_tests.csv",
      c("group", "outcome", "volume", "knots", "knot_values", "p_overall_cr2", "p_nonlinear_cr2", "p_nonlinear_lr", "aic_spline", "aic_linear"))
+if (file.exists(file.path(OUTD, "davies_test_breakpoint.csv")))
+  show("4b. Davies-test (knikpunt in de volumehelling; patienten als onafhankelijk behandeld)", "davies_test_breakpoint.csv")
 show("5. Drempel (elbow + hinge, cluster-bootstrap) en NNT", "thresholds_elbow_hinge_bootstrap.csv",
      c("group", "outcome", "volume", "elbow", "elbow_low", "elbow_high", "curve_decreasing", "share_reps_decreasing",
        "std_risk_at_10", "std_risk_at_elbow", "nnt_10_vs_elbow", "hinge_threshold", "hinge_low", "hinge_high",
