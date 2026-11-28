@@ -561,6 +561,56 @@ cat("\nControle DAOH-30 (dagen levend en thuis, 0-30) per periode:\n")
 print(tapply(dc$daoh30, dc$periode, summary))
 
 ###############################################################################
+# F. KLOPPEND HART (warme myocardperfusie, vanaf jun 2022) vs CARDIOPLEGIE
+###############################################################################
+cat("\n>> Bezig met F. kloppend hart vs cardioplegie ...\n"); flush.console()
+dc$techniek <- factor(ifelse(dc$periode == "na_jun2022", "kloppend_hart", "cardioplegie"),
+                      levels = c("cardioplegie", "kloppend_hart"))
+# Controle: klopt de indeling op datum met de geregistreerde perfusietechniek?
+for (v in intersect(c("perf_tech_toegewezen", "perf_tech_ontvangen"), names(dc))) {
+  cat("\nKruistabel", v, "x periode (controleer of de techniek per datum klopt):\n")
+  print(table(dc[[v]], dc$techniek, useNA = "ifany"))
+}
+cat("\nAortaklemtijd (min) per techniek:\n"); print(tapply(dc$aox_duur, dc$techniek, summary))
+if ("circ_arrest_duur" %in% names(dc)) {
+  cat("Circulatiestilstand (min) per techniek:\n"); print(tapply(dc$circ_arrest_duur, dc$techniek, summary)) }
+
+## F1. Hangt de klemtijd ALLEEN bij cardioplegie samen met functieverlies? (interactie)
+res_F1 <- list()
+op2 <- dc %>% filter(!is.na(aox_duur), aox_duur > 0)
+for (p in alle_v2) {
+  dl <- paste0("delta_", p); pre <- paste0("pre_", p)
+  dd <- op2[complete.cases(op2[, c(dl, pre, "aox30", "tdub", "es2", "techniek")]), ]
+  if (nrow(dd) < 20 || min(table(dd$techniek)) < 5) next
+  m <- lm(as.formula(paste(dl, "~ aox30 * techniek +", pre, "+ tdub + es2")), dd)
+  tr <- as.data.frame(summary(emtrends(m, ~ techniek, var = "aox30")))
+  p_int <- tidy(m) %>% filter(term == "aox30:techniekkloppend_hart") %>% pull(p.value)
+  res_F1[[length(res_F1) + 1]] <- tibble(parameter = p, techniek = as.character(tr$techniek),
+    n = as.vector(table(dd$techniek)[as.character(tr$techniek)]),
+    effect_per_30min_aox = tr$aox30.trend, ci_laag = tr$lower.CL, ci_hoog = tr$upper.CL,
+    p_interactie = p_int)
+}
+tab_F1 <- bind_rows(res_F1); schrijf(tab_F1, "F1_klemtijd_per_techniek")
+
+## F2. Myocardschade en metabolisme na de OK per techniek (ratio van geometrische gemiddelden)
+res_F2 <- list()
+for (y in intersect(c("post_hstnt", "post_ck_mb", "post_ck", "post_lactaat"), names(dc))) {
+  for (adj in list("es2", c("es2", "circ_arrest_duur"))) {
+    adj <- c("es2", intersect(setdiff(adj, "es2"), varieert))
+    dd <- dc[complete.cases(dc[, c(y, "techniek", adj)]) & dc[[y]] > 0, ]
+    if (nrow(dd) < 15 || min(table(dd$techniek)) < 5 || length(unique(dd[[y]])) < 3) next
+    m <- lm(reformulate(c("techniek", adj), paste0("log(", y, ")")), dd)
+    tt <- tidy(m, conf.int = TRUE) %>% filter(term == "techniekkloppend_hart")
+    res_F2[[length(res_F2) + 1]] <- tibble(marker = y, correctie = paste(adj, collapse = "+"), n = nrow(dd),
+      mediaan_cardioplegie = median(dd[[y]][dd$techniek == "cardioplegie"]),
+      mediaan_kloppend = median(dd[[y]][dd$techniek == "kloppend_hart"]),
+      ratio_kloppend_vs_cp = exp(tt$estimate), ci_laag = exp(tt$conf.low), ci_hoog = exp(tt$conf.high), p = tt$p.value,
+      P_lager_bij_kloppend = pnorm(0, tt$estimate, tt$std.error))
+  }
+}
+tab_F2 <- bind_rows(res_F2); schrijf(tab_F2, "F2_myocardschade_per_techniek")
+
+###############################################################################
 # RESULTATEN TONEN
 ###############################################################################
 toon(tab_B %>% filter(model == "hoofd") %>%
@@ -578,5 +628,8 @@ toon(tab_D, paste0("D. Mediatie (lavaan, FIML, ", if (n_boot_med > 0) "bootstrap
 toon(tab_E %>% select(-methode), "E1. Uitkomsten na vs voor jun 2022 (Firth + Bayes)")
 if (nrow(tab_E)) cat("Methode E1:", unique(tab_E$methode), "\n")
 toon(tab_E2, "E2. DAOH-30 en aantal complicaties")
+toon(tab_F1, "F1. Effect klemtijd per 30 min, per techniek (cardioplegie vs kloppend hart)")
+toon(tab_F2, "F2. Myocardschade na OK: kloppend hart vs cardioplegie")
+cat("\nLET OP: in tabellen B en E is 'na_jun2022' = kloppend hart, 'voor_jun2022' = cardioplegie.\n")
 writeLines(capture.output(sessionInfo()), file.path(out_dir, "sessionInfo.txt"))
 cat("\nAlle tabellen staan in:", out_pad, "\n")
