@@ -186,13 +186,18 @@ d <- raw %>%
   arrange(pat_nr, interv_datum)
 if (alleen_eerste_ok_per_patient) d <- d %>% group_by(pat_nr) %>% slice(1) %>% ungroup()
 
-# Eenheden harmoniseren (echo: dimensies in cm, TAPSE in mm; lengte in cm)
+# Eenheden harmoniseren PER WAARDE (cm en mm kunnen door elkaar staan)
+# echo-dimensies -> cm, TAPSE -> mm
+omzet <- function(x, grens, factor, richting = ">", naam = "") {
+  i <- !is.na(x) & (if (richting == ">") x > grens else x < grens)
+  if (any(i)) cat("  eenheid omgerekend", naam, ":", sum(i), "waarde(n) x", factor, "\n")
+  x[i] <- x[i] * factor; x
+}
 for (t in c("pre_", "post_")) {
-  for (k in c("ivsd", "lvesd", "lvedd", "lvpwd")) {
-    v <- paste0(t, k); if (v %in% names(d) && isTRUE(med(d[[v]]) > 15)) d[[v]] <- d[[v]] / 10
-  }
-  v <- paste0(t, "lvot_d"); if (v %in% names(d) && isTRUE(med(d[[v]]) > 5)) d[[v]] <- d[[v]] / 10
-  v <- paste0(t, "tapse");  if (v %in% names(d) && isTRUE(med(d[[v]]) < 5))  d[[v]] <- d[[v]] * 10
+  for (k in c("ivsd", "lvpwd"))  if (paste0(t, k) %in% names(d)) d[[paste0(t, k)]] <- omzet(d[[paste0(t, k)]], 3, 0.1, naam = paste0(t, k))
+  for (k in c("lvesd", "lvedd")) if (paste0(t, k) %in% names(d)) d[[paste0(t, k)]] <- omzet(d[[paste0(t, k)]], 15, 0.1, naam = paste0(t, k))
+  v <- paste0(t, "lvot_d"); if (v %in% names(d)) d[[v]] <- omzet(d[[v]], 5, 0.1, naam = v)
+  v <- paste0(t, "tapse");  if (v %in% names(d)) d[[v]] <- omzet(d[[v]], 5, 10, "<", naam = v)
   v <- paste0(t, "gls");    if (v %in% names(d)) d[[v]] <- abs(d[[v]])   # |GLS|: hoger = beter
 }
 if (isTRUE(med(d$lengte) < 3)) d$lengte <- d$lengte * 100
