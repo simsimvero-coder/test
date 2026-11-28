@@ -25,8 +25,14 @@ prior_sd_sceptisch  <- 0.35  # sceptische prior op log-OR (95%: OR 0,5-2)
 ## ===========================================================================
 
 # ---- 0. Data-opschoning uit script 1 hergebruiken ----------------------------
-v1 <- "analyse_hartfunctie_postop.R"
-if (!file.exists(v1)) stop("Zet ", v1, " in dezelfde map als dit script.")
+# Zoek de NIEUWSTE versie van script 1 in deze map (ook "analyse_hartfunctie_postop (1).R" e.d.)
+kandidaten <- list.files(".", pattern = "^analyse_hartfunctie_postop.*\\.R$")
+kandidaten <- kandidaten[vapply(kandidaten, function(f)
+  any(grepl("omzet <- function", readLines(f, encoding = "UTF-8", warn = FALSE), fixed = TRUE)), logical(1))]
+if (!length(kandidaten)) stop("Geen nieuwe versie van analyse_hartfunctie_postop.R gevonden in ", getwd(),
+  ".\nDownload het bestand opnieuw en zet het in dezelfde map als dit script (oude versie mag weg).")
+v1 <- kandidaten[which.max(file.mtime(kandidaten))]
+cat("Data-opschoning uit:", v1, "\n")
 code <- readLines(v1, encoding = "UTF-8", warn = FALSE)
 eind <- grep("^# 3\\. TABEL 1", code)[1] - 2
 eval(parse(text = code[seq_len(eind)], encoding = "UTF-8"), envir = globalenv())
