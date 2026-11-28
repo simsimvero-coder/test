@@ -29,7 +29,9 @@ set.seed(2022)
 pkgs <- c("dplyr", "tidyr", "ggplot2", "readxl", "broom", "emmeans", "lme4",
           "mediation", "MASS", "tableone", "mice", "WeightIt", "cobalt", "sandwich")
 nieuw <- setdiff(pkgs, rownames(installed.packages()))
-if (length(nieuw)) try(install.packages(nieuw))
+if (getOption("repos")[["CRAN"]] == "@CRAN@") options(repos = c(CRAN = "https://cloud.r-project.org"))
+# Mac/Windows: altijd kant-en-klare binaries (compileren vanaf broncode faalt zonder gfortran)
+if (length(nieuw)) try(install.packages(nieuw, type = if (.Platform$pkgType == "source") "source" else "binary"))
 heeft <- function(p) requireNamespace(p, quietly = TRUE)
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(ggplot2); library(broom)
