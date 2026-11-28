@@ -12,7 +12,7 @@
 #     Firth-logistische regressie, DAOH-30, aantal complicaties (ordinaal),
 #     plus (benaderde) Bayesiaanse kans op voordeel
 #
-#  Vereist: analyse_hartfunctie_postop.R in DEZELFDE map (voor de data-opschoning).
+#  Zelfstandig script: alleen dit bestand + het Excelbestand in dezelfde map nodig.
 #  Gebruik:  source(file.choose(), encoding = "UTF-8", chdir = TRUE)
 #  Output:   map output_v2/
 ###############################################################################
@@ -24,18 +24,271 @@ prior_sd_zwak       <- 1.5   # zwak-informatieve prior op log-OR (95%: OR 0,05-1
 prior_sd_sceptisch  <- 0.35  # sceptische prior op log-OR (95%: OR 0,5-2)
 ## ===========================================================================
 
-# ---- 0. Data-opschoning uit script 1 hergebruiken ----------------------------
-# Zoek de NIEUWSTE versie van script 1 in deze map (ook "analyse_hartfunctie_postop (1).R" e.d.)
-kandidaten <- list.files(".", pattern = "^analyse_hartfunctie_postop.*\\.R$")
-kandidaten <- kandidaten[vapply(kandidaten, function(f)
-  any(grepl("omzet <- function", readLines(f, encoding = "UTF-8", warn = FALSE), fixed = TRUE)), logical(1))]
-if (!length(kandidaten)) stop("Geen nieuwe versie van analyse_hartfunctie_postop.R gevonden in ", getwd(),
-  ".\nDownload het bestand opnieuw en zet het in dezelfde map als dit script (oude versie mag weg).")
-v1 <- kandidaten[which.max(file.mtime(kandidaten))]
-cat("Data-opschoning uit:", v1, "\n")
-code <- readLines(v1, encoding = "UTF-8", warn = FALSE)
-eind <- grep("^# 3\\. TABEL 1", code)[1] - 2
-eval(parse(text = code[seq_len(eind)], encoding = "UTF-8"), envir = globalenv())
+###############################################################################
+# 0. DATA INLEZEN EN OPSCHONEN (identiek aan analyse_hartfunctie_postop.R)
+###############################################################################
+## ======================= INSTELLINGEN ======================================
+data_bestand <- "Aortaboog 2014-2025 (1)_260412_AL (1).xlsx"   # .xlsx of .csv (bestaat het niet: kies-venster)
+excel_sheet  <- 1
+cutoff_datum <- as.Date("2022-07-01")   # "na juni 2022" = vanaf 1 juli 2022
+ref_dag_tte  <- 5                       # rapporteer gecorrigeerde verandering bij TTE op dag X post-op
+alleen_eerste_ok_per_patient <- TRUE    # bij meerdere OK's per pat_nr alleen de eerste
+complicatie_NA_is_nee <- TRUE           # lege complicatie-cel = geen complicatie
+n_boot_mediatie <- 2000                 # bootstrap-simulaties mediatie
+run_mice <- TRUE                        # multiple imputation sensitiviteitsanalyse
+out_dir  <- "output"
+set.seed(2022)
+## ===========================================================================
+
+pkgs <- c("dplyr", "tidyr", "ggplot2", "readxl", "broom", "emmeans", "lme4",
+          "mediation", "MASS", "tableone", "mice", "WeightIt", "cobalt", "sandwich")
+nieuw <- setdiff(pkgs, rownames(installed.packages()))
+if (getOption("repos")[["CRAN"]] == "@CRAN@") options(repos = c(CRAN = "https://cloud.r-project.org"))
+# Mac/Windows: altijd kant-en-klare binaries (compileren vanaf broncode faalt zonder gfortran)
+if (length(nieuw)) try(install.packages(nieuw, type = if (.Platform$pkgType == "source") "source" else "binary"))
+heeft <- function(p) requireNamespace(p, quietly = TRUE)
+suppressPackageStartupMessages({
+  library(dplyr); library(tidyr); library(ggplot2); library(broom)
+  library(emmeans); library(lme4); library(splines)
+})
+select <- dplyr::select   # MASS maskeert anders dplyr::select
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+out_pad <- normalizePath(out_dir)   # volledig pad, ook na source(chdir = TRUE)
+schrijf <- function(x, naam) if (!is.null(x) && NROW(x) > 0) write.csv(x, file.path(out_dir, paste0(naam, ".csv")), row.names = FALSE)
+
+###############################################################################
+# 1. INLEZEN EN OPSCHONEN
+###############################################################################
+if (!file.exists(data_bestand)) data_bestand <- file.choose()
+if (grepl("\\.csv$", data_bestand, ignore.case = TRUE)) {
+  raw <- read.csv(data_bestand, check.names = FALSE, stringsAsFactors = FALSE,
+                  na.strings = c("", "NA", "NULL", "-", "."))
+} else {
+  # Alles als tekst inlezen: kolommen met gemengde datums/tekst gaan anders deels verloren.
+  # Excel-datums komen dan binnen als serienummer ("44927"); die zet parse_datum() om.
+  raw <- readxl::read_excel(data_bestand, sheet = excel_sheet, .name_repair = "minimal",
+                            col_types = "text", na = c("", "NA", "NULL", "-", "."))
+}
+raw <- as.data.frame(raw)
+
+# 'AF' komt twee keer voor: eerste = ritme bij pre-op TTE, tweede = bij post-op TTE
+af_idx <- which(trimws(names(raw)) == "AF")
+if (length(af_idx) >= 1) names(raw)[af_idx[1]] <- "pre_af"
+if (length(af_idx) >= 2) names(raw)[af_idx[2]] <- "post_af"
+
+# Robuuste kolomnamen: kleine letters, alleen a-z0-9 en '_'
+schoon_naam <- function(x) {
+  x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+  x <- tolower(trimws(x))
+  x <- gsub("[^a-z0-9]+", "_", x)
+  x <- gsub("^_+|_+$", "", x)
+  ifelse(grepl("^[0-9]", x), paste0("x", x), x)
+}
+names(raw) <- make.unique(schoon_naam(names(raw)), sep = "_")
+
+# AVG: direct identificerende gegevens verwijderen (niet nodig voor analyse)
+raw <- raw %>% select(-any_of(c("geb_naam", "partnernaam", "postcode", "geb_datum")))
+
+# Helpers ---------------------------------------------------------------------
+parse_datum <- function(x) {
+  if (inherits(x, "Date")) return(x)
+  if (inherits(x, "POSIXt")) return(as.Date(x))
+  if (is.numeric(x)) return(as.Date(x, origin = "1899-12-30"))   # Excel serienummer
+  x <- tolower(trimws(as.character(x)))
+  out <- as.Date(rep(NA_character_, length(x)))
+  # 1) Excel-serienummers als tekst, bv. "44927" of "44927.5"
+  serie <- grepl("^[0-9]{5}(\\.[0-9]+)?$", x)
+  out[serie] <- as.Date(floor(as.numeric(x[serie])), origin = "1899-12-30")
+  # 2) Tekstdatums: tijd eraf, maandnamen -> nummer, scheidingstekens -> "-"
+  y <- sub("[ t]+[0-9]{1,2}:[0-9]{2}.*$", "", x)
+  maanden <- c("januari|jan" = "01", "februari|feb" = "02", "maart|mrt|maa|mar" = "03",
+               "april|apr" = "04", "mei|may" = "05", "juni|jun" = "06", "juli|jul" = "07",
+               "augustus|aug" = "08", "september|sept|sep" = "09", "oktober|okt|oct" = "10",
+               "november|nov" = "11", "december|dec" = "12")
+  for (m in names(maanden)) y <- gsub(paste0("\\b(", m, ")\\.?\\b"), maanden[[m]], y)
+  y <- gsub("[ /.]+", "-", y)
+  for (f in c("%d-%m-%Y", "%Y-%m-%d", "%d-%m-%y")) {
+    nieuw <- suppressWarnings(as.Date(y, format = f))
+    out[is.na(out)] <- nieuw[is.na(out)]
+  }
+  # onwaarschijnlijke datums (typefouten) -> NA
+  out[!is.na(out) & (out < as.Date("1990-01-01") | out > as.Date("2035-12-31"))] <- NA
+  out
+}
+parse_num <- function(x) suppressWarnings(as.numeric(gsub(",", ".", gsub("[<>\\s]", "", as.character(x), perl = TRUE))))
+to01 <- function(x) {
+  if (is.logical(x)) return(as.integer(x))
+  if (is.numeric(x)) return(ifelse(is.na(x), NA_integer_, as.integer(x > 0)))
+  s <- tolower(trimws(as.character(x)))
+  ifelse(s %in% c("1", "ja", "j", "yes", "y", "true", "waar", "x"), 1L,
+         ifelse(s %in% c("0", "nee", "n", "no", "false", "onwaar"), 0L, NA_integer_))
+}
+
+# ja(): 1 bij elke niet-lege waarde behalve nee/0 (bv. "hemiboog" telt als ja)
+ja <- function(x) {
+  if (is.null(x)) return(0L)
+  y <- to01(x); s <- tolower(trimws(as.character(x)))
+  y[is.na(y) & !is.na(x) & !(s %in% c("", "nee", "n", "no", "0", "geen"))] <- 1L
+  y[is.na(y)] <- 0L; y
+}
+
+# Datums
+datum_cols <- grep("datum", names(raw), value = TRUE)
+raw_datum_tekst <- raw$interv_datum
+raw[datum_cols] <- lapply(raw[datum_cols], parse_datum)
+cat("\nOperatiedatum ingelezen voor", sum(!is.na(raw$interv_datum)), "van", nrow(raw), "operaties",
+    "| bereik:", format(min(raw$interv_datum, na.rm = TRUE)), "t/m", format(max(raw$interv_datum, na.rm = TRUE)), "\n")
+if (any(is.na(raw$interv_datum))) {
+  cat("LET OP - operatiedatum niet herkend; voorbeelden van de waarden in Excel:\n")
+  print(head(unique(raw_datum_tekst[is.na(raw$interv_datum)]), 15))
+}
+
+# Tekstkolommen die eigenlijk numeriek zijn (bv. decimale komma) omzetten
+for (v in names(raw)) {
+  if (is.character(raw[[v]])) {
+    x <- raw[[v]]; nn <- !is.na(x) & x != ""
+    if (sum(nn) > 0 && mean(!is.na(parse_num(x[nn]))) > 0.9) raw[[v]] <- parse_num(x)
+  }
+}
+
+# Binaire variabelen ------------------------------------------------------------
+comorb_vars <- c("diabetes", "chr_longziekte", "cardiochir_eerder", "endocarditis",
+                 "krit_preop_toestand", "recent_mi", "thorac_aortachir", "dialyse",
+                 "cva_eerder", "pci_eerder", "ecc", "circ_arrest", "cabg", "klepchir",
+                 "aklepchir", "mklepchir", "pklepchir", "tklepchir", "aortachir",
+                 "interv_afgebroken", "post_ic", "post_intubatie", "pre_af", "post_af",
+                 "overleden_zkh", "x30d_mortaliteit", "nieuwe_interv", "ecmo_opname")
+compl_vars <- c("postop_mi", "post_op_cardiale_dysfunctie", "arm_beenwond", "longinfectie",
+                "urineweginfectie", "mediastinitis", "positieve_bloedkweek", "sepsis",
+                "resp_insuff", "heropname_ic", "cva_restletsel", "cva_zonder_restletsel",
+                "aki_zonder_dialyse", "nierfalen", "gastroint_compl", "ritmeprobleem",
+                "delier", "longembolie", "dvt", "pneumothorax", "bloeding",
+                "rethoracotomie", "tamponade")
+comorb_vars <- intersect(comorb_vars, names(raw))
+compl_vars  <- intersect(compl_vars, names(raw))
+raw[comorb_vars] <- lapply(raw[comorb_vars], to01)
+raw[compl_vars]  <- lapply(raw[compl_vars], function(x) {
+  y <- to01(x); if (complicatie_NA_is_nee) y[is.na(y)] <- 0L; y })
+
+# Echo-parameters: korte, consistente namen -------------------------------------
+echo_map <- c(lvef_mod = "lvef_mod_biplane", lvef_teich = "lvef_teich",
+              ivsd = "ivsd", lvesd = "lvesd", lvedd = "lvedd", lvpwd = "lvpwd",
+              gls = "lv_gls_endo_peak_avg", rv_s = "s_snelheid_rv", tapse = "tapse",
+              mv_ea = "mv_e_a", e_eprime = "e_e_gemiddelde", la_vol = "la_volume_biplane",
+              la_strain = "la_ed_reservoir_ls_as", lvot_d = "lvot_diameter",
+              lvot_vti = "lvot_v1_vti")
+ontbreekt <- character(0)
+for (k in names(echo_map)) for (t in c("pre_", "post_")) {
+  oud <- paste0(t, echo_map[[k]])
+  if (oud %in% names(raw)) names(raw)[names(raw) == oud] <- paste0(t, k)
+  else ontbreekt <- c(ontbreekt, oud)
+}
+if (length(ontbreekt)) {
+  cat("\nLET OP - deze echo-kolommen zijn niet gevonden (worden overgeslagen):\n ",
+      paste(ontbreekt, collapse = ", "), "\nKolomnamen in je bestand na opschonen:\n")
+  print(names(raw))
+}
+# biomarkers: pre_hstnt, post_hstnt, pre_ck_mb, post_lactaat, ... (na schoon_naam)
+
+###############################################################################
+# 2. AFGELEIDE VARIABELEN
+###############################################################################
+med <- function(x) median(x, na.rm = TRUE)
+
+d <- raw %>%
+  filter(is.na(interv_afgebroken) | interv_afgebroken == 0) %>%
+  arrange(pat_nr, interv_datum)
+if (alleen_eerste_ok_per_patient) d <- d %>% group_by(pat_nr) %>% slice(1) %>% ungroup()
+
+# Eenheden harmoniseren PER WAARDE (cm en mm kunnen door elkaar staan)
+# echo-dimensies -> cm, TAPSE -> mm
+omzet <- function(x, grens, factor, richting = ">", naam = "") {
+  i <- !is.na(x) & (if (richting == ">") x > grens else x < grens)
+  if (any(i)) cat("  eenheid omgerekend", naam, ":", sum(i), "waarde(n) x", factor, "\n")
+  x[i] <- x[i] * factor; x
+}
+for (t in c("pre_", "post_")) {
+  for (k in c("ivsd", "lvpwd"))  if (paste0(t, k) %in% names(d)) d[[paste0(t, k)]] <- omzet(d[[paste0(t, k)]], 3, 0.1, naam = paste0(t, k))
+  for (k in c("lvesd", "lvedd")) if (paste0(t, k) %in% names(d)) d[[paste0(t, k)]] <- omzet(d[[paste0(t, k)]], 15, 0.1, naam = paste0(t, k))
+  v <- paste0(t, "lvot_d"); if (v %in% names(d)) d[[v]] <- omzet(d[[v]], 5, 0.1, naam = v)
+  v <- paste0(t, "tapse");  if (v %in% names(d)) d[[v]] <- omzet(d[[v]], 5, 10, "<", naam = v)
+  v <- paste0(t, "gls");    if (v %in% names(d)) d[[v]] <- abs(d[[v]])   # |GLS|: hoger = beter
+}
+if (isTRUE(med(d$lengte) < 3)) d$lengte <- d$lengte * 100
+
+d <- d %>%
+  mutate(
+    periode   = factor(ifelse(interv_datum >= cutoff_datum, "na_jun2022", "voor_jun2022"),
+                       levels = c("voor_jun2022", "na_jun2022")),
+    geslacht  = factor(geslacht),
+    euroscore2 = euroscoreii,
+    bsa       = sqrt(lengte * gewicht / 3600),                       # Mosteller, m2
+    # tijd tot post-op TTE (dagen); herberekenen indien leeg
+    post_dagen = coalesce(post_dagen, as.numeric(post_datum - interv_datum)),
+    pre_dagen  = coalesce(pre_dagen,  as.numeric(interv_datum - pre_datum)),
+    tdub       = log2(post_dagen + 1),        # coefficient = effect per verdubbeling van tijd
+    aox30      = aox_duur / 30,               # per 30 min klemtijd
+    ecc_zonder_klem = ecc_duur - aox_duur,    # reperfusie-/overige pomptijd
+    log_post_hstnt  = log(post_hstnt),
+    # LVEF: biplane (MOD) bij voorkeur, anders Teichholz
+    pre_lvef  = coalesce(pre_lvef_mod,  pre_lvef_teich),
+    post_lvef = coalesce(post_lvef_mod, post_lvef_teich),
+    # Slagvolume (ml) = LVOT-oppervlak (cm2) x VTI (cm); geïndexeerd voor BSA
+    pre_sv    = pi * (pre_lvot_d / 2)^2 * pre_lvot_vti,
+    post_sv   = pi * (post_lvot_d / 2)^2 * post_lvot_vti,
+    pre_svi   = pre_sv / bsa, post_svi = post_sv / bsa,
+    # LV-massa (ASE, lineair, cm) en geïndexeerd
+    pre_lvmi  = (0.8 * 1.04 * ((pre_ivsd + pre_lvedd + pre_lvpwd)^3 - pre_lvedd^3) + 0.6) / bsa,
+    post_lvmi = (0.8 * 1.04 * ((post_ivsd + post_lvedd + post_lvpwd)^3 - post_lvedd^3) + 0.6) / bsa,
+    # Afkapwaarden (ASE/EACVI 2015)
+    pre_lv_dysf  = as.integer(pre_lvef < 50),  post_lv_dysf  = as.integer(post_lvef < 50),
+    pre_gls_abn  = as.integer(pre_gls < 18),   post_gls_abn  = as.integer(post_gls < 18),
+    pre_rv_dysf  = as.integer(pre_tapse < 17 | pre_rv_s < 9.5),
+    post_rv_dysf = as.integer(post_tapse < 17 | post_rv_s < 9.5),
+    # Type ingreep
+    # Type ingreep (aortaboog-cohort): boog / overige aorta, met of zonder CABG/klep
+    bijkomend = ja(cabg) == 1 | ja(klepchir) == 1,
+    ingreep = case_when(
+      ja(aortaboog) == 1 & bijkomend   ~ "Boog+CABG/klep",
+      ja(aortaboog) == 1               ~ "Boog",
+      ja(aortachir) == 1 & bijkomend   ~ "Aorta+CABG/klep",
+      ja(aortachir) == 1               ~ "Aorta overig",
+      ja(cabg) == 1 & ja(klepchir) == 1 ~ "CABG+klep",
+      ja(cabg) == 1                    ~ "CABG",
+      ja(klepchir) == 1                ~ "Klep",
+      TRUE                             ~ "Overig"),
+    ingreep = factor(ingreep),
+    ingreep = relevel(ingreep, ref = names(which.max(table(ingreep)))),   # grootste groep = referentie
+    off_pump = as.integer(ecc == 0)
+  )
+
+# Composiet complicaties
+d$compl_any <- as.integer(rowSums(d[compl_vars], na.rm = TRUE) > 0)
+major <- intersect(c("x30d_mortaliteit", "postop_mi", "cva_restletsel", "nierfalen",
+                     "rethoracotomie", "post_op_cardiale_dysfunctie", "resp_insuff",
+                     "sepsis", "mediastinitis"), names(d))
+d$compl_major <- as.integer(rowSums(d[major], na.rm = TRUE) > 0)
+
+# Parameters voor de analyses
+lv_par   <- c("lvef", "lvef_mod", "lvef_teich", "gls", "lvedd", "lvesd", "svi", "lvot_vti")
+rv_par   <- c("tapse", "rv_s")
+dia_par  <- c("e_eprime", "mv_ea", "la_vol", "la_strain")
+alle_par <- c(lv_par, rv_par, dia_par, "lvmi")
+hoofd_par <- c("lvef", "gls", "tapse", "rv_s")   # primaire LV/RV functie-uitkomsten
+
+for (p in alle_par) d[[paste0("delta_", p)]] <- d[[paste0("post_", p)]] - d[[paste0("pre_", p)]]
+
+# Variabelen zonder variatie (bv. iedereen dezelfde ingreep) kunnen niet in een model
+varieert <- names(d)[sapply(d, function(x) length(unique(na.omit(x))) > 1)]
+cat("Type ingreep:\n"); print(table(d$ingreep, d$periode, useNA = "ifany"))
+
+na  <- d %>% filter(periode == "na_jun2022")
+voor <- d %>% filter(periode == "voor_jun2022")
+cat("N totaal:", nrow(d), "| na juni 2022:", nrow(na), "| voor juni 2022:", nrow(voor),
+    "| datum onbekend:", sum(is.na(d$periode)), "\n")
+if (nrow(na) < 5) stop("Er zijn (bijna) geen operaties na ", format(cutoff_datum),
+                       " gevonden. Controleer de melding over de operatiedatum hierboven en stuur die door.")
+
 
 out_dir <- "output_v2"; dir.create(out_dir, showWarnings = FALSE)
 out_pad <- normalizePath(out_dir)
