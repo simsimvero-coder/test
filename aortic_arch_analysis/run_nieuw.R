@@ -40,21 +40,25 @@ cat("Gebruikt cohort: data/derived/cohort.rds, gemaakt op",
 if (!requireNamespace("segmented", quietly = TRUE))
   try(install.packages("segmented"), silent = TRUE)
 
-# 5. Run the scripts; one failing script does not stop the others
-scripts <- c("centre_perfusion.R", "sens_strict_groups.R", "volume.R")
-status <- setNames(character(length(scripts)), scripts)
-for (s in scripts) {
-  cat("\n\n#############  ", s, "  #############\n")
-  t0 <- Sys.time()
-  status[s] <- tryCatch({ source(s); "OK" },
-                        error = function(e) paste("FOUT:", conditionMessage(e)))
-  while (sink.number() > 0) sink()
-  cat("\n", s, ": ", status[s], " (", round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1), " min)\n", sep = "")
+# 5. Run the scripts; one failing script does not stop the others.
+#    The loop runs inside a function so that the scripts (which run in the global
+#    environment) cannot overwrite its variables.
+.run_nieuw <- function(files) {
+  vapply(files, function(f) {
+    cat("\n\n#############  ", f, "  #############\n")
+    t0 <- Sys.time()
+    res <- tryCatch({ source(f, local = globalenv()); "OK" },
+                    error = function(e) paste("FOUT:", conditionMessage(e)))
+    while (sink.number() > 0) sink()
+    cat("\n", f, ": ", res, " (", round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1), " min)\n", sep = "")
+    res
+  }, character(1))
 }
+.status_nieuw <- .run_nieuw(c("centre_perfusion.R", "sens_strict_groups.R", "volume.R"))
 
 # 6. Where the overviews are
 cat("\n\n============ KLAAR ============\n")
-print(status)
+print(.status_nieuw)
 cat("\nOverzichten (stuur hiervan screenshots):\n")
 for (f in list.files("results", pattern = "^overzicht_(centre_perfusion|strict_groups|volume)\\.txt$",
                      recursive = TRUE, full.names = TRUE))
