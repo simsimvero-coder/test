@@ -408,11 +408,44 @@ for (def in names(definities)) for (p in echo_par) {
   pg <- pnorm(0, tt$estimate, tt$std.error); gh <- gunstig_hoger[[p]]
   res_M1[[length(res_M1) + 1]] <- tibble(definitie = def, parameter = p,
     n_cp = sum(dd$tech == "cardioplegie"), n_kh = sum(dd$tech == "kloppend_hart"),
-    delta_cp = em$emmean[1], delta_kh = em$emmean[2],
+    pre_gem_cp = mean(dd[[pre]][dd$tech == "cardioplegie"]), pre_gem_kh = mean(dd[[pre]][dd$tech == "kloppend_hart"]),
+    delta_cp = em$emmean[1], delta_cp_ci_laag = em$lower.CL[1], delta_cp_ci_hoog = em$upper.CL[1],
+    delta_kh = em$emmean[2], delta_kh_ci_laag = em$lower.CL[2], delta_kh_ci_hoog = em$upper.CL[2],
+    relatief_cp_pct = 100 * em$emmean[1] / mean(dd[[pre]][dd$tech == "cardioplegie"]),
+    relatief_kh_pct = 100 * em$emmean[2] / mean(dd[[pre]][dd$tech == "kloppend_hart"]),
     verschil_kh_min_cp = tt$estimate, ci_laag = tt$conf.low, ci_hoog = tt$conf.high, p = tt$p.value,
     P_kh_gunstiger = if (gh) 1 - pg else pg)
 }
 tab_M1 <- bind_rows(res_M1); schrijf(tab_M1, "M1_echo_per_techniek")
+# delta = gecorrigeerde verandering (procentpunten voor LVEF/GLS) bij TTE op ref-dag, bij gemiddelde pre-waarde
+# relatief_pct = delta als % van de gemiddelde pre-op waarde in die groep
+
+## M1b. NIEUWE dysfunctie: normaal vóór de OK, afwijkend erna
+# LV: LVEF >=50 -> <50 ; GLS: |GLS| >=18 -> <18 ; RV: TAPSE>=17 en S'>=9,5 -> TAPSE<17 of S'<9,5
+nieuw_def <- list(lv_dysf = "nieuwe LV-dysfunctie (LVEF >=50 -> <50%)",
+                  gls_abn = "nieuw afwijkende GLS (>=18 -> <18%)",
+                  rv_dysf = "nieuwe RV-dysfunctie (TAPSE<17 of S'<9,5)")
+res_M1b <- list()
+for (def in names(definities)) for (k in names(nieuw_def)) {
+  tv <- definities[[def]]; pre <- paste0("pre_", k); post <- paste0("post_", k)
+  dd <- dc[!is.na(dc[[pre]]) & dc[[pre]] == 0 & !is.na(dc[[post]]) & !is.na(dc[[tv]]), ]
+  dd$tech <- dd[[tv]]; dd$y <- dd[[post]]
+  if (nrow(dd) < 10 || min(table(dd$tech)) < 3) next
+  ev <- tapply(dd$y, dd$tech, sum); nn <- table(dd$tech)
+  ci_bin <- function(x, n) if (n > 0) binom.test(x, n)$conf.int * 100 else c(NA, NA)
+  ccp <- ci_bin(ev[["cardioplegie"]], nn[["cardioplegie"]]); ckh <- ci_bin(ev[["kloppend_hart"]], nn[["kloppend_hart"]])
+  r <- if (sum(dd$y) >= 2 && !anyNA(dd$es2)) tryCatch(firth(y ~ tech + es2, dd), error = function(e) NULL) else NULL
+  kk <- "techkloppend_hart"
+  res_M1b[[length(res_M1b) + 1]] <- tibble(definitie = def, uitkomst = nieuw_def[[k]],
+    n_risico_cp = nn[["cardioplegie"]], events_cp = ev[["cardioplegie"]],
+    pct_cp = 100 * ev[["cardioplegie"]] / nn[["cardioplegie"]], ci_cp = sprintf("%.0f-%.0f%%", ccp[1], ccp[2]),
+    n_risico_kh = nn[["kloppend_hart"]], events_kh = ev[["kloppend_hart"]],
+    pct_kh = 100 * ev[["kloppend_hart"]] / nn[["kloppend_hart"]], ci_kh = sprintf("%.0f-%.0f%%", ckh[1], ckh[2]),
+    p_fisher = tryCatch(fisher.test(table(dd$tech, dd$y))$p.value, error = function(e) NA),
+    OR_firth_es2 = if (!is.null(r)) exp(r$b[[kk]]) else NA,
+    OR_ci_laag = if (!is.null(r)) exp(r$ci_l[[kk]]) else NA, OR_ci_hoog = if (!is.null(r)) exp(r$ci_h[[kk]]) else NA)
+}
+tab_M1b <- bind_rows(res_M1b); schrijf(tab_M1b, "M1b_nieuwe_dysfunctie_per_techniek")
 
 ###############################################################################
 # M2. BIOMARKERS
@@ -595,7 +628,12 @@ dev.off()
 # TONEN
 ###############################################################################
 toon(tab_M0, "M0. Omgezette patiënten (toegewezen kloppend hart, kreeg cardioplegie) vs zoals bedoeld")
-toon(tab_M1, "M1. Echo: gecorrigeerde verandering per techniek (pre-waarde + tijd tot TTE + ES2)")
+toon(tab_M1 %>% select(definitie, parameter, n_cp, pre_gem_cp, delta_cp, delta_cp_ci_laag, delta_cp_ci_hoog, relatief_cp_pct,
+                        n_kh, pre_gem_kh, delta_kh, delta_kh_ci_laag, delta_kh_ci_hoog, relatief_kh_pct),
+     "M1. Echo: gecorrigeerde verandering PER GROEP met 95%-BI (pre-waarde + tijd tot TTE + ES2; TTE op ref-dag)")
+toon(tab_M1 %>% select(definitie, parameter, verschil_kh_min_cp, ci_laag, ci_hoog, p, P_kh_gunstiger),
+     "M1. Verschil kloppend hart - cardioplegie")
+toon(tab_M1b, "M1b. Nieuwe dysfunctie na de OK (alleen patiënten met normale waarde vóór de OK)")
 toon(tab_M2, "M2. Biomarkers na OK: ratio geometrisch gemiddelde kloppend hart / cardioplegie")
 toon(tab_M3, "M3. Effect klemtijd per 30 min per techniek")
 toon(tab_M4, "M4. Klinische myocarduitkomsten (Firth + Bayes)")
